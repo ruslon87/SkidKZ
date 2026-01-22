@@ -1,33 +1,30 @@
-# SkidKZ Project Documentation
+# SkidKZ Flutter Project
+
+## Overview
+SkidKZ is a mobile application prototype connecting Buyers, Sellers, and Wanghongs (Recommendations).
+Built with Flutter, Riverpod, and GoRouter.
 
 ## Tech Stack
-- **Framework:** Flutter (latest)
-- **State Management:** Riverpod
-- **Navigation:** go_router (ShellRoute for nested navigation)
-- **UI:** Material 3 with "Minimal Business" aesthetic (Russian)
-- **Localization:** Hardcoded Russian strings (as requested for prototype)
-
-## Architecture
-- **Features:** Organized by domain (Auth, Buyer, Seller, Wanghong, Admin).
-- **Core:** Shared widgets (`RoleShell`, `ProfileScreen`) and Theme.
-- **Data:** `MockDatabase` singleton provider for simulating backend, auth, and orders.
+- **Framework:** Flutter (Material 3)
+- **State Management:** flutter_riverpod
+- **Navigation:** go_router
+- **Localization:** Russian (Hardcoded for Prototype)
+- **Data:** Mock In-Memory Database
 
 ## Key Features
-1.  **Role-Based Access:** Instant switching between Buyer, Seller, Wanghong, Admin.
-2.  **Mock Economy:**
-    - Retail Price vs SkidKZ Price (unlocked via promo code).
-    - Wholesale Price for Sellers (margin calculation).
-    - Wanghong Commission (10%).
-3.  **Android Back Handling:**
-    - `PopScope` used in `RoleShell`.
-    - Logic: Back -> Main Tab -> SnackBar -> Exit.
-4.  **No Images:** All visuals use Emojis/Icons.
+- **Role Selection:** Buyer, Wanghong, Seller, Admin.
+- **Buyer:** Catalog, Product Details (Promo Code Logic), Orders.
+- **Wanghong:** Dashboard, Earnings Tracking, Payout Request.
+- **Seller:** Product Management (Add/Edit), Order Fulfillment.
+- **Admin:** Moderation Queue, Deal Management.
 
-## Changelog
-- **Refined Prototype:**
-    - Translated all UI to Russian.
-    - Implemented specific Back Button logic.
-    - Added "Add Product" flow for Sellers.
-    - Added "Deals" and "Wallet" for Wanghons.
-    - Added "Moderation" and "User Management" for Admins.
-    - Implemented Promo Code logic (`IVAN25`).
+## Architecture
+- `lib/core`: Routing, Theme, Shared Widgets.
+- `lib/data`: Models, Mock Database (Repositories).
+- `lib/features`: Feature-based folders (Auth, Buyer, Seller, Wanghong, Admin).
+
+## Recent Changes
+- Fixed Back Button logic for Android (PopScope in RoleShell).
+- Translated entire UI to Russian.
+- Implemented Mock Economy logic (Margins, Commissions).
+- Fixed Flutter Analysis errors (Type safety, Provider usage).
