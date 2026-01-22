@@ -9,7 +9,9 @@ class WanghongDealsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final allOrders = ref.watch(mockDatabaseProvider).orders;
+    // Accessing orders directly via provider
+    final allOrders = ref.watch(ordersProvider);
+    // Assuming current user promo code logic or filtering by specific promo for demo
     final myDeals = allOrders.where((o) => o.promoCode == 'IVAN25').toList();
 
     return Scaffold(
@@ -28,6 +30,9 @@ class WanghongDealsScreen extends ConsumerWidget {
               separatorBuilder: (context, index) => const SizedBox(height: 12),
               itemBuilder: (context, index) {
                 final deal = myDeals[index];
+                final isHold = deal.holdUntil.isAfter(DateTime.now());
+                final formatter = NumberFormat.currency(symbol: '₸', decimalDigits: 0);
+                
                 return Card(
                   elevation: 0,
                   color: Colors.white,
@@ -43,24 +48,41 @@ class WanghongDealsScreen extends ConsumerWidget {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              deal.product.title,
+                              deal.product.name,
                               style: const TextStyle(fontWeight: FontWeight.bold),
                             ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: Colors.orange.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: const Text(
-                                'HOLD 14 дней',
-                                style: TextStyle(
-                                  color: Colors.orange,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
+                            if (isHold)
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Colors.orange.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Text(
+                                  'HOLD',
+                                  style: TextStyle(
+                                    color: Colors.orange,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              )
+                            else
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Colors.green.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Text(
+                                  'AVAILABLE',
+                                  style: TextStyle(
+                                    color: Colors.green,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                               ),
-                            ),
                           ],
                         ),
                         const SizedBox(height: 12),
@@ -71,9 +93,9 @@ class WanghongDealsScreen extends ConsumerWidget {
                               'Ваша доля:',
                               style: TextStyle(color: Colors.grey.shade600),
                             ),
-                            const Text(
-                              '+ 9 000 ₸',
-                              style: TextStyle(
+                            Text(
+                              '+ ${formatter.format(deal.wanghunEarning)}',
+                              style: const TextStyle(
                                 color: Colors.green,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 16,
@@ -90,7 +112,7 @@ class WanghongDealsScreen extends ConsumerWidget {
                               style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
                             ),
                             Text(
-                              'Разблок: ${DateFormat('dd.MM').format(deal.createdAt.add(const Duration(days: 14)))}',
+                              'Разблок: ${DateFormat('dd.MM').format(deal.holdUntil)}',
                               style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
                             ),
                           ],

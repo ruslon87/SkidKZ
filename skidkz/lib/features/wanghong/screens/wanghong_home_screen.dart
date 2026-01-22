@@ -20,19 +20,21 @@ class WanghongHomeScreen extends ConsumerWidget {
         .toList()
         ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
-    // Calculate Earnings (Mock 10% commission)
-    final totalEarnings = orders.fold(0.0, (sum, o) => sum + (o.amount * 0.1));
+    // Calculate Earnings using new fields
+    final totalEarnings = orders.fold(0.0, (sum, o) => sum + o.wanghunEarning);
+    
+    final now = DateTime.now();
     final holdEarnings = orders
-        .where((o) => o.earningStatus == EarningStatus.hold)
-        .fold(0.0, (sum, o) => sum + (o.amount * 0.1));
+        .where((o) => o.holdUntil.isAfter(now))
+        .fold(0.0, (sum, o) => sum + o.wanghunEarning);
+        
     final availableEarnings = orders
-        .where((o) => o.earningStatus == EarningStatus.available)
-        .fold(0.0, (sum, o) => sum + (o.amount * 0.1));
-
+        .where((o) => o.holdUntil.isBefore(now) || o.holdUntil.isAtSameMomentAs(now))
+        .fold(0.0, (sum, o) => sum + o.wanghunEarning);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Wanghong Dashboard'),
+        title: const Text('Кабинет рекомендателя'),
         actions: [
           IconButton(
             onPressed: () => ref.read(authProvider.notifier).logout(),
@@ -52,7 +54,7 @@ class WanghongHomeScreen extends ConsumerWidget {
                 padding: const EdgeInsets.all(24.0),
                 child: Column(
                   children: [
-                    const Text('Your Promo Code', style: TextStyle(color: Colors.white70)),
+                    const Text('Ваш промокод', style: TextStyle(color: Colors.white70)),
                     const Gap(8),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -69,14 +71,14 @@ class WanghongHomeScreen extends ConsumerWidget {
                         IconButton(
                           onPressed: () {
                             Clipboard.setData(ClipboardData(text: user?.promoCode ?? ''));
-                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Copied!')));
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Скопировано!')));
                           },
                           icon: const Icon(Icons.copy, color: Colors.white),
                         ),
                       ],
                     ),
                     const Gap(8),
-                    const Text('Share to earn 10% from each sale', style: TextStyle(color: Colors.white70)),
+                    const Text('Делитесь и получайте доход с каждой продажи', style: TextStyle(color: Colors.white70)),
                   ],
                 ),
               ),
@@ -84,18 +86,18 @@ class WanghongHomeScreen extends ConsumerWidget {
             const Gap(24),
 
             // Balance Section
-            Text('Balance', style: Theme.of(context).textTheme.titleLarge),
+            Text('Баланс', style: Theme.of(context).textTheme.titleLarge),
             const Gap(16),
             Row(
               children: [
-                Expanded(child: _BalanceCard(label: 'Total', amount: totalEarnings, color: Colors.black)),
+                Expanded(child: _BalanceCard(label: 'Всего', amount: totalEarnings, color: Colors.black)),
                 const Gap(16),
-                Expanded(child: _BalanceCard(label: 'On Hold', amount: holdEarnings, color: Colors.orange)),
+                Expanded(child: _BalanceCard(label: 'В холде', amount: holdEarnings, color: Colors.orange)),
               ],
             ),
             const Gap(16),
             _BalanceCard(
-              label: 'Available for Payout',
+              label: 'Доступно к выводу',
               amount: availableEarnings,
               color: AppTheme.success,
               action: ElevatedButton(
@@ -106,19 +108,21 @@ class WanghongHomeScreen extends ConsumerWidget {
                   backgroundColor: AppTheme.success,
                   foregroundColor: Colors.white,
                 ),
-                child: const Text('Request Payout'),
+                child: const Text('Запросить выплату'),
               ),
             ),
             if (availableEarnings < 1000)
               const Padding(
                 padding: EdgeInsets.only(top: 8.0),
-                child: Text('Min. payout: 1,000 ₸', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                child: Text('Мин. сумма: 1 000 ₸', style: TextStyle(color: Colors.grey, fontSize: 12)),
               ),
             const Gap(32),
 
             // Earnings List
-            Text('Recent Earnings', style: Theme.of(context).textTheme.titleLarge),
+            Text('История начислений', style: Theme.of(context).textTheme.titleLarge),
             const Gap(16),
+            if (orders.isEmpty)
+              const Text('Пока нет начислений', style: TextStyle(color: Colors.grey)),
             ...orders.map((o) => _EarningItem(order: o)),
           ],
         ),
@@ -130,16 +134,16 @@ class WanghongHomeScreen extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Payout Request'),
-        content: Text('Request payout of ${NumberFormat.currency(symbol: '₸', decimalDigits: 0).format(amount)}?'),
+        title: const Text('Запрос выплаты'),
+        content: Text('Вывести ${NumberFormat.currency(symbol: '₸', decimalDigits: 0).format(amount)}?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Отмена')),
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Request submitted!')));
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Запрос отправлен!')));
             },
-            child: const Text('Submit'),
+            child: const Text('Подтвердить'),
           ),
         ],
       ),
@@ -193,7 +197,8 @@ class _EarningItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final earning = order.amount * 0.1;
+    final earning = order.wanghunEarning;
+    final isHold = order.holdUntil.isAfter(DateTime.now());
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -202,8 +207,8 @@ class _EarningItem extends StatelessWidget {
           backgroundColor: Colors.purple.shade50,
           child: const Icon(Icons.attach_money, color: Colors.purple),
         ),
-        title: Text(order.product.title),
-        subtitle: Text(DateFormat('MMM d, y').format(order.createdAt)),
+        title: Text(order.product.name), // Fixed: product.title -> product.name
+        subtitle: Text(DateFormat('d MMM y').format(order.createdAt)),
         trailing: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.end,
@@ -213,8 +218,12 @@ class _EarningItem extends StatelessWidget {
               style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.success),
             ),
             Text(
-              order.earningStatus.name.toUpperCase(),
-              style: const TextStyle(fontSize: 10, color: Colors.grey),
+              isHold ? 'HOLD' : 'AVAILABLE',
+              style: TextStyle(
+                fontSize: 10, 
+                color: isHold ? Colors.orange : Colors.green,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ],
         ),

@@ -18,7 +18,7 @@ class CatalogScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('SkidKZ Catalog'),
+        title: const Text('Каталог SkidKZ'),
         actions: [
           IconButton(
             onPressed: () {
@@ -34,7 +34,7 @@ class CatalogScreen extends ConsumerWidget {
             padding: const EdgeInsets.all(16.0),
             child: TextField(
               decoration: const InputDecoration(
-                hintText: 'Search products...',
+                hintText: 'Поиск товаров...',
                 prefixIcon: Icon(Icons.search),
               ),
               onChanged: (value) {}, // Mock search
@@ -82,7 +82,12 @@ class _ProductCard extends StatelessWidget {
               child: Container(
                 color: Colors.grey.shade200,
                 width: double.infinity,
-                child: const Icon(Icons.image, size: 50, color: Colors.grey),
+                child: Center(
+                  child: Text(
+                    product.category.split(' ').last, // Use emoji from category
+                    style: const TextStyle(fontSize: 40),
+                  ),
+                ),
               ),
             ),
             Padding(
@@ -91,7 +96,7 @@ class _ProductCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    product.title,
+                    product.name,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
@@ -112,7 +117,7 @@ class _ProductCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
-                      'Unlock price',
+                      'Цена SkidKZ',
                       style: Theme.of(context).textTheme.labelSmall?.copyWith(
                         color: AppTheme.primary,
                         fontWeight: FontWeight.bold,

@@ -10,6 +10,7 @@ class AdminDealsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final orders = ref.watch(ordersProvider);
+    final formatter = NumberFormat.currency(symbol: '₸', decimalDigits: 0);
 
     return Scaffold(
       backgroundColor: AppTheme.background,
@@ -43,22 +44,30 @@ class AdminDealsScreen extends ConsumerWidget {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              order.product.title,
+                              order.product.name,
                               style: const TextStyle(fontWeight: FontWeight.bold),
                             ),
                             Text(
-                              '${order.amount.toInt()} ₸',
+                              formatter.format(order.customerPrice),
                               style: const TextStyle(fontWeight: FontWeight.bold),
                             ),
                           ],
                         ),
                         const SizedBox(height: 8),
-                        Text('Покупатель: Иван | Продавец: seller1', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                        Text('Покупатель: ${order.buyerPhone}', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
                         if (order.promoCode != null)
                           Padding(
                             padding: const EdgeInsets.only(top: 4.0),
-                            child: Text('Ванхун: ${order.promoCode} (+9 000 ₸)', style: TextStyle(fontSize: 12, color: Colors.purple.shade300)),
+                            child: Text(
+                              'Ванхун: ${order.promoCode} (+${formatter.format(order.wanghunEarning)})',
+                              style: TextStyle(fontSize: 12, color: Colors.purple.shade300),
+                            ),
                           ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Маржа платформы: +${formatter.format(order.platformEarning)}',
+                          style: TextStyle(fontSize: 12, color: Colors.blue.shade300),
+                        ),
                         const SizedBox(height: 12),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -67,7 +76,7 @@ class AdminDealsScreen extends ConsumerWidget {
                             TextButton(
                               onPressed: () {
                                 // Cancel logic mock
-                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Сделка отменена')));
+                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Сделка отменена (Mock)')));
                               },
                               style: TextButton.styleFrom(
                                 foregroundColor: Colors.red,

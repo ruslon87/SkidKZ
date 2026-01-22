@@ -10,16 +10,96 @@ class ProductsNotifier extends Notifier<List<Product>> {
   @override
   List<Product> build() {
     return [
-      Product(id: '1', title: 'Кроссовки Nike Air', categoryIcon: '👟', retailPrice: 100000, skidkzPrice: 85000, wholesalePrice: 75000, sellerId: 'seller1'),
-      Product(id: '2', title: 'iPhone 15 Case', categoryIcon: '📱', retailPrice: 15000, skidkzPrice: 12000, wholesalePrice: 10000, sellerId: 'seller1'),
-      Product(id: '3', title: 'Кофемашина', categoryIcon: '☕', retailPrice: 100000, skidkzPrice: 85000, wholesalePrice: 75000, sellerId: 'seller2'),
-      Product(id: '4', title: 'Услуги сантехника', categoryIcon: '🛠️', retailPrice: 20000, skidkzPrice: 15000, wholesalePrice: 10000, sellerId: 'seller2', type: ProductType.service),
-      Product(id: '5', title: 'Губная помада', categoryIcon: '💄', retailPrice: 8000, skidkzPrice: 6000, wholesalePrice: 4000, sellerId: 'seller1'),
-      Product(id: '6', title: 'Бургер Сет', categoryIcon: '🍔', retailPrice: 5000, skidkzPrice: 4000, wholesalePrice: 3000, sellerId: 'seller2'),
-      Product(id: '7', title: 'Зимние шины', categoryIcon: '🛞', retailPrice: 100000, skidkzPrice: 85000, wholesalePrice: 75000, sellerId: 'seller1'),
-      Product(id: '8', title: 'Фитнес-трекер', categoryIcon: '⌚', retailPrice: 25000, skidkzPrice: 20000, wholesalePrice: 15000, sellerId: 'seller2'),
-      Product(id: '9', title: 'Рюкзак городской', categoryIcon: '🎒', retailPrice: 18000, skidkzPrice: 14000, wholesalePrice: 10000, sellerId: 'seller1'),
-      Product(id: '10', title: 'Набор инструментов', categoryIcon: '🔧', retailPrice: 45000, skidkzPrice: 38000, wholesalePrice: 30000, sellerId: 'seller2'),
+      Product(
+        id: '1',
+        name: 'Кроссовки Nike Air',
+        category: 'Обувь 👟',
+        retailPrice: 100000.0,
+        sellerPrice: 75000.0,
+        status: ProductStatus.approved,
+        isService: false,
+      ),
+      Product(
+        id: '2',
+        name: 'iPhone 15 Case',
+        category: 'Аксессуары 📱',
+        retailPrice: 15000.0,
+        sellerPrice: 10000.0,
+        status: ProductStatus.approved,
+        isService: false,
+      ),
+      Product(
+        id: '3',
+        name: 'Кофемашина',
+        category: 'Бытовая техника ☕',
+        retailPrice: 100000.0,
+        sellerPrice: 75000.0,
+        status: ProductStatus.approved,
+        isService: false,
+      ),
+      Product(
+        id: '4',
+        name: 'Услуги сантехника',
+        category: 'Ремонт 🛠️',
+        retailPrice: 20000.0,
+        sellerPrice: 10000.0,
+        status: ProductStatus.approved,
+        isService: true,
+      ),
+      Product(
+        id: '5',
+        name: 'Губная помада',
+        category: 'Красота 💄',
+        retailPrice: 8000.0,
+        sellerPrice: 4000.0,
+        status: ProductStatus.approved,
+        isService: false,
+      ),
+      Product(
+        id: '6',
+        name: 'Бургер Сет',
+        category: 'Еда 🍔',
+        retailPrice: 5000.0,
+        sellerPrice: 3000.0,
+        status: ProductStatus.approved,
+        isService: false,
+      ),
+      Product(
+        id: '7',
+        name: 'Зимние шины',
+        category: 'Авто 🛞',
+        retailPrice: 100000.0,
+        sellerPrice: 75000.0,
+        status: ProductStatus.approved,
+        isService: false,
+      ),
+      Product(
+        id: '8',
+        name: 'Фитнес-трекер',
+        category: 'Электроника ⌚',
+        retailPrice: 25000.0,
+        sellerPrice: 15000.0,
+        status: ProductStatus.approved,
+        isService: false,
+      ),
+      Product(
+        id: '9',
+        name: 'Рюкзак городской',
+        category: 'Аксессуары 🎒',
+        retailPrice: 18000.0,
+        sellerPrice: 10000.0,
+        status: ProductStatus.approved,
+        isService: false,
+      ),
+      Product(
+        id: '10',
+        name: 'Набор инструментов',
+        category: 'Инструменты 🔧',
+        retailPrice: 45000.0,
+        sellerPrice: 30000.0,
+        status: ProductStatus.approved,
+        isService: false,
+      ),
     ];
   }
 
@@ -54,17 +134,6 @@ class OrdersNotifier extends Notifier<List<Order>> {
         if (o.id == id) o.copyWith(status: status) else o
     ];
   }
-}
-
-// --- MOCK DATABASE (Deprecated/Legacy support) ---
-// Kept for simple constants or direct access if needed, but providers are preferred.
-final mockDatabaseProvider = Provider((ref) => MockDatabase(ref));
-
-class MockDatabase {
-  final Ref ref;
-  MockDatabase(this.ref);
-
-  List<Order> get orders => ref.read(ordersProvider);
 }
 
 // --- AUTH PROVIDER ---
@@ -113,7 +182,7 @@ class WalletState {
 class WalletNotifier extends Notifier<WalletState> {
   @override
   WalletState build() {
-    return WalletState(balance: 45000, hold: 18000);
+    return WalletState(balance: 45000.0, hold: 18000.0);
   }
 
   void addEarnings(double amount, {bool isHold = true}) {
@@ -129,4 +198,13 @@ class WalletNotifier extends Notifier<WalletState> {
       state = WalletState(balance: 0, hold: state.hold); // Demo: Clear balance
     }
   }
+}
+
+// --- MOCK DATABASE (Legacy/Helper) ---
+// Useful if we need access to providers via ref in a class
+final mockDatabaseProvider = Provider((ref) => MockDatabase(ref));
+
+class MockDatabase {
+  final Ref ref;
+  MockDatabase(this.ref);
 }

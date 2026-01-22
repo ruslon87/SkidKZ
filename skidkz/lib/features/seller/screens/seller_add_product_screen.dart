@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import 'package:skidkz/core/theme/app_theme.dart';
 import 'package:skidkz/data/models/product_model.dart';
 import 'package:skidkz/data/repositories/mock_database.dart';
@@ -16,28 +17,68 @@ class SellerAddProductScreen extends ConsumerStatefulWidget {
 class _SellerAddProductScreenState extends ConsumerState<SellerAddProductScreen> {
   final _nameController = TextEditingController();
   final _retailPriceController = TextEditingController();
-  String _selectedIcon = '📦';
-  double _wholesalePercentage = 75; // 75% of retail
+  final _sellerPriceController = TextEditingController();
+  
+  String _selectedCategory = 'Товары 📦';
+  bool _isService = false;
 
-  final List<String> _icons = ['📦', '👟', '📱', '💄', '🍔', '🛠️', '🛞', '🎓', '✈️', '🏠'];
+  final List<String> _categories = [
+    'Товары 📦', 'Обувь 👟', 'Электроника 📱', 'Красота 💄', 
+    'Еда 🍔', 'Ремонт 🛠️', 'Авто 🛞', 'Обучение 🎓', 'Туризм ✈️', 'Недвижимость 🏠'
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _retailPriceController.addListener(_updateCalculations);
+    _sellerPriceController.addListener(_updateCalculations);
+  }
+
+  @override
+  void dispose() {
+    _retailPriceController.removeListener(_updateCalculations);
+    _sellerPriceController.removeListener(_updateCalculations);
+    super.dispose();
+  }
+
+  void _updateCalculations() {
+    setState(() {});
+  }
 
   @override
   Widget build(BuildContext context) {
-    // Calculate prices based on inputs
     final retailPrice = double.tryParse(_retailPriceController.text) ?? 0;
-    final wholesalePrice = retailPrice * (_wholesalePercentage / 100);
-    final skidkzPrice = retailPrice * 0.85; // Fixed 15% discount for buyer? 
-    // Prompt says: "Wholesale price <= Retail". "Min difference 10%".
-    // "Economics (Demo): Retail 100k, SkidKZ 85k, Wholesale 75k".
-    // So Wholesale is 75% of Retail. SkidKZ is 85% of Retail.
-    // Margin = SkidKZ (85) - Wholesale (75) = 10k.
+    final sellerPrice = double.tryParse(_sellerPriceController.text) ?? 0;
     
-    // I will use slider to adjust Wholesale Price as % of Retail.
+    // Logic from prompt:
+    // C = W + M.
+    // Minimum margin M_min = 3% of R.
+    // So C_min = W + 0.03*R.
+    // Also C <= 0.95 * R.
+    // So W + 0.03*R <= 0.95*R  =>  W <= 0.92*R.
     
+    final minMargin = retailPrice * 0.03;
+    final maxSellerPrice = retailPrice * 0.92;
+    
+    // We assume platform adds margin to hit a target or just minimum?
+    // Let's set Customer Price (SkidKZ) to be competitive, e.g. 90% of R, 
+    // or W + minMargin if that's higher.
+    double calculatedSkidkzPrice = sellerPrice + minMargin;
+    if (calculatedSkidkzPrice < retailPrice * 0.9) {
+       calculatedSkidkzPrice = retailPrice * 0.9; // Try to target 10% discount
+    }
+    
+    // Validation
+    final isValidW = sellerPrice > 0 && sellerPrice <= maxSellerPrice;
+    final isValidR = retailPrice > 0;
+    final isValidC = calculatedSkidkzPrice <= retailPrice * 0.95; 
+
+    final currencyFormatter = NumberFormat.currency(symbol: '₸', decimalDigits: 0);
+
     return Scaffold(
       backgroundColor: AppTheme.background,
       appBar: AppBar(
-        title: const Text('Добавить товар'),
+        title: const Text('Добавить предложение'),
         backgroundColor: Colors.white,
         elevation: 0,
       ),
@@ -58,72 +99,68 @@ class _SellerAddProductScreenState extends ConsumerState<SellerAddProductScreen>
               ),
             ),
             const Gap(16),
-            const Text('Выберите категорию (иконку):'),
+            
+            SwitchListTile(
+              title: const Text('Это услуга?'),
+              value: _isService,
+              onChanged: (val) {
+                setState(() {
+                  _isService = val;
+                  if (_isService && !_selectedCategory.contains('🛠️')) {
+                    _selectedCategory = 'Ремонт 🛠️'; // Default service category
+                  }
+                });
+              },
+            ),
+            
+            const Gap(16),
+            const Text('Категория:'),
             const Gap(8),
-            SizedBox(
-              height: 60,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: _icons.length,
-                separatorBuilder: (_, __) => const Gap(12),
-                itemBuilder: (context, index) {
-                  final icon = _icons[index];
-                  final isSelected = icon == _selectedIcon;
-                  return InkWell(
-                    onTap: () => setState(() => _selectedIcon = icon),
-                    child: Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: isSelected ? AppTheme.primary : Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey.shade300),
-                      ),
-                      child: Text(
-                        icon,
-                        style: const TextStyle(fontSize: 24),
-                      ),
-                    ),
-                  );
-                },
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: _selectedCategory,
+                  isExpanded: true,
+                  items: _categories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
+                  onChanged: (val) => setState(() => _selectedCategory = val!),
+                ),
               ),
             ),
             const Gap(32),
             const Text('Ценообразование', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             const Gap(16),
+            
             TextField(
               controller: _retailPriceController,
               keyboardType: TextInputType.number,
-              onChanged: (_) => setState(() {}),
               decoration: InputDecoration(
-                labelText: 'Розничная цена (₸)',
+                labelText: 'Розничная цена (R)',
+                suffixText: '₸',
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 filled: true,
                 fillColor: Colors.white,
               ),
             ),
-            const Gap(24),
-            Text('Оптовая цена для SkidKZ: ${_formatPrice(wholesalePrice)} ₸'),
-            const Gap(8),
-            Row(
-              children: [
-                const Text('50%'),
-                Expanded(
-                  child: Slider(
-                    value: _wholesalePercentage,
-                    min: 50,
-                    max: 90,
-                    divisions: 40,
-                    label: '${_wholesalePercentage.round()}%',
-                    onChanged: (value) => setState(() => _wholesalePercentage = value),
-                  ),
-                ),
-                const Text('90%'),
-              ],
+            const Gap(16),
+             TextField(
+              controller: _sellerPriceController,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                labelText: 'Сколько вы хотите получать (W)',
+                suffixText: '₸',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                filled: true,
+                fillColor: Colors.white,
+                errorText: !isValidW && retailPrice > 0 ? 'Максимум: ${currencyFormatter.format(maxSellerPrice)} (92% от R)' : null,
+              ),
             ),
-            Text(
-              'Это ${_wholesalePercentage.round()}% от розничной цены',
-              style: const TextStyle(color: Colors.grey, fontSize: 12),
-            ),
+
             const Gap(24),
             Container(
               padding: const EdgeInsets.all(16),
@@ -134,12 +171,15 @@ class _SellerAddProductScreenState extends ConsumerState<SellerAddProductScreen>
               ),
               child: Column(
                 children: [
-                  _buildPriceRow('Розничная цена', retailPrice),
+                  _buildPriceRow('Розничная цена (R)', retailPrice),
                   const Divider(),
-                  _buildPriceRow('Цена SkidKZ (Покупатель)', skidkzPrice, isBold: true),
-                  _buildPriceRow('Оптовая цена (Вам)', wholesalePrice, color: Colors.green),
+                  _buildPriceRow('Цена SkidKZ (Для клиента)', calculatedSkidkzPrice, isBold: true, color: AppTheme.primary),
+                  _buildPriceRow('Ваша выплата (W)', sellerPrice, color: Colors.green),
                   const Divider(),
-                  _buildPriceRow('Маржа платформы', skidkzPrice - wholesalePrice, isSmall: true),
+                  if (!isValidC && retailPrice > 0)
+                    const Text('Ошибка: Цена SkidKZ должна быть <= 95% от Розничной', style: TextStyle(color: Colors.red)),
+                  if (retailPrice > 0)
+                     Text('Маржа платформы скрыта от продавца', style: TextStyle(fontSize: 10, color: Colors.grey.shade400)),
                 ],
               ),
             ),
@@ -148,7 +188,9 @@ class _SellerAddProductScreenState extends ConsumerState<SellerAddProductScreen>
               width: double.infinity,
               height: 56,
               child: ElevatedButton(
-                onPressed: retailPrice > 0 && _nameController.text.isNotEmpty ? () => _save() : null,
+                onPressed: (retailPrice > 0 && sellerPrice > 0 && isValidW && _nameController.text.isNotEmpty) 
+                  ? () => _save(retailPrice, sellerPrice) 
+                  : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.primary,
                   foregroundColor: Colors.white,
@@ -165,19 +207,20 @@ class _SellerAddProductScreenState extends ConsumerState<SellerAddProductScreen>
     );
   }
 
-  Widget _buildPriceRow(String label, double price, {bool isBold = false, Color? color, bool isSmall = false}) {
+  Widget _buildPriceRow(String label, double price, {bool isBold = false, Color? color}) {
+    final currencyFormatter = NumberFormat.currency(symbol: '₸', decimalDigits: 0);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: TextStyle(fontSize: isSmall ? 12 : 14, color: isSmall ? Colors.grey : Colors.black)),
+          Text(label, style: const TextStyle(fontSize: 14)),
           Text(
-            '${_formatPrice(price)} ₸',
+            currencyFormatter.format(price),
             style: TextStyle(
               fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
               color: color ?? Colors.black,
-              fontSize: isSmall ? 12 : 14,
+              fontSize: 14,
             ),
           ),
         ],
@@ -185,29 +228,21 @@ class _SellerAddProductScreenState extends ConsumerState<SellerAddProductScreen>
     );
   }
 
-  void _save() {
-    final retailPrice = double.tryParse(_retailPriceController.text) ?? 0;
-    final wholesalePrice = retailPrice * (_wholesalePercentage / 100);
-    final skidkzPrice = retailPrice * 0.85;
-
+  void _save(double retail, double seller) {
     final product = Product(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
-      title: _nameController.text,
-      categoryIcon: _selectedIcon,
-      retailPrice: retailPrice.toInt(),
-      skidkzPrice: skidkzPrice.toInt(),
-      wholesalePrice: wholesalePrice.toInt(), // Added wholesalePrice
-      sellerId: 'seller1',
+      name: _nameController.text,
+      category: _selectedCategory,
+      retailPrice: retail,
+      sellerPrice: seller,
+      status: ProductStatus.pending,
+      isService: _isService,
     );
 
     ref.read(productsProvider.notifier).addProduct(product);
     context.pop();
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Товар отправлен на модерацию')),
+      const SnackBar(content: Text('Предложение отправлено на модерацию')),
     );
-  }
-
-  String _formatPrice(num price) {
-    return price.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]} ');
   }
 }

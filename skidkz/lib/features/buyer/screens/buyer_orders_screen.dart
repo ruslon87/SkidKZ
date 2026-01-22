@@ -13,14 +13,14 @@ class BuyerOrdersScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(authProvider);
     final orders = ref.watch(ordersProvider)
-        .where((o) => o.buyerId == user?.id)
+        .where((o) => o.buyerPhone == user?.phoneNumber)
         .toList()
         ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
     return Scaffold(
-      appBar: AppBar(title: const Text('My Orders')),
+      appBar: AppBar(title: const Text('Мои заказы')),
       body: orders.isEmpty
-          ? const Center(child: Text('No orders yet'))
+          ? const Center(child: Text('У вас пока нет заказов'))
           : ListView.builder(
               padding: const EdgeInsets.all(16),
               itemCount: orders.length,
@@ -52,11 +52,11 @@ class _OrderCard extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Order #${order.id.substring(0, 8)}',
+                  'Заказ #${order.id.substring(0, 8)}',
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
                 ),
                 Text(
-                  DateFormat('MMM d, y').format(order.createdAt),
+                  DateFormat('d MMM y').format(order.createdAt),
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppTheme.textSecondary),
                 ),
               ],
@@ -68,17 +68,22 @@ class _OrderCard extends StatelessWidget {
                   width: 50,
                   height: 50,
                   color: Colors.grey.shade200,
-                  child: const Icon(Icons.shopping_bag, color: Colors.grey),
+                  child: Center(
+                    child: Text(
+                      order.product.category.split(' ').last,
+                      style: const TextStyle(fontSize: 24),
+                    ),
+                  ),
                 ),
                 const Gap(12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(order.product.title, style: Theme.of(context).textTheme.bodyMedium),
+                      Text(order.product.name, style: Theme.of(context).textTheme.bodyMedium),
                       const Gap(4),
                       Text(
-                        currencyFormatter.format(order.amount),
+                        currencyFormatter.format(order.customerPrice),
                         style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           color: AppTheme.primary,
                           fontWeight: FontWeight.bold,
@@ -115,11 +120,10 @@ class _OrderCard extends StatelessWidget {
     switch (status) {
       case OrderStatus.paid:
         return Colors.blue;
-      case OrderStatus.fulfilled:
+      case OrderStatus.processing:
+        return Colors.orange;
       case OrderStatus.completed:
         return AppTheme.success;
-      case OrderStatus.awaitingFulfillment:
-        return Colors.orange;
       case OrderStatus.cancelled:
         return AppTheme.error;
     }
@@ -128,15 +132,13 @@ class _OrderCard extends StatelessWidget {
   String _getStatusText(OrderStatus status) {
     switch (status) {
       case OrderStatus.paid:
-        return 'Paid';
-      case OrderStatus.awaitingFulfillment:
-        return 'Awaiting Fulfillment';
-      case OrderStatus.fulfilled:
-        return 'Fulfilled';
+        return 'Оплачен';
+      case OrderStatus.processing:
+        return 'В обработке';
       case OrderStatus.completed:
-        return 'Completed';
+        return 'Завершен';
       case OrderStatus.cancelled:
-        return 'Cancelled';
+        return 'Отменен';
     }
   }
 }

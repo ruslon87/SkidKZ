@@ -1,54 +1,63 @@
 import 'package:skidkz/data/models/product_model.dart';
 
-enum OrderStatus { paid, awaitingFulfillment, fulfilled, completed, cancelled }
-enum EarningStatus { hold, available, paidOut, blocked }
+enum OrderStatus { paid, processing, completed, cancelled }
 
 class Order {
   final String id;
-  final String buyerId;
-  final String sellerId; // Simplified: 1 order = 1 product for MVP
   final Product product;
-  final double amount;
+  final String buyerPhone;
   final String? promoCode;
-  final OrderStatus status;
+  final double customerPrice;
+  final double sellerPayout;
+  final double margin;
+  final double wanghunEarning;
+  final double platformEarning;
   final DateTime createdAt;
-  
-  // For Wanghong earnings
-  final EarningStatus earningStatus;
+  final DateTime holdUntil;
+  final OrderStatus status;
 
   Order({
     required this.id,
-    required this.buyerId,
-    required this.sellerId,
     required this.product,
-    required this.amount,
+    required this.buyerPhone,
     this.promoCode,
-    required this.status,
+    required this.customerPrice,
+    required this.sellerPayout,
+    required this.margin,
+    required this.wanghunEarning,
+    required this.platformEarning,
     required this.createdAt,
-    this.earningStatus = EarningStatus.hold,
+    required this.holdUntil,
+    required this.status,
   });
 
   Order copyWith({
     String? id,
-    String? buyerId,
-    String? sellerId,
     Product? product,
-    double? amount,
+    String? buyerPhone,
     String? promoCode,
-    OrderStatus? status,
+    double? customerPrice,
+    double? sellerPayout,
+    double? margin,
+    double? wanghunEarning,
+    double? platformEarning,
     DateTime? createdAt,
-    EarningStatus? earningStatus,
+    DateTime? holdUntil,
+    OrderStatus? status,
   }) {
     return Order(
       id: id ?? this.id,
-      buyerId: buyerId ?? this.buyerId,
-      sellerId: sellerId ?? this.sellerId,
       product: product ?? this.product,
-      amount: amount ?? this.amount,
+      buyerPhone: buyerPhone ?? this.buyerPhone,
       promoCode: promoCode ?? this.promoCode,
-      status: status ?? this.status,
+      customerPrice: customerPrice ?? this.customerPrice,
+      sellerPayout: sellerPayout ?? this.sellerPayout,
+      margin: margin ?? this.margin,
+      wanghunEarning: wanghunEarning ?? this.wanghunEarning,
+      platformEarning: platformEarning ?? this.platformEarning,
       createdAt: createdAt ?? this.createdAt,
-      earningStatus: earningStatus ?? this.earningStatus,
+      holdUntil: holdUntil ?? this.holdUntil,
+      status: status ?? this.status,
     );
   }
 }

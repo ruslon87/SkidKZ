@@ -15,11 +15,11 @@ class ModerationScreen extends ConsumerWidget {
       length: 2,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Moderation Queue'),
+          title: const Text('Модерация'),
           bottom: const TabBar(
             tabs: [
-              Tab(text: 'Products'),
-              Tab(text: 'Sellers'),
+              Tab(text: 'Товары'),
+              Tab(text: 'Продавцы'),
             ],
           ),
           actions: [
@@ -32,7 +32,7 @@ class ModerationScreen extends ConsumerWidget {
         body: const TabBarView(
           children: [
             _ProductModerationList(),
-            Center(child: Text('No pending sellers')),
+            Center(child: Text('Нет заявок от продавцов')),
           ],
         ),
       ),
@@ -50,7 +50,7 @@ class _ProductModerationList extends ConsumerWidget {
         .toList();
 
     if (products.isEmpty) {
-      return const Center(child: Text('All caught up! No pending products.'));
+      return const Center(child: Text('Нет товаров на модерации'));
     }
 
     return ListView.builder(
@@ -88,18 +88,15 @@ class _ModerationCard extends ConsumerWidget {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    product.type.name.toUpperCase(),
+                    product.isService ? 'УСЛУГА' : 'ТОВАР',
                     style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 10),
                   ),
                 ),
-                const Spacer(),
-                const Text('Seller ID: '),
-                Text(product.sellerId, style: const TextStyle(fontWeight: FontWeight.bold)),
               ],
             ),
             const Gap(12),
-            Text(product.title, style: Theme.of(context).textTheme.titleMedium),
-            Text(product.description),
+            Text(product.name, style: Theme.of(context).textTheme.titleMedium),
+            Text(product.category),
             const Gap(12),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -107,7 +104,7 @@ class _ModerationCard extends ConsumerWidget {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Retail', style: TextStyle(color: Colors.grey)),
+                    const Text('Розница', style: TextStyle(color: Colors.grey)),
                     Text(currencyFormatter.format(product.retailPrice)),
                   ],
                 ),
@@ -116,6 +113,13 @@ class _ModerationCard extends ConsumerWidget {
                   children: [
                     const Text('SkidKZ', style: TextStyle(color: Colors.grey)),
                     Text(currencyFormatter.format(product.skidkzPrice), style: const TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Выплата продавцу', style: TextStyle(color: Colors.grey)),
+                    Text(currencyFormatter.format(product.sellerPrice), style: const TextStyle(color: Colors.green)),
                   ],
                 ),
               ],
@@ -129,7 +133,7 @@ class _ModerationCard extends ConsumerWidget {
                       ref.read(productsProvider.notifier).updateProductStatus(product.id, ProductStatus.rejected);
                     },
                     style: OutlinedButton.styleFrom(foregroundColor: AppTheme.error),
-                    child: const Text('Reject'),
+                    child: const Text('Отклонить'),
                   ),
                 ),
                 const Gap(16),
@@ -137,10 +141,10 @@ class _ModerationCard extends ConsumerWidget {
                   child: ElevatedButton(
                     onPressed: () {
                        ref.read(productsProvider.notifier).updateProductStatus(product.id, ProductStatus.approved);
-                       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Product Approved')));
+                       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Товар одобрен')));
                     },
                     style: ElevatedButton.styleFrom(backgroundColor: AppTheme.success),
-                    child: const Text('Approve'),
+                    child: const Text('Одобрить'),
                   ),
                 ),
               ],

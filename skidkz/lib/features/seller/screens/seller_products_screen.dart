@@ -12,10 +12,8 @@ class SellerProductsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final user = ref.watch(authProvider);
-    final products = ref.watch(productsProvider)
-        .where((p) => p.sellerId == user?.id)
-        .toList();
+    // Show all products since sellerId is removed from model
+    final products = ref.watch(productsProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -70,14 +68,17 @@ class _SellerProductCard extends StatelessWidget {
                     color: Colors.grey.shade200,
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Text(product.categoryIcon, style: const TextStyle(fontSize: 30)),
+                  child: Text(
+                    product.category.split(' ').last,
+                    style: const TextStyle(fontSize: 30),
+                  ),
                 ),
                 const Gap(16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(product.title, style: Theme.of(context).textTheme.titleMedium),
+                      Text(product.name, style: Theme.of(context).textTheme.titleMedium),
                       const Gap(4),
                       Text(
                         'Розница: ${currencyFormatter.format(product.retailPrice)}',

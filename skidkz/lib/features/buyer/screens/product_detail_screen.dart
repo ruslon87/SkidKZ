@@ -34,7 +34,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
     final currencyFormatter = NumberFormat.currency(symbol: '₸', decimalDigits: 0);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Details')),
+      appBar: AppBar(title: const Text('Детали')),
       body: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -42,20 +42,25 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
             Container(
               height: 250,
               color: Colors.grey.shade200,
-              child: const Center(child: Icon(Icons.image, size: 80, color: Colors.grey)),
+              child: Center(
+                child: Text(
+                  product.category.split(' ').last, // Use emoji from category
+                  style: const TextStyle(fontSize: 80),
+                )
+              ),
             ),
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(product.title, style: Theme.of(context).textTheme.displaySmall),
+                  Text(product.name, style: Theme.of(context).textTheme.displaySmall),
                   const Gap(8),
-                  Text(product.description, style: Theme.of(context).textTheme.bodyLarge),
+                  Text(product.category, style: Theme.of(context).textTheme.bodyLarge),
                   const Gap(24),
                   
                   // Price Section
-                  Text('Retail Price:', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppTheme.textSecondary)),
+                  Text('Розничная цена:', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppTheme.textSecondary)),
                   Text(
                     currencyFormatter.format(product.retailPrice),
                     style: Theme.of(context).textTheme.headlineMedium?.copyWith(
@@ -77,7 +82,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          _isUnlocked ? 'SkidKZ Price Unlocked!' : 'Unlock SkidKZ Price',
+                          _isUnlocked ? 'SkidKZ Цена открыта!' : 'Введите промокод',
                           style: Theme.of(context).textTheme.titleLarge?.copyWith(
                             color: _isUnlocked ? AppTheme.success : AppTheme.primary,
                             fontWeight: FontWeight.bold,
@@ -91,7 +96,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                                 child: TextField(
                                   controller: _promoController,
                                   decoration: const InputDecoration(
-                                    hintText: 'Enter Promo Code',
+                                    hintText: 'Промокод (например IVAN25)',
                                     contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 0),
                                   ),
                                 ),
@@ -102,7 +107,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                                 style: ElevatedButton.styleFrom(
                                   padding: const EdgeInsets.symmetric(horizontal: 16),
                                 ),
-                                child: const Text('Apply'),
+                                child: const Text('ОК'),
                               ),
                             ],
                           ),
@@ -116,7 +121,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                           ),
                           const Gap(4),
                           Text(
-                            'Promo applied: $_appliedPromo',
+                            'Промокод применен: $_appliedPromo',
                             style: const TextStyle(color: AppTheme.success),
                           ),
                         ],
@@ -134,7 +139,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
           padding: const EdgeInsets.all(16.0),
           child: ElevatedButton(
             onPressed: _isUnlocked ? () => _buy(product) : null,
-            child: Text(_isUnlocked ? 'Pay ${currencyFormatter.format(product.skidkzPrice)}' : 'Enter Promo to Buy'),
+            child: Text(_isUnlocked ? 'Оплатить ${currencyFormatter.format(product.skidkzPrice)}' : 'Введите промокод для покупки'),
           ),
         ),
       ),
@@ -149,7 +154,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
       });
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invalid promo code. Try IVAN25')),
+        const SnackBar(content: Text('Неверный код. Попробуйте IVAN25')),
       );
     }
   }
@@ -159,46 +164,55 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Payment Simulation (Tarlan Pay)'),
-        content: const Text('Simulate payment gateway behavior?'),
+        title: const Text('Имитация оплаты'),
+        content: const Text('Пройти оплату успешно?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Fail'),
+            child: const Text('Нет'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Success'),
+            child: const Text('Да'),
           ),
         ],
       ),
     );
 
     if (confirmed == true) {
+      final customerPrice = product.skidkzPrice;
+      final sellerPayout = product.sellerPrice;
+      final margin = customerPrice - sellerPayout;
+      final wanghunEarning = margin * 0.9;
+      final platformEarning = margin * 0.1;
+
       final order = Order(
         id: const Uuid().v4(),
-        buyerId: ref.read(authProvider)!.id,
-        sellerId: product.sellerId,
         product: product,
-        amount: product.skidkzPrice.toDouble(),
+        buyerPhone: ref.read(authProvider)?.phoneNumber ?? 'Unknown',
         promoCode: _appliedPromo,
-        status: OrderStatus.paid,
+        customerPrice: customerPrice,
+        sellerPayout: sellerPayout,
+        margin: margin,
+        wanghunEarning: wanghunEarning,
+        platformEarning: platformEarning,
         createdAt: DateTime.now(),
-        earningStatus: EarningStatus.hold,
+        holdUntil: DateTime.now().add(const Duration(days: 14)),
+        status: OrderStatus.paid,
       );
 
       ref.read(ordersProvider.notifier).addOrder(order);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Order placed successfully!')),
+          const SnackBar(content: Text('Заказ успешно создан!')),
         );
         context.go('/buyer/orders');
       }
     } else {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Payment failed. Try again.')),
+          const SnackBar(content: Text('Оплата отменена')),
         );
       }
     }
