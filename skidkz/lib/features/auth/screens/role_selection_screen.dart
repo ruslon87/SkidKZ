@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:skidkz/core/theme/app_theme.dart';
 import 'package:skidkz/data/models/user_model.dart';
 import 'package:skidkz/data/repositories/mock_database.dart';
@@ -21,13 +20,16 @@ class RoleSelectionScreen extends ConsumerWidget {
             children: [
               const Gap(40),
               Text(
-                'Welcome to SkidKZ',
-                style: Theme.of(context).textTheme.displayLarge,
+                'SkidKZ',
+                style: Theme.of(context).textTheme.displayLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.textPrimary,
+                ),
                 textAlign: TextAlign.center,
               ),
               const Gap(8),
               Text(
-                'Select a demo role to proceed',
+                'Выберите роль для демо',
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                   color: AppTheme.textSecondary,
                 ),
@@ -41,35 +43,31 @@ class RoleSelectionScreen extends ConsumerWidget {
                   crossAxisSpacing: 16,
                   children: [
                     _RoleCard(
-                      title: 'Buyer',
+                      title: 'Покупатель',
                       icon: Icons.shopping_bag_outlined,
                       color: Colors.blue,
                       onTap: () => _login(ref, UserRole.buyer),
                     ),
                     _RoleCard(
-                      title: 'Wanghong',
+                      title: 'Ванхун',
                       icon: Icons.campaign_outlined,
                       color: Colors.purple,
                       onTap: () => _login(ref, UserRole.wanghong),
                     ),
                     _RoleCard(
-                      title: 'Seller',
+                      title: 'Продавец',
                       icon: Icons.storefront_outlined,
                       color: Colors.orange,
                       onTap: () => _login(ref, UserRole.seller),
                     ),
                     _RoleCard(
-                      title: 'Admin',
+                      title: 'Админ',
                       icon: Icons.admin_panel_settings_outlined,
                       color: Colors.red,
                       onTap: () => _login(ref, UserRole.admin),
                     ),
                   ],
                 ),
-              ),
-              OutlinedButton(
-                onPressed: () => context.push('/login'), 
-                child: const Text('Simulate Phone Login'),
               ),
             ],
           ),
@@ -80,7 +78,6 @@ class RoleSelectionScreen extends ConsumerWidget {
 
   void _login(WidgetRef ref, UserRole role) {
     ref.read(authProvider.notifier).login(role);
-    // Router redirect will handle navigation
   }
 }
 

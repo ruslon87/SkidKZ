@@ -3,163 +3,116 @@ import 'package:skidkz/data/models/order_model.dart';
 import 'package:skidkz/data/models/product_model.dart';
 import 'package:skidkz/data/models/user_model.dart';
 
-// --- MOCK DATA ---
+final mockDatabaseProvider = Provider<MockDatabase>((ref) => MockDatabase());
 
-final _initialUsers = [
-  User(id: 'u1', name: 'Buyer John', phoneNumber: '7771112233', role: UserRole.buyer),
-  User(id: 'u2', name: 'Wanghong Ivan', phoneNumber: '7774445566', role: UserRole.wanghong, promoCode: 'IVAN25'),
-  User(id: 'u3', name: 'Seller Shop', phoneNumber: '7777778899', role: UserRole.seller),
-  User(id: 'u4', name: 'Admin Boss', phoneNumber: '7770000000', role: UserRole.admin),
-];
+class MockDatabase {
+  // Hardcoded Economy
+  static const int retailPrice = 100000;
+  static const int skidkzPrice = 85000;
+  static const int wholesalePrice = 75000;
+  static const int margin = 10000;
+  static const int wanghongCommission = 9000;
+  static const int platformCommission = 1000;
+  static const int minWithdrawal = 1000;
 
-final _initialProducts = [
-  Product(
-    id: 'p1',
-    sellerId: 'u3',
-    title: 'Winter Tires Set (4pcs)',
-    description: 'Premium studded tires 205/55 R16. Reliable grip on ice.',
-    retailPrice: 100000,
-    wholesalePrice: 75000,
-    skidkzPrice: 85000,
-    type: ProductType.goods,
-    status: ProductStatus.approved,
-    imageUrl: 'https://via.placeholder.com/300?text=Tires',
-  ),
-  Product(
-    id: 'p2',
-    sellerId: 'u3',
-    title: 'Smartphone X 128GB',
-    description: 'Latest model with amazing camera and battery life.',
-    retailPrice: 450000,
-    wholesalePrice: 380000,
-    skidkzPrice: 400000,
-    type: ProductType.goods,
-    status: ProductStatus.approved,
-    imageUrl: 'https://via.placeholder.com/300?text=Phone',
-  ),
-  Product(
-    id: 'p3',
-    sellerId: 'u3',
-    title: 'Premium Jacket',
-    description: 'Waterproof, warm, and stylish for city winters.',
-    retailPrice: 50000,
-    wholesalePrice: 30000,
-    skidkzPrice: 40000,
-    type: ProductType.goods,
-    status: ProductStatus.approved,
-    imageUrl: 'https://via.placeholder.com/300?text=Jacket',
-  ),
-  Product(
-    id: 'p4',
-    sellerId: 'u3',
-    title: 'Tire Fitting Service',
-    description: 'Full change of 4 wheels + balancing.',
-    retailPrice: 15000,
-    wholesalePrice: 8000,
-    skidkzPrice: 10000,
-    type: ProductType.service,
-    status: ProductStatus.approved,
-    imageUrl: 'https://via.placeholder.com/300?text=Service',
-  ),
-  Product(
-    id: 'p5',
-    sellerId: 'u3',
-    title: 'Beauty Salon Voucher',
-    description: 'Manicure + Pedicure set.',
-    retailPrice: 20000,
-    wholesalePrice: 10000,
-    skidkzPrice: 15000,
-    type: ProductType.service,
-    status: ProductStatus.pending,
-    imageUrl: 'https://via.placeholder.com/300?text=Salon',
-  ),
-];
+  // Mock Products
+  final List<Product> _products = [
+    Product(id: '1', name: 'Кроссовки Nike Air', categoryIcon: '👟', retailPrice: 100000, skidkzPrice: 85000, wholesalePrice: 75000, sellerId: 'seller1'),
+    Product(id: '2', name: 'iPhone 15 Case', categoryIcon: '📱', retailPrice: 15000, skidkzPrice: 12000, wholesalePrice: 10000, sellerId: 'seller1'),
+    Product(id: '3', name: 'Кофемашина', categoryIcon: '☕', retailPrice: 100000, skidkzPrice: 85000, wholesalePrice: 75000, sellerId: 'seller2'),
+    Product(id: '4', name: 'Услуги сантехника', categoryIcon: '🛠️', retailPrice: 20000, skidkzPrice: 15000, wholesalePrice: 10000, sellerId: 'seller2', type: ProductType.service),
+    Product(id: '5', name: 'Губная помада', categoryIcon: '💄', retailPrice: 8000, skidkzPrice: 6000, wholesalePrice: 4000, sellerId: 'seller1'),
+    Product(id: '6', name: 'Бургер Сет', categoryIcon: '🍔', retailPrice: 5000, skidkzPrice: 4000, wholesalePrice: 3000, sellerId: 'seller2'),
+    Product(id: '7', name: 'Зимние шины', categoryIcon: '🛞', retailPrice: 100000, skidkzPrice: 85000, wholesalePrice: 75000, sellerId: 'seller1'),
+    Product(id: '8', name: 'Фитнес-трекер', categoryIcon: '⌚', retailPrice: 25000, skidkzPrice: 20000, wholesalePrice: 15000, sellerId: 'seller2'),
+    Product(id: '9', name: 'Рюкзак городской', categoryIcon: '🎒', retailPrice: 18000, skidkzPrice: 14000, wholesalePrice: 10000, sellerId: 'seller1'),
+    Product(id: '10', name: 'Набор инструментов', categoryIcon: '🔧', retailPrice: 45000, skidkzPrice: 38000, wholesalePrice: 30000, sellerId: 'seller2'),
+  ];
 
-final _initialOrders = [
-  Order(
-    id: 'o1',
-    buyerId: 'u1',
-    sellerId: 'u3',
-    product: _initialProducts[0],
-    amount: 85000,
-    promoCode: 'IVAN25',
-    status: OrderStatus.paid,
-    createdAt: DateTime.now().subtract(const Duration(days: 5)),
-    earningStatus: EarningStatus.hold,
-  ),
-  Order(
-    id: 'o2',
-    buyerId: 'u1',
-    sellerId: 'u3',
-    product: _initialProducts[3],
-    amount: 10000,
-    promoCode: 'IVAN25',
-    status: OrderStatus.completed,
-    createdAt: DateTime.now().subtract(const Duration(days: 20)),
-    earningStatus: EarningStatus.available, // > 14 days
-  ),
-];
+  final List<Product> _pendingProducts = [];
+  
+  // Mock Orders
+  final List<Order> _orders = [];
 
-// --- PROVIDERS ---
+  // Mock Wallet
+  double _wanghongBalance = 45000; // Starting balance for demo
+  double _wanghongHold = 18000;
 
-// Auth State
-class AuthNotifier extends Notifier<User?> {
-  @override
-  User? build() => null;
+  List<Product> get products => List.unmodifiable(_products);
+  List<Product> get pendingProducts => List.unmodifiable(_pendingProducts);
+  List<Order> get orders => List.unmodifiable(_orders);
+  
+  double get wanghongBalance => _wanghongBalance;
+  double get wanghongHold => _wanghongHold;
 
-  void login(UserRole role) {
-    // Mock login by picking the first user of that role
-    state = _initialUsers.firstWhere((u) => u.role == role);
+  void addProduct(Product product) {
+    _pendingProducts.add(product);
   }
 
-  void logout() {
-    state = null;
+  void approveProduct(String id) {
+    final index = _pendingProducts.indexWhere((p) => p.id == id);
+    if (index != -1) {
+      final product = _pendingProducts.removeAt(index);
+      _products.add(product);
+    }
+  }
+
+  void rejectProduct(String id) {
+    _pendingProducts.removeWhere((p) => p.id == id);
+  }
+
+  void createOrder(Product product, String promoCode) {
+    final order = Order(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      productName: product.name,
+      price: promoCode == 'IVAN25' ? product.skidkzPrice.toDouble() : product.retailPrice.toDouble(),
+      status: 'Оплачен',
+      date: DateTime.now(),
+      promoCode: promoCode,
+      sellerId: product.sellerId,
+    );
+    _orders.add(order);
+
+    if (promoCode == 'IVAN25') {
+      _wanghongHold += wanghongCommission;
+    }
+  }
+  
+  void requestWithdrawal() {
+    if (_wanghongBalance >= minWithdrawal) {
+      _wanghongBalance = 0; // Simple demo reset
+    }
   }
 }
 
 final authProvider = NotifierProvider<AuthNotifier, User?>(AuthNotifier.new);
 
-// Products State
-class ProductsNotifier extends Notifier<List<Product>> {
+class AuthNotifier extends Notifier<User?> {
   @override
-  List<Product> build() => _initialProducts;
-
-  void addProduct(Product product) {
-    state = [...state, product];
+  User? build() {
+    return null;
   }
 
-  void updateProductStatus(String id, ProductStatus status) {
-    state = [
-      for (final p in state)
-        if (p.id == id) p.copyWith(status: status) else p
-    ];
+  void login(UserRole role) {
+    state = User(
+      id: 'user_${role.name}',
+      name: _getNameForRole(role),
+      phoneNumber: '+77001234567',
+      role: role,
+      promoCode: role == UserRole.wanghong ? 'IVAN25' : null,
+    );
+  }
+
+  void logout() {
+    state = null;
+  }
+
+  String _getNameForRole(UserRole role) {
+    switch (role) {
+      case UserRole.buyer: return 'Иван';
+      case UserRole.wanghong: return 'Ванхун Алексей';
+      case UserRole.seller: return 'Продавец #1';
+      case UserRole.admin: return 'Администратор';
+    }
   }
 }
-
-final productsProvider = NotifierProvider<ProductsNotifier, List<Product>>(ProductsNotifier.new);
-
-// Orders State
-class OrdersNotifier extends Notifier<List<Order>> {
-  @override
-  List<Order> build() => _initialOrders;
-
-  void addOrder(Order order) {
-    state = [order, ...state];
-  }
-
-  void updateOrderStatus(String id, OrderStatus status) {
-    state = [
-      for (final o in state)
-        if (o.id == id) o.copyWith(status: status) else o
-    ];
-  }
-
-  void blockEarning(String id) {
-    state = [
-      for (final o in state)
-        if (o.id == id) o.copyWith(earningStatus: EarningStatus.blocked) else o
-    ];
-  }
-}
-
-final ordersProvider = NotifierProvider<OrdersNotifier, List<Order>>(OrdersNotifier.new);
