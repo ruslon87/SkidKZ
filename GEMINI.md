@@ -1,37 +1,33 @@
-# SkidKZ - Mobile Prototype
-
-## Project Overview
-SkidKZ is a marketplace platform where users can buy goods and services at discounted prices using referral codes from Wanghongs (influencers). This project is a high-fidelity clickable prototype built with Flutter.
+# SkidKZ Project Documentation
 
 ## Tech Stack
-- **Framework:** Flutter (Mobile)
-- **State Management:** Riverpod (NotifierProvider)
-- **Navigation:** GoRouter (ShellRoutes for nested navigation)
-- **Theming:** Custom `AppTheme` (Google Fonts Inter, Light Blue/Gray palette)
-- **Mock Data:** In-memory `MockDatabase` with predefined users, products, and orders.
+- **Framework:** Flutter (latest)
+- **State Management:** Riverpod
+- **Navigation:** go_router (ShellRoute for nested navigation)
+- **UI:** Material 3 with "Minimal Business" aesthetic (Russian)
+- **Localization:** Hardcoded Russian strings (as requested for prototype)
 
 ## Architecture
-The app follows a Feature-First architecture:
-- `lib/core`: Theme, Router.
-- `lib/data`: Models, Mock Repositories.
-- `lib/features`: Auth, Buyer, Seller, Wanghong, Admin (each with screens).
-
-## User Flows Implemented
-1.  **Auth:** Role selection demo screen -> Mock Login.
-2.  **Buyer:** Catalog -> Product Details (Unlock Price with 'IVAN25') -> Payment Sim -> Orders.
-3.  **Seller:** My Products (Add Product) -> Incoming Orders (Fulfill).
-4.  **Wanghong:** Dashboard (Earnings, Balance, Promo Code) -> Payout Request.
-5.  **Admin:** Moderation Queue (Approve/Reject Products) -> User List.
+- **Features:** Organized by domain (Auth, Buyer, Seller, Wanghong, Admin).
+- **Core:** Shared widgets (`RoleShell`, `ProfileScreen`) and Theme.
+- **Data:** `MockDatabase` singleton provider for simulating backend, auth, and orders.
 
 ## Key Features
-- **Dynamic Pricing:** Logic to switch from Retail to SkidKZ price upon valid promo code.
-- **Role-Based Routing:** Auto-redirect based on selected role.
-- **State Persistence:** Adding a product as Seller makes it visible to Buyer immediately (in-session).
-- **Earnings Calculation:** Wanghong earnings auto-update based on mock orders.
+1.  **Role-Based Access:** Instant switching between Buyer, Seller, Wanghong, Admin.
+2.  **Mock Economy:**
+    - Retail Price vs SkidKZ Price (unlocked via promo code).
+    - Wholesale Price for Sellers (margin calculation).
+    - Wanghong Commission (10%).
+3.  **Android Back Handling:**
+    - `PopScope` used in `RoleShell`.
+    - Logic: Back -> Main Tab -> SnackBar -> Exit.
+4.  **No Images:** All visuals use Emojis/Icons.
 
 ## Changelog
-- Initial prototype creation.
-- Implemented all 4 user roles.
-- Added mock payment and moderation flows.
-- **Refactoring:** Updated codebase to resolve Flutter 3.29 deprecations (color.withValues, initialValue).
-- **Quality:** Passed `flutter analyze` with 0 issues.
+- **Refined Prototype:**
+    - Translated all UI to Russian.
+    - Implemented specific Back Button logic.
+    - Added "Add Product" flow for Sellers.
+    - Added "Deals" and "Wallet" for Wanghons.
+    - Added "Moderation" and "User Management" for Admins.
+    - Implemented Promo Code logic (`IVAN25`).
