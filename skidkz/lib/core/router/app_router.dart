@@ -11,6 +11,7 @@ import 'package:skidkz/features/buyer/screens/product_detail_screen.dart';
 import 'package:skidkz/features/buyer/screens/buyer_orders_screen.dart';
 import 'package:skidkz/features/seller/screens/seller_shell.dart';
 import 'package:skidkz/features/seller/screens/seller_products_screen.dart';
+import 'package:skidkz/features/seller/screens/seller_add_product_screen.dart';
 import 'package:skidkz/features/seller/screens/seller_orders_screen.dart';
 import 'package:skidkz/features/wanghong/screens/wanghong_shell.dart';
 import 'package:skidkz/features/wanghong/screens/wanghong_home_screen.dart';
@@ -67,6 +68,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state, child) => SellerShell(child: child),
         routes: [
           GoRoute(path: '/seller/products', builder: (context, state) => const SellerProductsScreen()),
+          GoRoute(path: '/seller/products/add', builder: (context, state) => const SellerAddProductScreen()),
           GoRoute(path: '/seller/orders', builder: (context, state) => const SellerOrdersScreen()),
         ],
       ),

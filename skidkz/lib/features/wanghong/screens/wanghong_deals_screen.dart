@@ -43,7 +43,7 @@ class WanghongDealsScreen extends ConsumerWidget {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              deal.productName,
+                              deal.product.title,
                               style: const TextStyle(fontWeight: FontWeight.bold),
                             ),
                             Container(
@@ -86,11 +86,11 @@ class WanghongDealsScreen extends ConsumerWidget {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              DateFormat('dd.MM.yyyy').format(deal.date),
+                              DateFormat('dd.MM.yyyy').format(deal.createdAt),
                               style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
                             ),
                             Text(
-                              'Разблок: ${DateFormat('dd.MM').format(deal.date.add(const Duration(days: 14)))}',
+                              'Разблок: ${DateFormat('dd.MM').format(deal.createdAt.add(const Duration(days: 14)))}',
                               style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
                             ),
                           ],

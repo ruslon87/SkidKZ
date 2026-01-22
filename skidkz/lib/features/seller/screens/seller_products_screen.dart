@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:skidkz/core/theme/app_theme.dart';
 import 'package:skidkz/data/models/product_model.dart';
 import 'package:skidkz/data/repositories/mock_database.dart';
 import 'package:gap/gap.dart';
-import 'package:uuid/uuid.dart';
 
 class SellerProductsScreen extends ConsumerWidget {
   const SellerProductsScreen({super.key});
@@ -19,7 +19,7 @@ class SellerProductsScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('My Products'),
+        title: const Text('Мои товары'),
         actions: [
           IconButton(
             onPressed: () => ref.read(authProvider.notifier).logout(),
@@ -28,12 +28,12 @@ class SellerProductsScreen extends ConsumerWidget {
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => _showAddProductDialog(context, ref, user!.id),
+        onPressed: () => context.push('/seller/products/add'),
         backgroundColor: Colors.orange,
         child: const Icon(Icons.add),
       ),
       body: products.isEmpty
-          ? const Center(child: Text('No products yet. Add one!'))
+          ? const Center(child: Text('Нет товаров. Добавьте первый!'))
           : ListView.builder(
               padding: const EdgeInsets.all(16),
               itemCount: products.length,
@@ -41,15 +41,6 @@ class SellerProductsScreen extends ConsumerWidget {
                 return _SellerProductCard(product: products[index]);
               },
             ),
-    );
-  }
-
-  void _showAddProductDialog(BuildContext context, WidgetRef ref, String sellerId) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      builder: (context) => _AddProductForm(sellerId: sellerId),
     );
   }
 }
@@ -74,8 +65,12 @@ class _SellerProductCard extends StatelessWidget {
                 Container(
                   width: 60,
                   height: 60,
-                  color: Colors.grey.shade200,
-                  child: const Icon(Icons.image, color: Colors.grey),
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade200,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(product.categoryIcon, style: const TextStyle(fontSize: 30)),
                 ),
                 const Gap(16),
                 Expanded(
@@ -85,7 +80,7 @@ class _SellerProductCard extends StatelessWidget {
                       Text(product.title, style: Theme.of(context).textTheme.titleMedium),
                       const Gap(4),
                       Text(
-                        'Retail: ${currencyFormatter.format(product.retailPrice)}',
+                        'Розница: ${currencyFormatter.format(product.retailPrice)}',
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                       Text(
@@ -118,19 +113,19 @@ class _StatusBadge extends StatelessWidget {
     switch (status) {
       case ProductStatus.draft:
         color = Colors.grey;
-        text = 'Draft';
+        text = 'Черновик';
         break;
       case ProductStatus.pending:
         color = Colors.orange;
-        text = 'Moderation';
+        text = 'Модерация';
         break;
       case ProductStatus.approved:
         color = AppTheme.success;
-        text = 'Approved';
+        text = 'Активен';
         break;
       case ProductStatus.rejected:
         color = AppTheme.error;
-        text = 'Rejected';
+        text = 'Отклонён';
         break;
     }
 
@@ -144,156 +139,6 @@ class _StatusBadge extends StatelessWidget {
       child: Text(
         text,
         style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold),
-      ),
-    );
-  }
-}
-
-class _AddProductForm extends ConsumerStatefulWidget {
-  final String sellerId;
-
-  const _AddProductForm({required this.sellerId});
-
-  @override
-  ConsumerState<_AddProductForm> createState() => _AddProductFormState();
-}
-
-class _AddProductFormState extends ConsumerState<_AddProductForm> {
-  final _titleController = TextEditingController();
-  final _retailPriceController = TextEditingController();
-  double _discount = 15.0;
-  ProductType _type = ProductType.goods;
-
-  @override
-  Widget build(BuildContext context) {
-    final retailPrice = double.tryParse(_retailPriceController.text) ?? 0;
-    final wholesalePrice = retailPrice * (1 - (_discount + 10) / 100); // Mock formula
-    final skidkzPrice = retailPrice * (1 - _discount / 100);
-
-    return Padding(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
-        left: 24,
-        right: 24,
-        top: 24,
-      ),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text('Add New Product', style: Theme.of(context).textTheme.headlineSmall),
-            const Gap(24),
-            DropdownButtonFormField<ProductType>(
-              initialValue: _type,
-              decoration: const InputDecoration(labelText: 'Type'),
-              items: const [
-                DropdownMenuItem(value: ProductType.goods, child: Text('Goods')),
-                DropdownMenuItem(value: ProductType.service, child: Text('Service')),
-              ],
-              onChanged: (v) => setState(() => _type = v!),
-            ),
-            const Gap(16),
-            TextField(
-              controller: _titleController,
-              decoration: const InputDecoration(labelText: 'Title'),
-            ),
-            const Gap(16),
-            TextField(
-              controller: _retailPriceController,
-              decoration: const InputDecoration(labelText: 'Retail Price (Real Store Price)'),
-              keyboardType: TextInputType.number,
-              onChanged: (_) => setState(() {}),
-            ),
-            const Gap(24),
-            Text('Wholesale Discount: ${_discount.round()}%'),
-            Slider(
-              value: _discount,
-              min: 5,
-              max: 50,
-              divisions: 9,
-              label: '${_discount.round()}%',
-              onChanged: (v) => setState(() => _discount = v),
-            ),
-            const Gap(16),
-            Card(
-              color: Colors.grey.shade50,
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  children: [
-                    _PriceRow(label: 'Retail Price', value: retailPrice, isCrossed: true),
-                    _PriceRow(label: 'Wholesale (Hidden)', value: wholesalePrice),
-                    const Divider(),
-                    _PriceRow(label: 'SkidKZ Price', value: skidkzPrice, isBold: true, color: AppTheme.primary),
-                  ],
-                ),
-              ),
-            ),
-            const Gap(24),
-            ElevatedButton(
-              onPressed: () {
-                final product = Product(
-                  id: const Uuid().v4(),
-                  sellerId: widget.sellerId,
-                  title: _titleController.text,
-                  description: 'New product description',
-                  retailPrice: retailPrice,
-                  wholesalePrice: wholesalePrice,
-                  skidkzPrice: skidkzPrice,
-                  type: _type,
-                  status: ProductStatus.pending,
-                  imageUrl: '',
-                );
-                ref.read(productsProvider.notifier).addProduct(product);
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Product submitted for moderation')),
-                );
-              },
-              child: const Text('Submit for Moderation'),
-            ),
-            const Gap(24),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _PriceRow extends StatelessWidget {
-  final String label;
-  final double value;
-  final bool isBold;
-  final bool isCrossed;
-  final Color? color;
-
-  const _PriceRow({
-    required this.label,
-    required this.value,
-    this.isBold = false,
-    this.isCrossed = false,
-    this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final currencyFormatter = NumberFormat.currency(symbol: '₸', decimalDigits: 0);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: Theme.of(context).textTheme.bodyMedium),
-          Text(
-            currencyFormatter.format(value),
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
-              decoration: isCrossed ? TextDecoration.lineThrough : null,
-              color: color,
-            ),
-          ),
-        ],
       ),
     );
   }

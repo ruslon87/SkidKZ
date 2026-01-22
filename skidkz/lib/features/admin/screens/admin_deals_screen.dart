@@ -9,7 +9,7 @@ class AdminDealsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final orders = ref.watch(mockDatabaseProvider).orders;
+    final orders = ref.watch(ordersProvider);
 
     return Scaffold(
       backgroundColor: AppTheme.background,
@@ -43,27 +43,27 @@ class AdminDealsScreen extends ConsumerWidget {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              order.productName,
+                              order.product.title,
                               style: const TextStyle(fontWeight: FontWeight.bold),
                             ),
                             Text(
-                              '${order.price} ₸',
+                              '${order.amount.toInt()} ₸',
                               style: const TextStyle(fontWeight: FontWeight.bold),
                             ),
                           ],
                         ),
                         const SizedBox(height: 8),
                         Text('Покупатель: Иван | Продавец: seller1', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-                        if (order.promoCode.isNotEmpty)
+                        if (order.promoCode != null)
                           Padding(
                             padding: const EdgeInsets.only(top: 4.0),
-                            child: Text('Ванхун: IVAN25 (+9 000 ₸)', style: TextStyle(fontSize: 12, color: Colors.purple.shade300)),
+                            child: Text('Ванхун: ${order.promoCode} (+9 000 ₸)', style: TextStyle(fontSize: 12, color: Colors.purple.shade300)),
                           ),
                         const SizedBox(height: 12),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(DateFormat('dd.MM.yyyy HH:mm').format(order.date), style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                            Text(DateFormat('dd.MM.yyyy HH:mm').format(order.createdAt), style: const TextStyle(color: Colors.grey, fontSize: 12)),
                             TextButton(
                               onPressed: () {
                                 // Cancel logic mock

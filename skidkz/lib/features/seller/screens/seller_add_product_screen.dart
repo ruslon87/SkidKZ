@@ -192,14 +192,15 @@ class _SellerAddProductScreenState extends ConsumerState<SellerAddProductScreen>
 
     final product = Product(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
-      name: _nameController.text,
+      title: _nameController.text,
       categoryIcon: _selectedIcon,
       retailPrice: retailPrice.toInt(),
       skidkzPrice: skidkzPrice.toInt(),
+      wholesalePrice: wholesalePrice.toInt(), // Added wholesalePrice
       sellerId: 'seller1',
     );
 
-    ref.read(mockDatabaseProvider).addProduct(product);
+    ref.read(productsProvider.notifier).addProduct(product);
     context.pop();
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Товар отправлен на модерацию')),

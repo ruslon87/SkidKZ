@@ -14,9 +14,9 @@ class WanghongWalletScreen extends ConsumerStatefulWidget {
 class _WanghongWalletScreenState extends ConsumerState<WanghongWalletScreen> {
   @override
   Widget build(BuildContext context) {
-    final db = ref.watch(mockDatabaseProvider);
-    final available = db.wanghongBalance;
-    final hold = db.wanghongHold;
+    final wallet = ref.watch(walletProvider);
+    final available = wallet.balance;
+    final hold = wallet.hold;
     final canWithdraw = (available - 1000) > 0;
 
     return Scaffold(
@@ -138,7 +138,7 @@ class _WanghongWalletScreenState extends ConsumerState<WanghongWalletScreen> {
   }
 
   void _withdraw(WidgetRef ref) {
-    ref.read(mockDatabaseProvider).requestWithdrawal();
+    ref.read(walletProvider.notifier).requestWithdrawal();
     setState(() {}); // Refresh UI
     
     showDialog(

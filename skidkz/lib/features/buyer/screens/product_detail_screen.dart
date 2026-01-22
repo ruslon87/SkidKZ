@@ -180,7 +180,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
         buyerId: ref.read(authProvider)!.id,
         sellerId: product.sellerId,
         product: product,
-        amount: product.skidkzPrice,
+        amount: product.skidkzPrice.toDouble(),
         promoCode: _appliedPromo,
         status: OrderStatus.paid,
         createdAt: DateTime.now(),

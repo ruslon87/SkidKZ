@@ -4,7 +4,7 @@ enum ProductStatus { draft, pending, approved, rejected }
 class Product {
   final String id;
   final String sellerId;
-  final String name; // Renamed from title
+  final String title;
   final String description;
   final String categoryIcon; // Replaces imageUrl
   final int retailPrice;
@@ -16,7 +16,7 @@ class Product {
   Product({
     required this.id,
     required this.sellerId,
-    required this.name,
+    required this.title,
     this.description = '',
     required this.categoryIcon,
     required this.retailPrice,
@@ -29,7 +29,7 @@ class Product {
   Product copyWith({
     String? id,
     String? sellerId,
-    String? name,
+    String? title,
     String? description,
     String? categoryIcon,
     int? retailPrice,
@@ -41,7 +41,7 @@ class Product {
     return Product(
       id: id ?? this.id,
       sellerId: sellerId ?? this.sellerId,
-      name: name ?? this.name,
+      title: title ?? this.title,
       description: description ?? this.description,
       categoryIcon: categoryIcon ?? this.categoryIcon,
       retailPrice: retailPrice ?? this.retailPrice,

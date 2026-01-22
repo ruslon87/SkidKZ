@@ -3,88 +3,71 @@ import 'package:skidkz/data/models/order_model.dart';
 import 'package:skidkz/data/models/product_model.dart';
 import 'package:skidkz/data/models/user_model.dart';
 
-final mockDatabaseProvider = Provider<MockDatabase>((ref) => MockDatabase());
+// --- PRODUCTS PROVIDER ---
+final productsProvider = NotifierProvider<ProductsNotifier, List<Product>>(ProductsNotifier.new);
 
-class MockDatabase {
-  // Hardcoded Economy
-  static const int retailPrice = 100000;
-  static const int skidkzPrice = 85000;
-  static const int wholesalePrice = 75000;
-  static const int margin = 10000;
-  static const int wanghongCommission = 9000;
-  static const int platformCommission = 1000;
-  static const int minWithdrawal = 1000;
-
-  // Mock Products
-  final List<Product> _products = [
-    Product(id: '1', name: 'Кроссовки Nike Air', categoryIcon: '👟', retailPrice: 100000, skidkzPrice: 85000, wholesalePrice: 75000, sellerId: 'seller1'),
-    Product(id: '2', name: 'iPhone 15 Case', categoryIcon: '📱', retailPrice: 15000, skidkzPrice: 12000, wholesalePrice: 10000, sellerId: 'seller1'),
-    Product(id: '3', name: 'Кофемашина', categoryIcon: '☕', retailPrice: 100000, skidkzPrice: 85000, wholesalePrice: 75000, sellerId: 'seller2'),
-    Product(id: '4', name: 'Услуги сантехника', categoryIcon: '🛠️', retailPrice: 20000, skidkzPrice: 15000, wholesalePrice: 10000, sellerId: 'seller2', type: ProductType.service),
-    Product(id: '5', name: 'Губная помада', categoryIcon: '💄', retailPrice: 8000, skidkzPrice: 6000, wholesalePrice: 4000, sellerId: 'seller1'),
-    Product(id: '6', name: 'Бургер Сет', categoryIcon: '🍔', retailPrice: 5000, skidkzPrice: 4000, wholesalePrice: 3000, sellerId: 'seller2'),
-    Product(id: '7', name: 'Зимние шины', categoryIcon: '🛞', retailPrice: 100000, skidkzPrice: 85000, wholesalePrice: 75000, sellerId: 'seller1'),
-    Product(id: '8', name: 'Фитнес-трекер', categoryIcon: '⌚', retailPrice: 25000, skidkzPrice: 20000, wholesalePrice: 15000, sellerId: 'seller2'),
-    Product(id: '9', name: 'Рюкзак городской', categoryIcon: '🎒', retailPrice: 18000, skidkzPrice: 14000, wholesalePrice: 10000, sellerId: 'seller1'),
-    Product(id: '10', name: 'Набор инструментов', categoryIcon: '🔧', retailPrice: 45000, skidkzPrice: 38000, wholesalePrice: 30000, sellerId: 'seller2'),
-  ];
-
-  final List<Product> _pendingProducts = [];
-  
-  // Mock Orders
-  final List<Order> _orders = [];
-
-  // Mock Wallet
-  double _wanghongBalance = 45000; // Starting balance for demo
-  double _wanghongHold = 18000;
-
-  List<Product> get products => List.unmodifiable(_products);
-  List<Product> get pendingProducts => List.unmodifiable(_pendingProducts);
-  List<Order> get orders => List.unmodifiable(_orders);
-  
-  double get wanghongBalance => _wanghongBalance;
-  double get wanghongHold => _wanghongHold;
+class ProductsNotifier extends Notifier<List<Product>> {
+  @override
+  List<Product> build() {
+    return [
+      Product(id: '1', title: 'Кроссовки Nike Air', categoryIcon: '👟', retailPrice: 100000, skidkzPrice: 85000, wholesalePrice: 75000, sellerId: 'seller1'),
+      Product(id: '2', title: 'iPhone 15 Case', categoryIcon: '📱', retailPrice: 15000, skidkzPrice: 12000, wholesalePrice: 10000, sellerId: 'seller1'),
+      Product(id: '3', title: 'Кофемашина', categoryIcon: '☕', retailPrice: 100000, skidkzPrice: 85000, wholesalePrice: 75000, sellerId: 'seller2'),
+      Product(id: '4', title: 'Услуги сантехника', categoryIcon: '🛠️', retailPrice: 20000, skidkzPrice: 15000, wholesalePrice: 10000, sellerId: 'seller2', type: ProductType.service),
+      Product(id: '5', title: 'Губная помада', categoryIcon: '💄', retailPrice: 8000, skidkzPrice: 6000, wholesalePrice: 4000, sellerId: 'seller1'),
+      Product(id: '6', title: 'Бургер Сет', categoryIcon: '🍔', retailPrice: 5000, skidkzPrice: 4000, wholesalePrice: 3000, sellerId: 'seller2'),
+      Product(id: '7', title: 'Зимние шины', categoryIcon: '🛞', retailPrice: 100000, skidkzPrice: 85000, wholesalePrice: 75000, sellerId: 'seller1'),
+      Product(id: '8', title: 'Фитнес-трекер', categoryIcon: '⌚', retailPrice: 25000, skidkzPrice: 20000, wholesalePrice: 15000, sellerId: 'seller2'),
+      Product(id: '9', title: 'Рюкзак городской', categoryIcon: '🎒', retailPrice: 18000, skidkzPrice: 14000, wholesalePrice: 10000, sellerId: 'seller1'),
+      Product(id: '10', title: 'Набор инструментов', categoryIcon: '🔧', retailPrice: 45000, skidkzPrice: 38000, wholesalePrice: 30000, sellerId: 'seller2'),
+    ];
+  }
 
   void addProduct(Product product) {
-    _pendingProducts.add(product);
+    state = [...state, product];
   }
 
-  void approveProduct(String id) {
-    final index = _pendingProducts.indexWhere((p) => p.id == id);
-    if (index != -1) {
-      final product = _pendingProducts.removeAt(index);
-      _products.add(product);
-    }
-  }
-
-  void rejectProduct(String id) {
-    _pendingProducts.removeWhere((p) => p.id == id);
-  }
-
-  void createOrder(Product product, String promoCode) {
-    final order = Order(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      productName: product.name,
-      price: promoCode == 'IVAN25' ? product.skidkzPrice.toDouble() : product.retailPrice.toDouble(),
-      status: 'Оплачен',
-      date: DateTime.now(),
-      promoCode: promoCode,
-      sellerId: product.sellerId,
-    );
-    _orders.add(order);
-
-    if (promoCode == 'IVAN25') {
-      _wanghongHold += wanghongCommission;
-    }
-  }
-  
-  void requestWithdrawal() {
-    if (_wanghongBalance >= minWithdrawal) {
-      _wanghongBalance = 0; // Simple demo reset
-    }
+  void updateProductStatus(String id, ProductStatus status) {
+    state = [
+      for (final p in state)
+        if (p.id == id) p.copyWith(status: status) else p
+    ];
   }
 }
 
+// --- ORDERS PROVIDER ---
+final ordersProvider = NotifierProvider<OrdersNotifier, List<Order>>(OrdersNotifier.new);
+
+class OrdersNotifier extends Notifier<List<Order>> {
+  @override
+  List<Order> build() {
+    return [];
+  }
+
+  void addOrder(Order order) {
+    state = [...state, order];
+  }
+
+  void updateOrderStatus(String id, OrderStatus status) {
+    state = [
+      for (final o in state)
+        if (o.id == id) o.copyWith(status: status) else o
+    ];
+  }
+}
+
+// --- MOCK DATABASE (Deprecated/Legacy support) ---
+// Kept for simple constants or direct access if needed, but providers are preferred.
+final mockDatabaseProvider = Provider((ref) => MockDatabase(ref));
+
+class MockDatabase {
+  final Ref ref;
+  MockDatabase(this.ref);
+
+  List<Order> get orders => ref.read(ordersProvider);
+}
+
+// --- AUTH PROVIDER ---
 final authProvider = NotifierProvider<AuthNotifier, User?>(AuthNotifier.new);
 
 class AuthNotifier extends Notifier<User?> {
@@ -113,6 +96,37 @@ class AuthNotifier extends Notifier<User?> {
       case UserRole.wanghong: return 'Ванхун Алексей';
       case UserRole.seller: return 'Продавец #1';
       case UserRole.admin: return 'Администратор';
+    }
+  }
+}
+
+// --- WALLET PROVIDER ---
+final walletProvider = NotifierProvider<WalletNotifier, WalletState>(WalletNotifier.new);
+
+class WalletState {
+  final double balance;
+  final double hold;
+
+  WalletState({required this.balance, required this.hold});
+}
+
+class WalletNotifier extends Notifier<WalletState> {
+  @override
+  WalletState build() {
+    return WalletState(balance: 45000, hold: 18000);
+  }
+
+  void addEarnings(double amount, {bool isHold = true}) {
+    if (isHold) {
+      state = WalletState(balance: state.balance, hold: state.hold + amount);
+    } else {
+      state = WalletState(balance: state.balance + amount, hold: state.hold);
+    }
+  }
+
+  void requestWithdrawal() {
+    if (state.balance >= 1000) {
+      state = WalletState(balance: 0, hold: state.hold); // Demo: Clear balance
     }
   }
 }
