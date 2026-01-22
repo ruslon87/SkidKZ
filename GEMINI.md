@@ -1,30 +1,29 @@
-# SkidKZ Flutter Project
+# SkidKZ Project
 
-## Overview
-SkidKZ is a mobile application prototype connecting Buyers, Sellers, and Wanghongs (Recommendations).
-Built with Flutter, Riverpod, and GoRouter.
+## Frameworks & Languages
+- **Flutter** (Dart)
+- **State Management**: Riverpod (`flutter_riverpod`)
+- **Navigation**: GoRouter (`go_router`)
+- **UI Components**: Material 3
 
-## Tech Stack
-- **Framework:** Flutter (Material 3)
-- **State Management:** flutter_riverpod
-- **Navigation:** go_router
-- **Localization:** Russian (Hardcoded for Prototype)
-- **Data:** Mock In-Memory Database
+## Project Structure
+- `lib/core`: Core widgets and router.
+- `lib/data`: Models and Repositories (Mock).
+- `lib/features`: Feature-based folders (auth, buyer, seller, wanghong, admin).
 
-## Key Features
-- **Role Selection:** Buyer, Wanghong, Seller, Admin.
-- **Buyer:** Catalog, Product Details (Promo Code Logic), Orders.
-- **Wanghong:** Dashboard, Earnings Tracking, Payout Request.
-- **Seller:** Product Management (Add/Edit), Order Fulfillment.
-- **Admin:** Moderation Queue, Deal Management.
+## Recent Changes (Refinement Phase)
+- **Unification of Models**:
+  - `Product` model updated: `id`, `name`, `category`, `retailPrice`, `sellerPrice`, `status`, `isService`.
+  - `Order` model updated: `id`, `product`, `buyerPhone`, `promoCode`, `customerPrice`, `sellerPayout`, `margin`, `wanghunEarning`, `platformEarning`, `createdAt`, `holdUntil`, `status`.
+- **UI Updates**:
+  - Updated all screens to use new model fields (`name` instead of `title`).
+  - Implemented Russian localization for all new screens.
+  - Fixed `SellerAddProductScreen` with proper price calculation logic.
+- **Verification**:
+  - Passed `flutter analyze` with 0 issues.
+  - Ready for build (requires Android SDK).
 
-## Architecture
-- `lib/core`: Routing, Theme, Shared Widgets.
-- `lib/data`: Models, Mock Database (Repositories).
-- `lib/features`: Feature-based folders (Auth, Buyer, Seller, Wanghong, Admin).
-
-## Recent Changes
-- Fixed Back Button logic for Android (PopScope in RoleShell).
-- Translated entire UI to Russian.
-- Implemented Mock Economy logic (Margins, Commissions).
-- Fixed Flutter Analysis errors (Type safety, Provider usage).
+## Next Steps
+- Connect to real backend.
+- Implement real payment gateway.
+- Add push notifications.
