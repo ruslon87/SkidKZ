@@ -7,6 +7,8 @@ import 'package:skidkz/data/models/order_model.dart';
 import 'package:skidkz/data/repositories/mock_database.dart';
 import 'package:gap/gap.dart';
 
+final currencyFormatter = NumberFormat.currency(symbol: '₸', decimalDigits: 0);
+
 class WanghongHomeScreen extends ConsumerWidget {
   const WanghongHomeScreen({super.key});
 

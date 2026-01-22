@@ -29,7 +29,7 @@ class UsersScreen extends StatelessWidget {
           return Card(
             child: ListTile(
               leading: CircleAvatar(
-                backgroundColor: _getRoleColor(user.role).withOpacity(0.2),
+                backgroundColor: _getRoleColor(user.role).withValues(alpha: 0.2),
                 child: Icon(_getRoleIcon(user.role), color: _getRoleColor(user.role)),
               ),
               title: Text(user.name),

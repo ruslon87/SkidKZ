@@ -33,3 +33,5 @@ The app follows a Feature-First architecture:
 - Initial prototype creation.
 - Implemented all 4 user roles.
 - Added mock payment and moderation flows.
+- **Refactoring:** Updated codebase to resolve Flutter 3.29 deprecations (color.withValues, initialValue).
+- **Quality:** Passed `flutter analyze` with 0 issues.

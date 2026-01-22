@@ -69,7 +69,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: _isUnlocked ? AppTheme.success.withOpacity(0.1) : AppTheme.secondary.withOpacity(0.3),
+                      color: _isUnlocked ? AppTheme.success.withValues(alpha: 0.1) : AppTheme.secondary.withValues(alpha: 0.3),
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(color: _isUnlocked ? AppTheme.success : AppTheme.primary),
                     ),
