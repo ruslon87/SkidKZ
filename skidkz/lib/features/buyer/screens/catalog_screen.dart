@@ -22,7 +22,7 @@ class CatalogScreen extends ConsumerWidget {
         actions: [
           IconButton(
             onPressed: () {
-              ref.read(authProvider.notifier).logout();
+              ref.read(authControllerProvider).logout();
             },
             icon: const Icon(Icons.logout),
           ),
