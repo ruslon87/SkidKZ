@@ -1,3 +1,10 @@
+import org.gradle.api.tasks.Delete
+import org.gradle.api.file.Directory
+
+plugins {
+    id("com.google.gms.google-services") version "4.4.4" apply false
+}
+
 allprojects {
     repositories {
         google()
