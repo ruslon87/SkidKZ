@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:skidkz/core/router/app_router.dart';
 import 'package:skidkz/core/theme/app_theme.dart';
+import 'package:skidkz/features/admin/screens/admin_finance_screen.dart';
 
 class SkidKZApp extends ConsumerWidget {
   const SkidKZApp({super.key});
