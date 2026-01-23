@@ -21,6 +21,8 @@ class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen> {
     return PopScope(
       canPop: false, // не даём системе закрывать экран автоматически
       onPopInvoked: (didPop) async {
+        if (didPop) return;
+
         final now = DateTime.now();
         final last = _lastBackPressedAt;
 
@@ -68,6 +70,7 @@ class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen> {
                   textAlign: TextAlign.center,
                 ),
                 const Gap(40),
+
                 Expanded(
                   child: GridView.count(
                     crossAxisCount: 2,
@@ -100,6 +103,15 @@ class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen> {
                       ),
                     ],
                   ),
+                ),
+
+                const Gap(16),
+                Text(
+                  'SkidKZ by Ruslan Sabirov',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppTheme.textSecondary,
+                      ),
                 ),
               ],
             ),
