@@ -1,10 +1,19 @@
+// lib/data/repositories/mock_database.dart
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import 'package:skidkz/data/models/order_model.dart';
 import 'package:skidkz/data/models/product_model.dart';
 import 'package:skidkz/data/models/user_model.dart';
+import 'package:skidkz/data/repositories/firebase_auth_repo.dart';
 
-// --- PRODUCTS PROVIDER ---
-final productsProvider = NotifierProvider<ProductsNotifier, List<Product>>(ProductsNotifier.new);
+//
+// -------------------- PRODUCTS (MOCK) --------------------
+//
+
+final productsProvider =
+    NotifierProvider<ProductsNotifier, List<Product>>(ProductsNotifier.new);
 
 class ProductsNotifier extends Notifier<List<Product>> {
   @override
@@ -115,14 +124,16 @@ class ProductsNotifier extends Notifier<List<Product>> {
   }
 }
 
-// --- ORDERS PROVIDER ---
-final ordersProvider = NotifierProvider<OrdersNotifier, List<Order>>(OrdersNotifier.new);
+//
+// -------------------- ORDERS (MOCK) --------------------
+//
+
+final ordersProvider =
+    NotifierProvider<OrdersNotifier, List<Order>>(OrdersNotifier.new);
 
 class OrdersNotifier extends Notifier<List<Order>> {
   @override
-  List<Order> build() {
-    return [];
-  }
+  List<Order> build() => [];
 
   void addOrder(Order order) {
     state = [...state, order];
@@ -136,72 +147,131 @@ class OrdersNotifier extends Notifier<List<Order>> {
   }
 }
 
-// --- AUTH PROVIDER ---
-final authProvider = NotifierProvider<AuthNotifier, User?>(AuthNotifier.new);
+//
+// -------------------- WALLET (MOCK, for Wanghong demo) --------------------
+//
 
-class AuthNotifier extends Notifier<User?> {
-  @override
-  User? build() {
-    return null;
-  }
-
-  void login(UserRole role) {
-    state = User(
-      id: 'user_${role.name}',
-      name: _getNameForRole(role),
-      phoneNumber: '+77001234567',
-      role: role,
-      promoCode: role == UserRole.wanghong ? 'IVAN25' : null,
-    );
-  }
-
-  void logout() {
-    state = null;
-  }
-
-  String _getNameForRole(UserRole role) {
-    switch (role) {
-      case UserRole.buyer: return 'Иван';
-      case UserRole.wanghong: return 'Ванхун Алексей';
-      case UserRole.seller: return 'Продавец #1';
-      case UserRole.admin: return 'Администратор';
-    }
-  }
-}
-
-// --- WALLET PROVIDER ---
-final walletProvider = NotifierProvider<WalletNotifier, WalletState>(WalletNotifier.new);
+final walletProvider =
+    NotifierProvider<WalletNotifier, WalletState>(WalletNotifier.new);
 
 class WalletState {
   final double balance;
   final double hold;
 
   WalletState({required this.balance, required this.hold});
+
+  WalletState copyWith({double? balance, double? hold}) {
+    return WalletState(
+      balance: balance ?? this.balance,
+      hold: hold ?? this.hold,
+    );
+  }
 }
 
 class WalletNotifier extends Notifier<WalletState> {
   @override
   WalletState build() {
-    return WalletState(balance: 45000.0, hold: 18000.0);
+    // Demo values (can be changed)
+    return WalletState(balance: 0.0, hold: 13500.0);
   }
 
   void addEarnings(double amount, {bool isHold = true}) {
     if (isHold) {
-      state = WalletState(balance: state.balance, hold: state.hold + amount);
+      state = state.copyWith(hold: state.hold + amount);
     } else {
-      state = WalletState(balance: state.balance + amount, hold: state.hold);
+      state = state.copyWith(balance: state.balance + amount);
     }
   }
 
   void requestWithdrawal() {
     if (state.balance >= 1000) {
-      state = WalletState(balance: 0, hold: state.hold); // Demo: Clear balance
+      // Demo: clear balance
+      state = state.copyWith(balance: 0.0);
     }
   }
 }
 
-// --- MOCK DATABASE (Legacy/Helper) ---
-// Useful if we need access to providers via ref in a class
+//
+// -------------------- FIREBASE AUTH + PROFILE --------------------
+//
+
+// Firebase singletons
+final firebaseAuthProvider =
+    Provider<fb.FirebaseAuth>((ref) => fb.FirebaseAuth.instance);
+
+final firestoreProvider =
+    Provider<FirebaseFirestore>((ref) => FirebaseFirestore.instance);
+
+// Repo from Step 2
+final firebaseAuthRepoProvider = Provider<FirebaseAuthRepo>((ref) {
+  return FirebaseAuthRepo(
+    ref.watch(firebaseAuthProvider),
+    ref.watch(firestoreProvider),
+  );
+});
+
+// Firebase auth state
+final firebaseUserProvider = StreamProvider<fb.User?>((ref) {
+  return ref.watch(firebaseAuthRepoProvider).authStateChanges();
+});
+
+// Firestore profile for current user
+final currentUserProfileProvider = FutureProvider<AppUser?>((ref) async {
+  final fbUser = await ref.watch(firebaseUserProvider.future);
+  if (fbUser == null) return null;
+
+  final repo = ref.watch(firebaseAuthRepoProvider);
+
+  // Ensure /users/{uid} exists
+  await repo.ensureUserDoc(
+    uid: fbUser.uid,
+    phoneNumber: fbUser.phoneNumber ?? '',
+  );
+
+  return repo.getProfile(fbUser.uid);
+});
+
+// Small controller for UI actions (set role / logout / save wanghong payout)
+final authControllerProvider =
+    Provider<AuthController>((ref) => AuthController(ref));
+
+class AuthController {
+  final Ref ref;
+  AuthController(this.ref);
+
+  Future<void> logout() async {
+    await ref.read(firebaseAuthRepoProvider).signOut();
+  }
+
+  Future<void> setRole(UserRole role) async {
+    final fbUser = await ref.read(firebaseUserProvider.future);
+    if (fbUser == null) throw Exception('Not signed in');
+
+    await ref.read(firebaseAuthRepoProvider).setRole(uid: fbUser.uid, role: role);
+    ref.invalidate(currentUserProfileProvider);
+  }
+
+  Future<void> setWanghongData({
+    required String kaspiPhone,
+    required bool offerAccepted,
+  }) async {
+    final fbUser = await ref.read(firebaseUserProvider.future);
+    if (fbUser == null) throw Exception('Not signed in');
+
+    await ref.read(firebaseAuthRepoProvider).setWanghongPayoutAndOffer(
+      uid: fbUser.uid,
+      kaspiPhone: kaspiPhone,
+      offerAccepted: offerAccepted,
+    );
+
+    ref.invalidate(currentUserProfileProvider);
+  }
+}
+
+//
+// -------------------- Legacy helper (optional) --------------------
+//
+
 final mockDatabaseProvider = Provider((ref) => MockDatabase(ref));
 
 class MockDatabase {
