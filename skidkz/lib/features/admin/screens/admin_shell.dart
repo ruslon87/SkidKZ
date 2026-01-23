@@ -8,26 +8,41 @@ class AdminShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: child,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _calculateSelectedIndex(context),
-        onDestinationSelected: (index) => _onItemTapped(index, context),
-        backgroundColor: Colors.white,
-        elevation: 0,
-        indicatorColor: Colors.red.shade100,
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.gavel_outlined),
-            selectedIcon: Icon(Icons.gavel, color: Colors.red),
-            label: 'Moderation',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.people_outline),
-            selectedIcon: Icon(Icons.people, color: Colors.red),
-            label: 'Users',
-          ),
-        ],
+    return PopScope(
+      canPop: false, // перехватываем системную кнопку Back
+      onPopInvoked: (didPop) {
+        if (didPop) return;
+
+        // Если есть куда возвращаться (например, был push на детальный экран) — попаем.
+        if (context.canPop()) {
+          context.pop();
+          return;
+        }
+
+        // Иначе мы на корневых страницах админки — возвращаем на выбор роли.
+        context.go('/role-select');
+      },
+      child: Scaffold(
+        body: child,
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: _calculateSelectedIndex(context),
+          onDestinationSelected: (index) => _onItemTapped(index, context),
+          backgroundColor: Colors.white,
+          elevation: 0,
+          indicatorColor: Colors.redAccent.withOpacity(0.12),
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.gavel_outlined),
+              selectedIcon: Icon(Icons.gavel, color: Colors.red),
+              label: 'Модерация',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.people_outline),
+              selectedIcon: Icon(Icons.people, color: Colors.red),
+              label: 'Пользователи',
+            ),
+          ],
+        ),
       ),
     );
   }
