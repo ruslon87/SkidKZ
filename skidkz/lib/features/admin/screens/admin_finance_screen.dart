@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import 'package:skidkz/core/theme/app_theme.dart';
 import 'package:skidkz/data/repositories/mock_database.dart';
+import 'package:skidkz/core/theme/app_theme.dart';
 
 class AdminFinanceScreen extends ConsumerWidget {
   const AdminFinanceScreen({super.key});
@@ -12,55 +12,46 @@ class AdminFinanceScreen extends ConsumerWidget {
     final orders = ref.watch(ordersProvider);
     final formatter = NumberFormat.currency(symbol: '₸', decimalDigits: 0);
 
-    final double platformTotal = orders.fold<double>(
-      0.0,
-      (sum, o) => sum + (o.platformEarning),
+    final totalMargin = orders.fold<double>(
+      0,
+      (sum, o) => sum + o.margin,
     );
 
-    final double wanghunTotal = orders.fold<double>(
-      0.0,
-      (sum, o) => sum + (o.wanghunEarning),
+    final platformEarning = orders.fold<double>(
+      0,
+      (sum, o) => sum + o.platformEarning,
     );
 
-    final double marginTotal = orders.fold<double>(
-      0.0,
-      (sum, o) => sum + (o.margin),
+    final wanghunEarning = orders.fold<double>(
+      0,
+      (sum, o) => sum + o.wanghunEarning,
     );
 
     return Scaffold(
-      backgroundColor: AppTheme.background,
       appBar: AppBar(
         title: const Text('Финансы платформы'),
-        backgroundColor: Colors.white,
-        elevation: 0,
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _StatCard(
-              title: 'Маржа всего',
-              value: formatter.format(marginTotal),
-              color: Colors.black87,
-            ),
-            const SizedBox(height: 12),
-            _StatCard(
-              title: 'Заработок платформы (10%)',
-              value: formatter.format(platformTotal),
+              title: 'Общая маржа',
+              value: formatter.format(totalMargin),
               color: Colors.blue,
             ),
             const SizedBox(height: 12),
             _StatCard(
-              title: 'Начислено ванхунам (90%)',
-              value: formatter.format(wanghunTotal),
-              color: Colors.purple,
+              title: 'Доход платформы',
+              value: formatter.format(platformEarning),
+              color: Colors.green,
             ),
-            const SizedBox(height: 24),
-            Text(
-              'Источник: сумма по всем заказам из ordersProvider.',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppTheme.textSecondary,
-                  ),
+            const SizedBox(height: 12),
+            _StatCard(
+              title: 'Доход ванхунов',
+              value: formatter.format(wanghunEarning),
+              color: Colors.purple,
             ),
           ],
         ),
@@ -86,21 +77,20 @@ class _StatCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(title, style: Theme.of(context).textTheme.bodyMedium),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
             value,
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: color,
-                ),
+            style: Theme.of(context)
+                .textTheme
+                .headlineSmall
+                ?.copyWith(fontWeight: FontWeight.bold),
           ),
         ],
       ),
