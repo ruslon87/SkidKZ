@@ -9,31 +9,46 @@ class BuyerShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: child,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _calculateSelectedIndex(context),
-        onDestinationSelected: (index) => _onItemTapped(index, context),
-        backgroundColor: Colors.white,
-        elevation: 0,
-        indicatorColor: AppTheme.secondary,
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.grid_view_outlined),
-            selectedIcon: Icon(Icons.grid_view, color: AppTheme.primary),
-            label: 'Catalog',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.receipt_long_outlined),
-            selectedIcon: Icon(Icons.receipt_long, color: AppTheme.primary),
-            label: 'Orders',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person, color: AppTheme.primary),
-            label: 'Profile',
-          ),
-        ],
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) {
+        if (didPop) return;
+
+        // Если был push на детальный экран — возвращаемся назад
+        if (context.canPop()) {
+          context.pop();
+          return;
+        }
+
+        // Если мы на корневых страницах покупателя — уходим на выбор роли
+        context.go('/role-select');
+      },
+      child: Scaffold(
+        body: child,
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: _calculateSelectedIndex(context),
+          onDestinationSelected: (index) => _onItemTapped(index, context),
+          backgroundColor: Colors.white,
+          elevation: 0,
+          indicatorColor: AppTheme.secondary,
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.grid_view_outlined),
+              selectedIcon: Icon(Icons.grid_view, color: AppTheme.primary),
+              label: 'Каталог',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.receipt_long_outlined),
+              selectedIcon: Icon(Icons.receipt_long, color: AppTheme.primary),
+              label: 'Заказы',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.person_outline),
+              selectedIcon: Icon(Icons.person, color: AppTheme.primary),
+              label: 'Профиль',
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -55,7 +70,8 @@ class BuyerShell extends StatelessWidget {
         context.go('/buyer/orders');
         break;
       case 2:
-        // context.go('/buyer/profile'); // Mock profile not requested in main flow, but can add
+        // если профиля нет — можно оставить пустым или тоже вести на /buyer/profile
+        // context.go('/buyer/profile');
         break;
     }
   }
