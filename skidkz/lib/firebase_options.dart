@@ -1,6 +1,7 @@
 // lib/firebase_options.dart
 import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
-import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb, TargetPlatform;
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, kIsWeb, TargetPlatform;
 
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
@@ -23,12 +24,11 @@ class DefaultFirebaseOptions {
     }
   }
 
-  /// Заполни значениями из android/app/google-services.json
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'PASTE_API_KEY_HERE',
-    appId: 'PASTE_MOBILESDK_APP_ID_HERE',
-    messagingSenderId: 'PASTE_PROJECT_NUMBER_HERE',
-    projectId: 'PASTE_PROJECT_ID_HERE',
-    storageBucket: 'PASTE_STORAGE_BUCKET_HERE',
+    apiKey: 'AIzaSyBBSeBp5ZGxJrcryDofRPR1J2J8l0KNkPg',
+    appId: '1:793305921663:android:680dbd80f9ceb67a82a74a',
+    messagingSenderId: '793305921663',
+    projectId: 'skidkz',
+    storageBucket: 'skidkz.firebasestorage.app',
   );
 }
