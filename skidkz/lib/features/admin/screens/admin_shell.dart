@@ -13,14 +13,15 @@ class AdminShell extends StatelessWidget {
       onPopInvoked: (didPop) {
         if (didPop) return;
 
-        // Если есть куда возвращаться (например, был push на детальный экран) — попаем.
-        if (context.canPop()) {
-          context.pop();
+        // В ShellRoute для go_router корректнее проверять Router, а не context.canPop()
+        final router = GoRouter.of(context);
+        if (router.canPop()) {
+          router.pop();
           return;
         }
 
-        // Иначе мы на корневых страницах админки — возвращаем на выбор роли.
-        context.go('/role-select');
+        // На корневых страницах админки — уходим на выбор роли
+        router.go('/role-select');
       },
       child: Scaffold(
         body: child,
@@ -41,6 +42,11 @@ class AdminShell extends StatelessWidget {
               selectedIcon: Icon(Icons.people, color: Colors.red),
               label: 'Пользователи',
             ),
+            NavigationDestination(
+              icon: Icon(Icons.payments_outlined),
+              selectedIcon: Icon(Icons.payments, color: Colors.red),
+              label: 'Финансы',
+            ),
           ],
         ),
       ),
@@ -51,6 +57,7 @@ class AdminShell extends StatelessWidget {
     final String location = GoRouterState.of(context).uri.toString();
     if (location.startsWith('/admin/moderation')) return 0;
     if (location.startsWith('/admin/users')) return 1;
+    if (location.startsWith('/admin/finance')) return 2;
     return 0;
   }
 
@@ -61,6 +68,9 @@ class AdminShell extends StatelessWidget {
         break;
       case 1:
         context.go('/admin/users');
+        break;
+      case 2:
+        context.go('/admin/finance');
         break;
     }
   }
