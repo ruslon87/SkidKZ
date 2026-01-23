@@ -70,7 +70,6 @@ class _SellerAddProductScreenState extends ConsumerState<SellerAddProductScreen>
     
     // Validation
     final isValidW = sellerPrice > 0 && sellerPrice <= maxSellerPrice;
-    final isValidR = retailPrice > 0;
     final isValidC = calculatedSkidkzPrice <= retailPrice * 0.95; 
 
     final currencyFormatter = NumberFormat.currency(symbol: '₸', decimalDigits: 0);

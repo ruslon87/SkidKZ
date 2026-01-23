@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:skidkz/core/theme/app_theme.dart';
 import 'package:skidkz/data/models/order_model.dart';
-import 'package:skidkz/data/models/product_model.dart';
 import 'package:skidkz/data/repositories/mock_database.dart';
 import 'package:gap/gap.dart';
 
