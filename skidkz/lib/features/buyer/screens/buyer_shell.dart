@@ -1,26 +1,30 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:skidkz/core/theme/app_theme.dart';
+import 'package:skidkz/data/repositories/mock_database.dart';
 
-class BuyerShell extends StatelessWidget {
+class BuyerShell extends ConsumerWidget {
   final Widget child;
 
   const BuyerShell({super.key, required this.child});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return PopScope(
       canPop: false,
       onPopInvoked: (didPop) {
         if (didPop) return;
 
-        // Если был push на детальный экран — возвращаемся назад
+        // 1) Если есть что "попнуть" (детальные экраны) — возвращаемся назад
         if (context.canPop()) {
           context.pop();
           return;
         }
 
-        // Если мы на корневых страницах покупателя — уходим на выбор роли
+        // 2) Если мы на корневых экранах покупателя — выходим на выбор роли
+        // Важно: делаем logout, иначе redirect вернёт обратно в /buyer/home
+        ref.read(authProvider.notifier).logout();
         context.go('/role-select');
       },
       child: Scaffold(
@@ -70,7 +74,7 @@ class BuyerShell extends StatelessWidget {
         context.go('/buyer/orders');
         break;
       case 2:
-        // если профиля нет — можно оставить пустым или тоже вести на /buyer/profile
+        // если профиля нет — оставь пустым или добавь маршрут
         // context.go('/buyer/profile');
         break;
     }
