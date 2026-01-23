@@ -1,10 +1,12 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gap/gap.dart';
+
 import 'package:skidkz/core/theme/app_theme.dart';
 import 'package:skidkz/data/models/user_model.dart';
-import 'package:skidkz/data/repositories/mock_database.dart';
-import 'package:gap/gap.dart';
 
 class RoleSelectionScreen extends ConsumerStatefulWidget {
   const RoleSelectionScreen({super.key});
@@ -15,11 +17,12 @@ class RoleSelectionScreen extends ConsumerStatefulWidget {
 
 class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen> {
   DateTime? _lastBackPressedAt;
+  bool _saving = false;
 
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: false, // не даём системе закрывать экран автоматически
+      canPop: false,
       onPopInvoked: (didPop) async {
         if (didPop) return;
 
@@ -41,7 +44,6 @@ class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen> {
           return;
         }
 
-        // Второе нажатие в пределах 2 секунд — выходим
         await SystemNavigator.pop();
       },
       child: Scaffold(
@@ -72,38 +74,49 @@ class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen> {
                 const Gap(40),
 
                 Expanded(
-                  child: GridView.count(
-                    crossAxisCount: 2,
-                    mainAxisSpacing: 16,
-                    crossAxisSpacing: 16,
-                    children: [
-                      _RoleCard(
-                        title: 'Покупатель',
-                        icon: Icons.shopping_bag_outlined,
-                        color: Colors.blue,
-                        onTap: () => _login(UserRole.buyer),
+                  child: IgnorePointer(
+                    ignoring: _saving,
+                    child: Opacity(
+                      opacity: _saving ? 0.6 : 1,
+                      child: GridView.count(
+                        crossAxisCount: 2,
+                        mainAxisSpacing: 16,
+                        crossAxisSpacing: 16,
+                        children: [
+                          _RoleCard(
+                            title: 'Покупатель',
+                            icon: Icons.shopping_bag_outlined,
+                            color: Colors.blue,
+                            onTap: () => _selectRole(UserRole.buyer),
+                          ),
+                          _RoleCard(
+                            title: 'Ванхун',
+                            icon: Icons.campaign_outlined,
+                            color: Colors.purple,
+                            onTap: () => _selectRole(UserRole.wanghong),
+                          ),
+                          _RoleCard(
+                            title: 'Продавец',
+                            icon: Icons.storefront_outlined,
+                            color: Colors.orange,
+                            onTap: () => _selectRole(UserRole.seller),
+                          ),
+                          _RoleCard(
+                            title: 'Админ',
+                            icon: Icons.admin_panel_settings_outlined,
+                            color: Colors.red,
+                            onTap: () => _selectRole(UserRole.admin),
+                          ),
+                        ],
                       ),
-                      _RoleCard(
-                        title: 'Ванхун',
-                        icon: Icons.campaign_outlined,
-                        color: Colors.purple,
-                        onTap: () => _login(UserRole.wanghong),
-                      ),
-                      _RoleCard(
-                        title: 'Продавец',
-                        icon: Icons.storefront_outlined,
-                        color: Colors.orange,
-                        onTap: () => _login(UserRole.seller),
-                      ),
-                      _RoleCard(
-                        title: 'Админ',
-                        icon: Icons.admin_panel_settings_outlined,
-                        color: Colors.red,
-                        onTap: () => _login(UserRole.admin),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
+
+                if (_saving) ...[
+                  const Gap(12),
+                  const Center(child: CircularProgressIndicator()),
+                ],
 
                 const Gap(16),
                 Text(
@@ -121,8 +134,45 @@ class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen> {
     );
   }
 
-  void _login(UserRole role) {
-    ref.read(authProvider.notifier).login(role);
+  Future<void> _selectRole(UserRole role) async {
+    if (_saving) return;
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Сначала войдите по SMS')),
+      );
+      return;
+    }
+
+    setState(() => _saving = true);
+
+    try {
+      final uid = user.uid;
+      final phone = user.phoneNumber ?? '';
+
+      // users/{uid}
+      await FirebaseFirestore.instance.collection('users').doc(uid).set(
+        {
+          'uid': uid,
+          'phoneNumber': phone,
+          'role': role.name, // buyer / wanghong / seller / admin
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
+
+      // После этого router redirect сам утащит пользователя в нужный раздел по роли
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Ошибка сохранения роли: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 }
 
