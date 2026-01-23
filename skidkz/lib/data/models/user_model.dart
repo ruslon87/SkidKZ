@@ -1,17 +1,44 @@
 enum UserRole { buyer, wanghong, seller, admin }
 
-class User {
-  final String id;
-  final String name;
+class AppUser {
+  final String id; // uid
   final String phoneNumber;
-  final UserRole role;
-  final String? promoCode; // Only for Wanghong
+  final UserRole? role;
 
-  User({
+  // optional profile fields
+  final String? name;
+
+  // wanghong only
+  final String? kaspiPhone; // номер каспи для выплат
+  final bool? offerAccepted;
+
+  const AppUser({
     required this.id,
-    required this.name,
     required this.phoneNumber,
-    required this.role,
-    this.promoCode,
+    this.role,
+    this.name,
+    this.kaspiPhone,
+    this.offerAccepted,
   });
+
+  Map<String, dynamic> toMap() => {
+        'phoneNumber': phoneNumber,
+        'role': role?.name,
+        'name': name,
+        'kaspiPhone': kaspiPhone,
+        'offerAccepted': offerAccepted,
+        'createdAt': DateTime.now().toIso8601String(),
+      };
+
+  static AppUser fromMap(String uid, Map<String, dynamic> data) {
+    final roleStr = data['role'] as String?;
+    return AppUser(
+      id: uid,
+      phoneNumber: (data['phoneNumber'] as String?) ?? '',
+      role: roleStr == null ? null : UserRole.values.firstWhere((r) => r.name == roleStr),
+      name: data['name'] as String?,
+      kaspiPhone: data['kaspiPhone'] as String?,
+      offerAccepted: data['offerAccepted'] as bool?,
+    );
+  }
 }
