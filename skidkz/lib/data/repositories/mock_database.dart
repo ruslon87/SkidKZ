@@ -1,4 +1,5 @@
 // lib/data/repositories/mock_database.dart
+
 import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -171,7 +172,7 @@ class WalletState {
 class WalletNotifier extends Notifier<WalletState> {
   @override
   WalletState build() {
-    // Demo values (can be changed)
+    // Demo values
     return WalletState(balance: 0.0, hold: 13500.0);
   }
 
@@ -185,7 +186,6 @@ class WalletNotifier extends Notifier<WalletState> {
 
   void requestWithdrawal() {
     if (state.balance >= 1000) {
-      // Demo: clear balance
       state = state.copyWith(balance: 0.0);
     }
   }
@@ -195,14 +195,13 @@ class WalletNotifier extends Notifier<WalletState> {
 // -------------------- FIREBASE AUTH + PROFILE --------------------
 //
 
-// Firebase singletons
 final firebaseAuthProvider =
     Provider<fb.FirebaseAuth>((ref) => fb.FirebaseAuth.instance);
 
 final firestoreProvider =
     Provider<FirebaseFirestore>((ref) => FirebaseFirestore.instance);
 
-// Repo from Step 2
+// Repo (из твоего шага 2)
 final firebaseAuthRepoProvider = Provider<FirebaseAuthRepo>((ref) {
   return FirebaseAuthRepo(
     ref.watch(firebaseAuthProvider),
@@ -231,7 +230,7 @@ final currentUserProfileProvider = FutureProvider<AppUser?>((ref) async {
   return repo.getProfile(fbUser.uid);
 });
 
-// Small controller for UI actions (set role / logout / save wanghong payout)
+// Controller for UI actions
 final authControllerProvider =
     Provider<AuthController>((ref) => AuthController(ref));
 
@@ -265,6 +264,46 @@ class AuthController {
     );
 
     ref.invalidate(currentUserProfileProvider);
+  }
+}
+
+//
+// -------------------- COMPAT: authProvider (чтобы старые экраны компилились) --------------------
+//
+
+final authProvider =
+    NotifierProvider<AuthNotifier, AppUser?>(AuthNotifier.new);
+
+class AuthNotifier extends Notifier<AppUser?> {
+  @override
+  AppUser? build() {
+    final profileAsync = ref.watch(currentUserProfileProvider);
+    final user = profileAsync.asData?.value;
+
+    if (user != null && user.role == UserRole.wanghong) {
+      // Даем дефолтный промокод для MVP, если его нет в профиле
+      return AppUser(
+        id: user.id,
+        phoneNumber: user.phoneNumber,
+        role: user.role,
+        name: user.name,
+        kaspiPhone: user.kaspiPhone,
+        offerAccepted: user.offerAccepted,
+        promoCode: user.promoCode ?? 'IVAN25',
+      );
+    }
+
+    return user;
+  }
+
+  Future<void> logout() async {
+    await ref.read(authControllerProvider).logout();
+  }
+
+  // На Firebase логин делается в LoginScreen.
+  // Этот метод оставлен только как заглушка, если где-то ещё остались вызовы.
+  Future<void> login(UserRole role) async {
+    await ref.read(authControllerProvider).setRole(role);
   }
 }
 
