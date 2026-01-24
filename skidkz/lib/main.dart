@@ -1,20 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:firebase_core/firebase_core.dart';
+import 'package:skidkz/core/router/app_router.dart';
 
-import 'package:skidkz/app.dart';
-import 'firebase_options.dart';
+class SkidKZApp extends ConsumerWidget {
+  const SkidKZApp({super.key});
 
-Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final router = ref.watch(routerProvider);
 
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-
-  runApp(
-    const ProviderScope(
-      child: SkidKZApp(),
-    ),
-  );
+    return MaterialApp.router(
+      debugShowCheckedModeBanner: false,
+      routerConfig: router,
+    );
+  }
 }
