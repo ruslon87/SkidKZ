@@ -1,117 +1,36 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:gap/gap.dart';
 
-class LoginScreen extends ConsumerStatefulWidget {
+class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
   @override
-  ConsumerState<LoginScreen> createState() => _LoginScreenState();
+  State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends ConsumerState<LoginScreen> {
-  final _phoneController = TextEditingController();
-  final _otpController = TextEditingController();
+class _LoginScreenState extends State<LoginScreen> {
+  final _phoneController = TextEditingController(text: '+7');
+  final _codeController = TextEditingController();
 
   bool _codeSent = false;
   bool _loading = false;
 
   String? _verificationId;
-  int? _resendToken;
 
   @override
   void dispose() {
     _phoneController.dispose();
-    _otpController.dispose();
+    _codeController.dispose();
     super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final title = _codeSent ? 'Введите код' : 'Вход по номеру';
-
-    return Scaffold(
-      appBar: AppBar(title: Text(title)),
-      body: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          children: [
-            if (!_codeSent) ...[
-              TextField(
-                controller: _phoneController,
-                decoration: const InputDecoration(
-                  labelText: 'Номер телефона',
-                  hintText: '+7XXXXXXXXXX',
-                ),
-                keyboardType: TextInputType.phone,
-              ),
-              const Gap(16),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _loading ? null : _sendCode,
-                  child: _loading
-                      ? const SizedBox(
-                          height: 18,
-                          width: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('Получить код'),
-                ),
-              ),
-            ] else ...[
-              Text(
-                'Код отправлен на ${_phoneController.text.trim()}',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-              const Gap(12),
-              TextField(
-                controller: _otpController,
-                decoration: const InputDecoration(
-                  labelText: 'SMS код',
-                  hintText: '123456',
-                ),
-                keyboardType: TextInputType.number,
-              ),
-              const Gap(16),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _loading ? null : _verifyCode,
-                  child: _loading
-                      ? const SizedBox(
-                          height: 18,
-                          width: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('Подтвердить и войти'),
-                ),
-              ),
-              const Gap(12),
-              TextButton(
-                onPressed: _loading
-                    ? null
-                    : () {
-                        setState(() {
-                          _codeSent = false;
-                          _otpController.clear();
-                          _verificationId = null;
-                        });
-                      },
-                child: const Text('Изменить номер'),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
   }
 
   Future<void> _sendCode() async {
     final phone = _phoneController.text.trim();
-    if (phone.isEmpty || !phone.startsWith('+')) {
-      _show('Введите номер в формате +7XXXXXXXXXX');
+
+    if (phone.isEmpty || phone.length < 10) {
+      _toast('Введите номер в формате +7XXXXXXXXXX');
       return;
     }
 
@@ -121,53 +40,54 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       await FirebaseAuth.instance.verifyPhoneNumber(
         phoneNumber: phone,
         timeout: const Duration(seconds: 60),
-        forceResendingToken: _resendToken,
 
+        // На Android часто срабатывает auto-retrieval
         verificationCompleted: (PhoneAuthCredential credential) async {
-          // Иногда Android может автоматически подтвердить SMS
           try {
             await FirebaseAuth.instance.signInWithCredential(credential);
-            if (!mounted) return;
-            Navigator.of(context).pop(); // вернёмся назад — роутер сам сделает redirect
+            // ВАЖНО: не setState / не навигация.
+            // GoRouter сам редиректнет по authStateChanges.
           } catch (e) {
-            if (mounted) _show('Автовход не удался: $e');
+            if (!mounted) return;
+            _toast('Auto sign-in ошибка: $e');
           }
         },
 
         verificationFailed: (FirebaseAuthException e) {
-          final msg = e.message ?? e.code;
-          _show('Ошибка отправки SMS: $msg');
+          if (!mounted) return;
+          _toast('Ошибка отправки SMS: ${e.message ?? e.code}');
         },
 
         codeSent: (String verificationId, int? resendToken) {
+          if (!mounted) return;
+          _verificationId = verificationId;
           setState(() {
-            _verificationId = verificationId;
-            _resendToken = resendToken;
             _codeSent = true;
           });
-          _show('Код отправлен');
         },
 
         codeAutoRetrievalTimeout: (String verificationId) {
-          // просто сохраняем, чтобы можно было ввести код вручную
+          // Просто сохраняем, UI не трогаем, чтобы не ловить гонки.
           _verificationId = verificationId;
         },
       );
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (!mounted) return;
+      setState(() => _loading = false);
     }
   }
 
   Future<void> _verifyCode() async {
-    final code = _otpController.text.trim();
+    final code = _codeController.text.trim();
     final vid = _verificationId;
 
     if (vid == null) {
-      _show('Сначала запросите код');
+      _toast('Сначала запросите код');
       return;
     }
+
     if (code.length < 4) {
-      _show('Введите корректный код');
+      _toast('Введите SMS код');
       return;
     }
 
@@ -181,21 +101,108 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
       await FirebaseAuth.instance.signInWithCredential(credential);
 
-      if (!mounted) return;
-      Navigator.of(context).pop(); // вернёмся назад — роутер сделает redirect
+      // ВАЖНО:
+      // Никаких setState / snackbars / navigation после signIn.
+      // Сразу выходим — роутер сам переведёт на /role-select или в роль.
+      return;
     } on FirebaseAuthException catch (e) {
-      _show('Ошибка подтверждения: ${e.message ?? e.code}');
-    } catch (e) {
-      _show('Ошибка: $e');
+      if (!mounted) return;
+      _toast('Ошибка входа: ${e.message ?? e.code}');
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (!mounted) return;
+      setState(() => _loading = false);
     }
   }
 
-  void _show(String text) {
+  void _toast(String msg) {
     if (!mounted) return;
     ScaffoldMessenger.of(context)
       ..clearSnackBars()
-      ..showSnackBar(SnackBar(content: Text(text)));
+      ..showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: !_loading,
+      onPopInvoked: (didPop) async {
+        if (_loading) return;
+        if (!didPop) {
+          await SystemNavigator.pop();
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(title: const Text('Вход по номеру')),
+        body: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (!_codeSent) ...[
+                TextField(
+                  controller: _phoneController,
+                  keyboardType: TextInputType.phone,
+                  decoration: const InputDecoration(
+                    labelText: 'Номер телефона',
+                    hintText: '+77770001122',
+                  ),
+                  enabled: !_loading,
+                ),
+                const Gap(16),
+                ElevatedButton(
+                  onPressed: _loading ? null : _sendCode,
+                  child: _loading
+                      ? const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Получить код'),
+                ),
+              ] else ...[
+                Text(
+                  'Код отправлен на ${_phoneController.text.trim()}',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                const Gap(12),
+                TextField(
+                  controller: _codeController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'SMS код',
+                    hintText: 'Например: 438743',
+                  ),
+                  enabled: !_loading,
+                ),
+                const Gap(16),
+                ElevatedButton(
+                  onPressed: _loading ? null : _verifyCode,
+                  child: _loading
+                      ? const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Подтвердить и войти'),
+                ),
+                const Gap(8),
+                TextButton(
+                  onPressed: _loading
+                      ? null
+                      : () {
+                          setState(() {
+                            _codeSent = false;
+                            _verificationId = null;
+                            _codeController.clear();
+                          });
+                        },
+                  child: const Text('Изменить номер'),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
