@@ -18,13 +18,12 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
   DateTime? _lastBackPressedAt;
   bool _saving = false;
 
-  // ВАЖНО: whitelist админов. Лучше по UID (самый надёжный).
-  // Добавишь сюда свой uid из Firebase Auth (после входа можешь вывести и скопировать).
+  // whitelist админов (лучше UID)
   static const Set<String> _adminUids = {
     // 'YOUR_ADMIN_UID_HERE',
   };
 
-  // Если UID пока не знаешь — можно временно в whitelist по телефону (менее надёжно):
+  // временно можно whitelist по телефону (хуже)
   static const Set<String> _adminPhones = {
     // '+7700XXXXXXX',
   };
@@ -75,7 +74,7 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                 ),
                 const Gap(8),
                 Text(
-                  'Выберите роль для демо',
+                  'Выберите роль для кабинета',
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                         color: AppTheme.textSecondary,
                       ),
@@ -169,12 +168,10 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
       }
     }
 
-    // Собираем доп. данные по ролям
+    // Собираем данные роли
     final extra = await _collectRoleData(role);
-    if (extra == null) {
-      // пользователь отменил окно
-      return;
-    }
+    if (!mounted) return; // диалог мог закрыть экран
+    if (extra == null) return; // отмена
 
     setState(() => _saving = true);
 
@@ -182,63 +179,64 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
       final uid = user.uid;
       final phone = user.phoneNumber ?? '';
 
+      // КРИТИЧНО: сохраняем activeRole (и role для совместимости)
       await FirebaseFirestore.instance.collection('users').doc(uid).set(
         {
           'uid': uid,
           'phoneNumber': phone,
-          'role': role.name, // buyer / wanghong / seller / admin
-          'profile': extra,  // роль-специфичные поля
+
+          'activeRole': role.name, // то, что роутер читает
+          'role': role.name,       // fallback/совместимость
+
+          'profile': extra,
+
           'createdAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
         },
         SetOptions(merge: true),
       );
 
-      // После этого router redirect сам утащит пользователя в нужный раздел по роли.
+      // НИКАКОЙ навигации / snackbar после успешного сохранения.
+      // GoRouter сам увезёт пользователя по activeRole.
+      return;
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Ошибка сохранения роли: $e')),
       );
     } finally {
-      if (mounted) setState(() => _saving = false);
+      if (!mounted) return;
+      setState(() => _saving = false);
     }
   }
 
-  /// Возвращает Map с профилем роли или null если отменили.
-  /// Здесь же требуем оферту (чекбокс).
   Future<Map<String, dynamic>?> _collectRoleData(UserRole role) async {
     switch (role) {
       case UserRole.buyer:
-        // Покупатель: минимум
-        return {
-          'offerAccepted': true, // можно пока не показывать оферту покупателю в демо
-        };
+        return {'offerAccepted': true};
 
       case UserRole.wanghong:
-        return await _showWanghongDialog();
+        return _showWanghongDialog();
 
       case UserRole.seller:
-        return await _showSellerDialog();
+        return _showSellerDialog();
 
       case UserRole.admin:
-        // Админ: оферта не нужна; можно хранить флаг в профиле
-        return {
-          'isWhitelistedAdmin': true,
-        };
+        return {'isWhitelistedAdmin': true};
     }
   }
 
   Future<Map<String, dynamic>?> _showWanghongDialog() async {
     final kaspiController = TextEditingController();
     bool accepted = false;
+    String? errorText;
 
-    return showDialog<Map<String, dynamic>?>(
+    final result = await showDialog<Map<String, dynamic>?>(
       context: context,
       barrierDismissible: false,
       builder: (ctx) {
         return StatefulBuilder(
-          builder: (ctx, setState) {
+          builder: (ctx, setSt) {
             return AlertDialog(
               title: const Text('Ванхун — данные для выплат'),
               content: Column(
@@ -247,9 +245,10 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                   TextField(
                     controller: kaspiController,
                     keyboardType: TextInputType.phone,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Kaspi номер (обязательно)',
                       hintText: 'Например: +7 700 123 45 67',
+                      errorText: errorText,
                     ),
                   ),
                   const Gap(12),
@@ -258,26 +257,27 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                     children: [
                       Checkbox(
                         value: accepted,
-                        onChanged: (v) => setState(() => accepted = v ?? false),
+                        onChanged: (v) => setSt(() => accepted = v ?? false),
                       ),
                       Expanded(
                         child: GestureDetector(
-                          onTap: () => setState(() => accepted = !accepted),
+                          onTap: () => setSt(() => accepted = !accepted),
                           child: const Padding(
                             padding: EdgeInsets.only(top: 12),
-                            child: Text(
-                              'Я ознакомился и принимаю оферту (обязательно)',
-                            ),
+                            child: Text('Я принимаю оферту (обязательно)'),
                           ),
                         ),
                       ),
                     ],
                   ),
-                  const Gap(8),
-                  const Text(
-                    'Оферту позже заменим на экран/ссылку. Сейчас фиксируем факт акцепта.',
-                    style: TextStyle(fontSize: 12, color: Colors.grey),
-                  ),
+                  if (!accepted)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 4),
+                      child: Text(
+                        'Без акцепта оферты регистрация недоступна.',
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                    ),
                 ],
               ),
               actions: [
@@ -289,15 +289,11 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                   onPressed: () {
                     final kaspi = kaspiController.text.trim();
                     if (kaspi.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Введите Kaspi номер.')),
-                      );
+                      setSt(() => errorText = 'Введите Kaspi номер');
                       return;
                     }
                     if (!accepted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Нужно принять оферту.')),
-                      );
+                      setSt(() => errorText = 'Нужно принять оферту');
                       return;
                     }
 
@@ -305,7 +301,6 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                       'kaspiNumber': kaspi,
                       'offerAccepted': true,
                       'offerAcceptedAt': DateTime.now().toIso8601String(),
-                      // можно сразу подготовить поля под баланс
                       'wallet': {
                         'balance': 0.0,
                         'hold': 0.0,
@@ -322,19 +317,23 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
         );
       },
     );
+
+    kaspiController.dispose();
+    return result;
   }
 
   Future<Map<String, dynamic>?> _showSellerDialog() async {
     final storeController = TextEditingController();
     bool accepted = false;
-    bool isService = false; // false=товары, true=услуги (минимально)
+    bool isService = false;
+    String? errorText;
 
-    return showDialog<Map<String, dynamic>?>(
+    final result = await showDialog<Map<String, dynamic>?>(
       context: context,
       barrierDismissible: false,
       builder: (ctx) {
         return StatefulBuilder(
-          builder: (ctx, setState) {
+          builder: (ctx, setSt) {
             return AlertDialog(
               title: const Text('Продавец — данные'),
               content: Column(
@@ -342,15 +341,16 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                 children: [
                   TextField(
                     controller: storeController,
-                    decoration: const InputDecoration(
-                      labelText: 'Название продавца (магазин/сервис)',
+                    decoration: InputDecoration(
+                      labelText: 'Название продавца',
                       hintText: 'Например: Шинный Центр Алматы',
+                      errorText: errorText,
                     ),
                   ),
                   const Gap(12),
                   SwitchListTile(
                     value: isService,
-                    onChanged: (v) => setState(() => isService = v),
+                    onChanged: (v) => setSt(() => isService = v),
                     title: Text(isService ? 'Тип: Услуги' : 'Тип: Товары'),
                     subtitle: const Text('Нужно для логики оплат (товар/услуга).'),
                   ),
@@ -360,16 +360,14 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                     children: [
                       Checkbox(
                         value: accepted,
-                        onChanged: (v) => setState(() => accepted = v ?? false),
+                        onChanged: (v) => setSt(() => accepted = v ?? false),
                       ),
                       Expanded(
                         child: GestureDetector(
-                          onTap: () => setState(() => accepted = !accepted),
+                          onTap: () => setSt(() => accepted = !accepted),
                           child: const Padding(
                             padding: EdgeInsets.only(top: 12),
-                            child: Text(
-                              'Я ознакомился и принимаю оферту (обязательно)',
-                            ),
+                            child: Text('Я принимаю оферту (обязательно)'),
                           ),
                         ),
                       ),
@@ -386,15 +384,11 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                   onPressed: () {
                     final storeName = storeController.text.trim();
                     if (storeName.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Введите название продавца.')),
-                      );
+                      setSt(() => errorText = 'Введите название продавца');
                       return;
                     }
                     if (!accepted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Нужно принять оферту.')),
-                      );
+                      setSt(() => errorText = 'Нужно принять оферту');
                       return;
                     }
 
@@ -403,7 +397,6 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                       'isServiceSeller': isService,
                       'offerAccepted': true,
                       'offerAcceptedAt': DateTime.now().toIso8601String(),
-                      // можно хранить статус модерации продавца:
                       'status': 'pending', // pending/approved/rejected
                     });
                   },
@@ -415,6 +408,9 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
         );
       },
     );
+
+    storeController.dispose();
+    return result;
   }
 }
 
@@ -454,10 +450,7 @@ class _RoleCard extends StatelessWidget {
               child: Icon(icon, size: 32, color: color),
             ),
             const Gap(16),
-            Text(
-              title,
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
+            Text(title, style: Theme.of(context).textTheme.titleLarge),
           ],
         ),
       ),
