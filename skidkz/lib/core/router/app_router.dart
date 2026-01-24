@@ -31,25 +31,42 @@ import 'package:skidkz/features/admin/screens/users_screen.dart';
 import 'package:skidkz/features/admin/screens/admin_finance_screen.dart';
 
 /// --- Firebase singletons ---
-final firebaseAuthProvider = Provider<fb.FirebaseAuth>((ref) => fb.FirebaseAuth.instance);
-final firestoreProvider = Provider<FirebaseFirestore>((ref) => FirebaseFirestore.instance);
+final firebaseAuthProvider =
+    Provider<fb.FirebaseAuth>((ref) => fb.FirebaseAuth.instance);
+
+final firestoreProvider =
+    Provider<FirebaseFirestore>((ref) => FirebaseFirestore.instance);
 
 /// Auth stream
 final authStateChangesProvider = StreamProvider<fb.User?>((ref) {
   return ref.watch(firebaseAuthProvider).authStateChanges();
 });
 
-/// ActiveRole из users/{uid}.activeRole (buyer/wanghong/seller/admin) или null
-final activeRoleProvider = FutureProvider<UserRole?>((ref) async {
-  final fbUser = await ref.watch(authStateChangesProvider.future);
-  if (fbUser == null) return null;
-
+/// users/{uid} realtime snapshot (null если не залогинен)
+final userDocProvider =
+    StreamProvider<DocumentSnapshot<Map<String, dynamic>>?>((ref) {
+  final auth = ref.watch(firebaseAuthProvider);
   final db = ref.watch(firestoreProvider);
-  final doc = await db.collection('users').doc(fbUser.uid).get();
-  if (!doc.exists) return null;
 
-  final data = doc.data();
-  final roleStr = data?['activeRole'] as String?;
+  return auth.authStateChanges().asyncExpand((u) {
+    if (u == null) {
+      return Stream.value(null);
+    }
+    return db.collection('users').doc(u.uid).snapshots();
+  });
+});
+
+/// ActiveRole из users/{uid}.activeRole или users/{uid}.role (fallback)
+final activeRoleProvider = Provider<UserRole?>((ref) {
+  final snapAsync = ref.watch(userDocProvider);
+  final snap = snapAsync.asData?.value;
+
+  if (snap == null || !snap.exists) return null;
+
+  final data = snap.data();
+  if (data == null) return null;
+
+  final roleStr = (data['activeRole'] as String?) ?? (data['role'] as String?);
   if (roleStr == null) return null;
 
   return UserRole.values.firstWhere(
@@ -61,17 +78,21 @@ final activeRoleProvider = FutureProvider<UserRole?>((ref) async {
 /// Router refresh helper
 class _RouterRefreshNotifier extends ChangeNotifier {
   _RouterRefreshNotifier(this.ref) {
-    _sub1 = ref.listen<AsyncValue<fb.User?>>(authStateChangesProvider, (_, __) {
-      notifyListeners();
-    });
-    _sub2 = ref.listen<AsyncValue<UserRole?>>(activeRoleProvider, (_, __) {
-      notifyListeners();
-    });
+    _sub1 = ref.listen<AsyncValue<fb.User?>>(
+      authStateChangesProvider,
+      (_, __) => notifyListeners(),
+    );
+
+    _sub2 = ref.listen<AsyncValue<DocumentSnapshot<Map<String, dynamic>>?>>(
+      userDocProvider,
+      (_, __) => notifyListeners(),
+    );
   }
 
   final Ref ref;
   late final ProviderSubscription<AsyncValue<fb.User?>> _sub1;
-  late final ProviderSubscription<AsyncValue<UserRole?>> _sub2;
+  late final ProviderSubscription<
+      AsyncValue<DocumentSnapshot<Map<String, dynamic>>?>> _sub2;
 
   @override
   void dispose() {
@@ -106,67 +127,64 @@ final routerProvider = Provider<GoRouter>((ref) {
   final refresh = _RouterRefreshNotifier(ref);
 
   return GoRouter(
-    // A) Витрина = стартовая
+    // Витрина — стартовая
     initialLocation: '/buyer/home',
     refreshListenable: refresh,
 
     redirect: (context, state) {
       final location = state.uri.toString();
 
-      // Разрешаем покупательские экраны без авторизации
-      final isPublicBuyer =
-          location.startsWith('/buyer') || location == '/' || location.isEmpty;
+      // Публичная часть покупателя без логина
+      final isPublicBuyer = location.startsWith('/buyer') ||
+          location == '/' ||
+          location.isEmpty;
 
       final authAsync = ref.read(authStateChangesProvider);
-      final fbUser = authAsync.asData?.value; // <-- вместо valueOrNull
+      final fbUser = authAsync.asData?.value;
 
-      final roleAsync = ref.read(activeRoleProvider);
-      final activeRole = roleAsync.asData?.value; // <-- вместо valueOrNull
+      // Роль читаем из стрима users/{uid}
+      final role = ref.read(activeRoleProvider);
 
-      final isLoading = authAsync.isLoading || roleAsync.isLoading;
+      final userDocAsync = ref.read(userDocProvider);
+
+      final isLoading = authAsync.isLoading || userDocAsync.isLoading;
 
       final isLogin = location == '/login';
       final isRoleSelect = location == '/role-select';
 
-      // Пока грузится — не дёргаем редиректы, иначе будет "дребезг"
+      // Пока грузится — не дёргаем редиректы
       if (isLoading) return null;
 
-      // 1) Если пользователь НЕ залогинен:
-      // - покупательские страницы разрешены
-      // - кабинетные страницы запрещены -> /login
+      // 1) Не залогинен
       if (fbUser == null) {
         if (isPublicBuyer) return null;
-        if (_isCabinetArea(location) || !isPublicBuyer) {
-          return isLogin ? null : '/login';
-        }
-        return null;
+        // Любая кабинетная зона требует логин
+        return isLogin ? null : '/login';
       }
 
-      // 2) Пользователь залогинен:
-      // /login больше не нужен
+      // 2) Залогинен — /login больше не нужен
       if (isLogin) {
-        // после логина ведём в /cabinet (там решится дальше)
         return '/cabinet';
       }
 
-      // 3) Кабинетный роутер:
-      // Если role ещё не выбрали -> /role-select
+      // 3) Кабинетная зона
       if (_isCabinetArea(location)) {
-        if (activeRole == null) {
+        // Роль не задана -> выбор роли
+        if (role == null) {
           return isRoleSelect ? null : '/role-select';
         }
-        // если пользователь на /role-select, но роль уже есть — ведём в дом роли
+
+        // /role-select при уже заданной роли -> домой
         if (isRoleSelect) {
-          return _homeForRole(activeRole);
+          return _homeForRole(role);
         }
-        // /cabinet -> дом роли
+
+        // /cabinet -> домой по роли
         if (location == '/cabinet') {
-          return _homeForRole(activeRole);
+          return _homeForRole(role);
         }
       }
 
-      // 4) Если роль есть, но юзер случайно пошёл на чужой кабинет — оставим как есть (MVP),
-      // позже можно добавить проверку доступа по roles map.
       return null;
     },
 
@@ -176,7 +194,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     ),
 
     routes: [
-      // LOGIN + ROLE SELECT (кабинетные шаги)
+      // LOGIN + ROLE SELECT
       GoRoute(
         path: '/login',
         builder: (context, state) => const LoginScreen(),
@@ -186,7 +204,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const RoleSelectionScreen(),
       ),
 
-      // Технический “вход” в кабинет: всегда ведём сюда, а redirect решит куда дальше
+      // Технический вход в кабинет
       GoRoute(
         path: '/cabinet',
         builder: (context, state) => const Scaffold(
@@ -215,7 +233,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         ],
       ),
 
-      // SELLER (только после логина)
+      // SELLER
       ShellRoute(
         builder: (context, state, child) => SellerShell(child: child),
         routes: [
