@@ -1,17 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:skidkz/core/router/app_router.dart';
+import 'package:firebase_core/firebase_core.dart';
 
-class SkidKZApp extends ConsumerWidget {
-  const SkidKZApp({super.key});
+import 'package:skidkz/app.dart';
+import 'firebase_options.dart';
 
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final router = ref.watch(routerProvider);
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
 
-    return MaterialApp.router(
-      debugShowCheckedModeBanner: false,
-      routerConfig: router,
-    );
-  }
+  // Важно: без этого FirebaseAuth/Firestore часто ломают старт и ты "висишь" на сплеше
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  runApp(
+    const ProviderScope(
+      child: SkidKZApp(),
+    ),
+  );
 }
