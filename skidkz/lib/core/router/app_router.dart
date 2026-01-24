@@ -1,7 +1,8 @@
+// lib/core/router/app_router.dart
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -30,28 +31,27 @@ import 'package:skidkz/features/admin/screens/users_screen.dart';
 import 'package:skidkz/features/admin/screens/admin_finance_screen.dart';
 
 /// --- Firebase providers ---
-final firebaseAuthProvider = Provider<FirebaseAuth>((ref) => FirebaseAuth.instance);
+final firebaseAuthProvider = Provider<fb.FirebaseAuth>((ref) => fb.FirebaseAuth.instance);
 final firestoreProvider = Provider<FirebaseFirestore>((ref) => FirebaseFirestore.instance);
 
 /// Текущее состояние авторизации (стрим).
-final authStateChangesProvider = StreamProvider<User?>((ref) {
+final authStateChangesProvider = StreamProvider<fb.User?>((ref) {
   return ref.watch(firebaseAuthProvider).authStateChanges();
 });
 
 /// Роль пользователя из Firestore (может быть null если профиль не создан).
 final userRoleProvider = FutureProvider<UserRole?>((ref) async {
-  final user = await ref.watch(authStateChangesProvider.future);
-  if (user == null) return null;
+  final fbUser = await ref.watch(authStateChangesProvider.future);
+  if (fbUser == null) return null;
 
   final db = ref.watch(firestoreProvider);
-  final snap = await db.collection('users').doc(user.uid).get();
+  final snap = await db.collection('users').doc(fbUser.uid).get();
   if (!snap.exists) return null;
 
   final data = snap.data();
   final roleStr = data?['role'] as String?;
   if (roleStr == null) return null;
 
-  // role хранится строкой: buyer/wanghong/seller/admin
   return UserRole.values.firstWhere(
     (e) => e.name == roleStr,
     orElse: () => UserRole.buyer,
@@ -61,13 +61,15 @@ final userRoleProvider = FutureProvider<UserRole?>((ref) async {
 /// Listenable для refreshListenable (обновляет роутер при изменениях auth/role)
 class _RouterRefreshNotifier extends ChangeNotifier {
   _RouterRefreshNotifier(this.ref) {
-    _sub1 = ref.listen<User?>(authStateChangesProvider.select((v) => v.valueOrNull), (_, __) {
-      notifyListeners();
-    });
+    _sub1 = ref.listen<fb.User?>(
+      authStateChangesProvider.select((v) => v.asData?.value),
+      (_, __) => notifyListeners(),
+    );
 
-    _sub2 = ref.listen<AsyncValue<UserRole?>>(userRoleProvider, (_, __) {
-      notifyListeners();
-    });
+    _sub2 = ref.listen<AsyncValue<UserRole?>>(
+      userRoleProvider,
+      (_, __) => notifyListeners(),
+    );
   }
 
   final Ref ref;
@@ -93,34 +95,28 @@ final routerProvider = Provider<GoRouter>((ref) {
       final location = state.uri.toString();
 
       final authAsync = ref.read(authStateChangesProvider);
-      final user = authAsync.valueOrNull;
+      final fbUser = authAsync.asData?.value;
 
       final roleAsync = ref.read(userRoleProvider);
-      final role = roleAsync.valueOrNull;
+      final role = roleAsync.asData?.value;
 
       final isLogin = location == '/login';
       final isRoleSelect = location == '/role-select';
 
-      // Пока грузится auth/role — не дёргаем редиректы (иначе будет "дребезг").
-      final isAuthLoading = authAsync.isLoading;
-      final isRoleLoading = roleAsync.isLoading;
+      // пока грузится — не редиректим
+      if (authAsync.isLoading || roleAsync.isLoading) return null;
 
       // 1) Не авторизован -> только /login
-      if (user == null) {
+      if (fbUser == null) {
         return isLogin ? null : '/login';
       }
 
-      // 2) Авторизован, но профиль/роль еще грузится
-      if (isAuthLoading || isRoleLoading) {
-        return null;
-      }
-
-      // 3) Авторизован, но роли нет -> /role-select
+      // 2) Авторизован, но роли нет -> /role-select
       if (role == null) {
         return isRoleSelect ? null : '/role-select';
       }
 
-      // 4) Роль есть -> на домашний экран роли, если пользователь на /login или /role-select
+      // 3) Роль есть -> если на /login или /role-select, отправляем в раздел роли
       if (isLogin || isRoleSelect) {
         switch (role) {
           case UserRole.buyer:
@@ -143,14 +139,8 @@ final routerProvider = Provider<GoRouter>((ref) {
     ),
 
     routes: [
-      GoRoute(
-        path: '/login',
-        builder: (context, state) => const LoginScreen(),
-      ),
-      GoRoute(
-        path: '/role-select',
-        builder: (context, state) => const RoleSelectionScreen(),
-      ),
+      GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
+      GoRoute(path: '/role-select', builder: (context, state) => const RoleSelectionScreen()),
 
       // BUYER
       ShellRoute(
