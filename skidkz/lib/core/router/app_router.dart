@@ -30,6 +30,11 @@ import 'package:skidkz/features/admin/screens/moderation_screen.dart';
 import 'package:skidkz/features/admin/screens/users_screen.dart';
 import 'package:skidkz/features/admin/screens/admin_finance_screen.dart';
 
+import 'package:skidkz/features/buyer/screens/buyer_catalog_screen.dart';
+import 'package:skidkz/features/buyer/screens/buyer_favorites_screen.dart';
+import 'package:skidkz/features/buyer/screens/buyer_cart_screen.dart';
+import 'package:skidkz/features/buyer/screens/buyer_profile_screen.dart';
+
 /// --- Firebase singletons ---
 final firebaseAuthProvider =
     Provider<fb.FirebaseAuth>((ref) => fb.FirebaseAuth.instance);
