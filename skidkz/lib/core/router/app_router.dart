@@ -1,5 +1,4 @@
 // lib/core/router/app_router.dart
-import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
@@ -13,7 +12,7 @@ import 'package:skidkz/features/auth/screens/login_screen.dart';
 import 'package:skidkz/features/auth/screens/role_selection_screen.dart';
 
 import 'package:skidkz/features/buyer/screens/buyer_shell.dart';
-import 'package:skidkz/features/buyer/screens/buyer_home_screen.dart';
+import 'package:skidkz/features/home/home_page.dart';
 import 'package:skidkz/features/buyer/screens/buyer_catalog_screen.dart';
 import 'package:skidkz/features/buyer/screens/buyer_favorites_screen.dart';
 import 'package:skidkz/features/buyer/screens/buyer_cart_screen.dart';
@@ -231,7 +230,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         routes: [
           GoRoute(
             path: '/buyer/home',
-            builder: (context, state) => const BuyerHomeScreen(),
+            builder: (context, state) => const HomePage(),
           ),
           GoRoute(
             path: '/buyer/catalog',
