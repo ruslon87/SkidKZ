@@ -2,9 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:skidkz/core/theme/app_theme.dart';
 
-class BuyerShell extends StatelessWidget {
+class BuyerShell extends StatefulWidget {
   final Widget child;
   const BuyerShell({super.key, required this.child});
+
+  @override
+  State<BuyerShell> createState() => _BuyerShellState();
+}
+
+class _BuyerShellState extends State<BuyerShell> {
+  String _city = 'Алматы';
 
   int _locationToIndex(String location) {
     if (location.startsWith('/buyer/catalog')) return 1;
@@ -34,6 +41,13 @@ class BuyerShell extends StatelessWidget {
     }
   }
 
+  void _toggleCity() {
+    // TODO: потом сделаем нормальный выбор города
+    setState(() {
+      _city = _city == 'Алматы' ? 'Астана' : 'Алматы';
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final location = GoRouterState.of(context).uri.toString();
@@ -41,7 +55,57 @@ class BuyerShell extends StatelessWidget {
 
     return Scaffold(
       drawer: const BuyerDrawer(),
-      body: child,
+
+      // ✅ ФИКСИРОВАННАЯ ШАПКА ДЛЯ ВСЕХ ВКЛАДОК И ЭКРАНОВ ВНУТРИ BUYER SHELL
+      appBar: AppBar(
+        backgroundColor: AppTheme.primary,
+        elevation: 0,
+        leading: Builder(
+          builder: (ctx) => IconButton(
+            icon: const Icon(Icons.menu, color: Colors.white),
+            onPressed: () => Scaffold.of(ctx).openDrawer(),
+          ),
+        ),
+        titleSpacing: 0,
+        title: const Text(
+          'SkidKZ',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        actions: [
+          InkWell(
+            onTap: _toggleCity,
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.location_on_outlined,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    _city,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+
+      body: widget.child,
+
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: currentIndex,
         onTap: (i) => _onTabTap(context, i),
@@ -84,15 +148,12 @@ class BuyerDrawer extends StatelessWidget {
         child: LayoutBuilder(
           builder: (context, constraints) {
             return SingleChildScrollView(
-              // ✅ всегда можно прокрутить, даже если контента мало
               physics: const BouncingScrollPhysics(),
               child: ConstrainedBox(
-                // ✅ чтобы на больших экранах drawer не “схлопывался” по высоте
                 constraints: BoxConstraints(minHeight: constraints.maxHeight),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Header
                     const Padding(
                       padding: EdgeInsets.fromLTRB(16, 12, 16, 8),
                       child: Text(
@@ -102,9 +163,7 @@ class BuyerDrawer extends StatelessWidget {
                     ),
                     const Divider(height: 1),
 
-                    // Аккаунт
                     _sectionTitle('Аккаунт'),
-
                     ListTile(
                       leading: const Icon(Icons.login),
                       title: const Text('Войти / Регистрация'),
@@ -114,7 +173,6 @@ class BuyerDrawer extends StatelessWidget {
                         context.go('/login');
                       },
                     ),
-
                     ListTile(
                       leading: const Icon(Icons.receipt_long_outlined),
                       title: const Text('Мои заказы'),
@@ -126,19 +184,16 @@ class BuyerDrawer extends StatelessWidget {
 
                     const Divider(height: 1),
 
-                    // Кабинеты
                     _sectionTitle('Кабинеты'),
-
                     ListTile(
                       leading: const Icon(Icons.store_mall_directory_outlined),
-                      title: const Text('Кабинет продавца'),
-                      subtitle: const Text('Услуги,товары, товары, заказы'),
+                      title: const Text('Кабинет магазина'),
+                      subtitle: const Text('Продажи, товары, заказы'),
                       onTap: () {
                         Navigator.pop(context);
                         context.go('/cabinet');
                       },
                     ),
-
                     ListTile(
                       leading: const Icon(Icons.campaign_outlined),
                       title: const Text('Кабинет ванхуна'),
@@ -151,31 +206,22 @@ class BuyerDrawer extends StatelessWidget {
 
                     const Divider(height: 1),
 
-                    // Сервис
                     _sectionTitle('Сервис'),
-
                     ListTile(
                       leading: const Icon(Icons.support_agent_outlined),
                       title: const Text('Поддержка'),
-                      onTap: () {
-                        Navigator.pop(context);
-                        // TODO: context.go('/support');
-                      },
+                      onTap: () => Navigator.pop(context),
                     ),
                     ListTile(
                       leading: const Icon(Icons.info_outline),
                       title: const Text('О приложении'),
-                      onTap: () {
-                        Navigator.pop(context);
-                        // TODO: context.go('/about');
-                      },
+                      onTap: () => Navigator.pop(context),
                     ),
 
+                    const Spacer(),
                     const Divider(height: 1),
 
-                    // Для бизнеса — ВНИЗУ, но без Spacer (иначе overflow)
                     _sectionTitle('Для бизнеса'),
-
                     ListTile(
                       leading: const Icon(Icons.add_business_outlined),
                       title: const Text('Открыть магазин'),
@@ -185,7 +231,6 @@ class BuyerDrawer extends StatelessWidget {
                         // TODO: context.go('/info/seller');
                       },
                     ),
-
                     ListTile(
                       leading: const Icon(Icons.person_add_alt_1_outlined),
                       title: const Text('Подключиться как ванхун'),
@@ -195,8 +240,6 @@ class BuyerDrawer extends StatelessWidget {
                         // TODO: context.go('/info/wanghong');
                       },
                     ),
-
-                    // ✅ нижний безопасный отступ, чтобы не прилипало
                     const SizedBox(height: 12),
                   ],
                 ),
