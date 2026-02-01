@@ -66,7 +66,7 @@ class HomeNotifier extends StateNotifier<HomeState> {
     try {
       final lastProduct = state.products.last;
 
-      // NOTE: extra read. Better: keep lastDoc in state. Keep as-is for now.
+      // NOTE: extra read; better: store lastDoc in state. Keep as-is for now.
       final lastDocSnapshot = await FirebaseFirestore.instance
           .collection('products')
           .doc(lastProduct.id)
@@ -134,35 +134,26 @@ class _HomePageState extends ConsumerState<HomePage> {
     super.dispose();
   }
 
-  void _openDrawer(BuildContext context) {
-    // Важно: HomePage больше НЕ имеет своего drawer.
-    // Открываем drawer родительского Scaffold (shell).
+  void _openParentDrawer(BuildContext context) {
     final scaffold = Scaffold.maybeOf(context);
     if (scaffold != null && scaffold.hasDrawer) {
       scaffold.openDrawer();
-      return;
     }
-
-    // Если drawer выше нет — просто ничего не делаем (чтобы не падало)
-    // Можно показать SnackBar, если хочешь:
-    // ScaffoldMessenger.of(context).showSnackBar(
-    //   const SnackBar(content: Text('Drawer is not provided in shell')),
-    // );
   }
 
   @override
   Widget build(BuildContext context) {
     final homeState = ref.watch(homeProvider);
 
-    // ❗❗❗ ВАЖНО: НЕТ Scaffold, НЕТ drawer — это контент страницы.
+    // ❗❗❗ ВАЖНО: HomePage больше НЕ Scaffold.
+    // Drawer и BottomNav живут в BuyerShell (ShellRoute).
     return Container(
       color: const Color(0xFFF4F6F8),
       child: CustomScrollView(
         controller: _pageScrollController,
         slivers: [
           // -----------------------------------------------------------------
-          // CUSTOM HEADER
-          // Menu | SkidKZ | Location icon | City
+          // CUSTOM HEADER: Menu | SkidKZ | 📍 City
           // -----------------------------------------------------------------
           SliverToBoxAdapter(
             child: Container(
@@ -173,17 +164,15 @@ class _HomePageState extends ConsumerState<HomePage> {
                   padding: const EdgeInsets.fromLTRB(8, 6, 12, 8),
                   child: Row(
                     children: [
-                      // ☰ menu (opens parent drawer)
+                      // ☰ menu (opens parent drawer from BuyerShell)
                       Builder(
                         builder: (ctx) => IconButton(
                           icon: const Icon(Icons.menu, color: Colors.white),
-                          onPressed: () => _openDrawer(ctx),
+                          onPressed: () => _openParentDrawer(ctx),
                         ),
                       ),
-
                       const SizedBox(width: 6),
 
-                      // SkidKZ
                       const Text(
                         'SkidKZ',
                         style: TextStyle(
@@ -195,7 +184,6 @@ class _HomePageState extends ConsumerState<HomePage> {
 
                       const Spacer(),
 
-                      // 📍 + City
                       InkWell(
                         onTap: () {
                           setState(() {
@@ -205,9 +193,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                         borderRadius: BorderRadius.circular(12),
                         child: Padding(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 8,
-                          ),
+                              horizontal: 10, vertical: 8),
                           child: Row(
                             children: [
                               const Icon(
@@ -261,7 +247,8 @@ class _HomePageState extends ConsumerState<HomePage> {
                             },
                           ),
                     border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                    contentPadding:
+                        const EdgeInsets.symmetric(vertical: 10),
                   ),
                 ),
               ),
@@ -475,8 +462,7 @@ class ProductCard extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         boxShadow: const [
-          BoxShadow(
-              color: Colors.black12, blurRadius: 4, offset: Offset(0, 2)),
+          BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2)),
         ],
       ),
       child: Column(
@@ -518,7 +504,6 @@ class ProductCard extends StatelessWidget {
               ],
             ),
           ),
-
           Padding(
             padding: const EdgeInsets.all(8.0),
             child: Column(
@@ -531,7 +516,6 @@ class ProductCard extends StatelessWidget {
                   style: const TextStyle(fontSize: 13, height: 1.2),
                 ),
                 const Gap(4),
-
                 Row(
                   children: const [
                     Icon(Icons.star, size: 12, color: Colors.amber),
@@ -540,13 +524,11 @@ class ProductCard extends StatelessWidget {
                         style: TextStyle(fontSize: 10, color: Colors.grey)),
                   ],
                 ),
-
                 const Gap(6),
-
                 if (product.bonusPrice != null && product.bonusPrice! > 0)
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 6, vertical: 3),
                     decoration: BoxDecoration(
                       color: Colors.amberAccent,
                       borderRadius: BorderRadius.circular(6),
@@ -560,9 +542,7 @@ class ProductCard extends StatelessWidget {
                       ),
                     ),
                   ),
-
                 const Gap(8),
-
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
