@@ -11,7 +11,7 @@ import 'package:skidkz/data/models/user_model.dart';
 import 'package:skidkz/features/auth/screens/login_screen.dart';
 import 'package:skidkz/features/auth/screens/role_selection_screen.dart';
 
-// ✅ ВАЖНО: buyer_shell.dart теперь содержит BuyerRootShell
+// ✅ BuyerRootShell (общая оболочка: верхняя панель + drawer + bottom nav)
 import 'package:skidkz/features/buyer/screens/buyer_shell.dart';
 
 import 'package:skidkz/features/home/home_page.dart';
@@ -32,6 +32,10 @@ import 'package:skidkz/features/admin/screens/admin_shell.dart';
 import 'package:skidkz/features/admin/screens/moderation_screen.dart';
 import 'package:skidkz/features/admin/screens/users_screen.dart';
 import 'package:skidkz/features/admin/screens/admin_finance_screen.dart';
+
+// ✅ Инфо-экраны (кто такие продавцы/ванхуны)
+import 'package:skidkz/features/info/screens/seller_info_screen.dart';
+import 'package:skidkz/features/info/screens/wanghong_info_screen.dart';
 
 /// --------------------
 /// Firebase singletons
@@ -102,8 +106,12 @@ class _RouterRefreshNotifier extends ChangeNotifier {
 /// --------------------
 /// Helpers
 /// --------------------
-bool _isBuyerArea(String location) {
-  return location == '/' || location.startsWith('/buyer');
+
+// ✅ Публичная зона: buyer + info-страницы
+bool _isPublicArea(String location) {
+  return location == '/' ||
+      location.startsWith('/buyer') ||
+      location.startsWith('/info');
 }
 
 bool _isCabinetArea(String location) {
@@ -152,14 +160,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isLogin = location == '/login';
       final isRoleSelect = location == '/role-select';
 
-      // Пока грузимся — не редиректим, иначе будет "дребезг"
       if (isLoading) return null;
 
       // -----------------------------
-      // 1) Public buyer area: always ok
+      // 1) Public area: buyer + info
       // -----------------------------
-      if (_isBuyerArea(location)) {
-        // Покупательские экраны публичны (без логина)
+      if (_isPublicArea(location)) {
         return null;
       }
 
@@ -214,7 +220,6 @@ final routerProvider = Provider<GoRouter>((ref) {
         return null;
       }
 
-      // fallback
       return null;
     },
 
@@ -224,6 +229,18 @@ final routerProvider = Provider<GoRouter>((ref) {
     ),
 
     routes: [
+      /// -------------------------
+      /// PUBLIC INFO (без логина)
+      /// -------------------------
+      GoRoute(
+        path: '/info/seller',
+        builder: (context, state) => const SellerInfoScreen(),
+      ),
+      GoRoute(
+        path: '/info/wanghong',
+        builder: (context, state) => const WanghongInfoScreen(),
+      ),
+
       /// -------------------------
       /// AUTH / CABINET ENTRY
       /// -------------------------
@@ -246,7 +263,6 @@ final routerProvider = Provider<GoRouter>((ref) {
       /// BUYER (PUBLIC) SHELL
       /// -------------------------
       ShellRoute(
-        // ✅ ВАЖНО: используем BuyerRootShell, чтобы AppBar был всегда
         builder: (context, state, child) => BuyerRootShell(child: child),
         routes: [
           GoRoute(
