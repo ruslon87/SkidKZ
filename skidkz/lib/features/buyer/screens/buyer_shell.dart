@@ -2,15 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:skidkz/core/theme/app_theme.dart';
 
-class BuyerShell extends StatefulWidget {
+class BuyerRootShell extends StatefulWidget {
   final Widget child;
-  const BuyerShell({super.key, required this.child});
+  const BuyerRootShell({super.key, required this.child});
 
   @override
-  State<BuyerShell> createState() => _BuyerShellState();
+  State<BuyerRootShell> createState() => _BuyerRootShellState();
 }
 
-class _BuyerShellState extends State<BuyerShell> {
+class _BuyerRootShellState extends State<BuyerRootShell> {
   String _city = 'Алматы';
 
   int _locationToIndex(String location) {
@@ -42,7 +42,6 @@ class _BuyerShellState extends State<BuyerShell> {
   }
 
   void _toggleCity() {
-    // TODO: потом сделаем нормальный выбор города
     setState(() {
       _city = _city == 'Алматы' ? 'Астана' : 'Алматы';
     });
@@ -56,7 +55,7 @@ class _BuyerShellState extends State<BuyerShell> {
     return Scaffold(
       drawer: const BuyerDrawer(),
 
-      // ✅ ФИКСИРОВАННАЯ ШАПКА ДЛЯ ВСЕХ ВКЛАДОК И ЭКРАНОВ ВНУТРИ BUYER SHELL
+      // ✅ ФИКСИРОВАННАЯ ШАПКА ВЕЗДЕ
       appBar: AppBar(
         backgroundColor: AppTheme.primary,
         elevation: 0,
@@ -83,18 +82,11 @@ class _BuyerShellState extends State<BuyerShell> {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               child: Row(
                 children: [
-                  const Icon(
-                    Icons.location_on_outlined,
-                    color: Colors.white,
-                    size: 20,
-                  ),
+                  const Icon(Icons.location_on_outlined, color: Colors.white, size: 20),
                   const SizedBox(width: 4),
                   Text(
                     _city,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(width: 6),
                 ],
@@ -132,11 +124,7 @@ class BuyerDrawer extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
       child: Text(
         text,
-        style: const TextStyle(
-          fontSize: 12,
-          color: Colors.grey,
-          fontWeight: FontWeight.w700,
-        ),
+        style: const TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.w700),
       ),
     );
   }
@@ -156,10 +144,7 @@ class BuyerDrawer extends StatelessWidget {
                   children: [
                     const Padding(
                       padding: EdgeInsets.fromLTRB(16, 12, 16, 8),
-                      child: Text(
-                        'SkidKZ',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-                      ),
+                      child: Text('SkidKZ', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
                     ),
                     const Divider(height: 1),
 
@@ -218,7 +203,6 @@ class BuyerDrawer extends StatelessWidget {
                       onTap: () => Navigator.pop(context),
                     ),
 
-                    const Spacer(),
                     const Divider(height: 1),
 
                     _sectionTitle('Для бизнеса'),
