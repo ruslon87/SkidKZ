@@ -66,8 +66,7 @@ class HomeNotifier extends StateNotifier<HomeState> {
     try {
       final lastProduct = state.products.last;
 
-      // NOTE: This is not ideal (extra read). Better approach is to store lastDoc in state.
-      // But we keep your current repository contract unchanged.
+      // NOTE: extra read. Better: keep lastDoc in state. Keep as-is for now.
       final lastDocSnapshot = await FirebaseFirestore.instance
           .collection('products')
           .doc(lastProduct.id)
@@ -108,7 +107,6 @@ class HomePage extends ConsumerStatefulWidget {
 class _HomePageState extends ConsumerState<HomePage> {
   final ScrollController _pageScrollController = ScrollController();
   final ScrollController _recommendedScrollController = ScrollController();
-
   final TextEditingController _searchController = TextEditingController();
 
   String _city = 'Almaty';
@@ -136,18 +134,34 @@ class _HomePageState extends ConsumerState<HomePage> {
     super.dispose();
   }
 
+  void _openDrawer(BuildContext context) {
+    // Важно: HomePage больше НЕ имеет своего drawer.
+    // Открываем drawer родительского Scaffold (shell).
+    final scaffold = Scaffold.maybeOf(context);
+    if (scaffold != null && scaffold.hasDrawer) {
+      scaffold.openDrawer();
+      return;
+    }
+
+    // Если drawer выше нет — просто ничего не делаем (чтобы не падало)
+    // Можно показать SnackBar, если хочешь:
+    // ScaffoldMessenger.of(context).showSnackBar(
+    //   const SnackBar(content: Text('Drawer is not provided in shell')),
+    // );
+  }
+
   @override
   Widget build(BuildContext context) {
     final homeState = ref.watch(homeProvider);
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF4F6F8),
-      drawer: const Drawer(),
-      body: CustomScrollView(
+    // ❗❗❗ ВАЖНО: НЕТ Scaffold, НЕТ drawer — это контент страницы.
+    return Container(
+      color: const Color(0xFFF4F6F8),
+      child: CustomScrollView(
         controller: _pageScrollController,
         slivers: [
           // -----------------------------------------------------------------
-          // CUSTOM HEADER (NO SliverAppBar)
+          // CUSTOM HEADER
           // Menu | SkidKZ | Location icon | City
           // -----------------------------------------------------------------
           SliverToBoxAdapter(
@@ -159,11 +173,11 @@ class _HomePageState extends ConsumerState<HomePage> {
                   padding: const EdgeInsets.fromLTRB(8, 6, 12, 8),
                   child: Row(
                     children: [
-                      // ☰ menu
+                      // ☰ menu (opens parent drawer)
                       Builder(
                         builder: (ctx) => IconButton(
                           icon: const Icon(Icons.menu, color: Colors.white),
-                          onPressed: () => Scaffold.of(ctx).openDrawer(),
+                          onPressed: () => _openDrawer(ctx),
                         ),
                       ),
 
@@ -184,7 +198,6 @@ class _HomePageState extends ConsumerState<HomePage> {
                       // 📍 + City
                       InkWell(
                         onTap: () {
-                          // TODO: open city picker
                           setState(() {
                             _city = _city == 'Almaty' ? 'Astana' : 'Almaty';
                           });
@@ -348,7 +361,6 @@ class _HomePageState extends ConsumerState<HomePage> {
                     );
                   }
 
-                  // tail loader
                   return const Center(
                     child: Padding(
                       padding: EdgeInsets.all(16.0),
@@ -470,7 +482,6 @@ class ProductCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Image
           Expanded(
             child: Stack(
               children: [
@@ -508,7 +519,6 @@ class ProductCard extends StatelessWidget {
             ),
           ),
 
-          // Content
           Padding(
             padding: const EdgeInsets.all(8.0),
             child: Column(
@@ -522,7 +532,6 @@ class ProductCard extends StatelessWidget {
                 ),
                 const Gap(4),
 
-                // Rating (placeholder)
                 Row(
                   children: const [
                     Icon(Icons.star, size: 12, color: Colors.amber),
@@ -534,13 +543,12 @@ class ProductCard extends StatelessWidget {
 
                 const Gap(6),
 
-                // Bonus
                 if (product.bonusPrice != null && product.bonusPrice! > 0)
                   Container(
                     padding:
                         const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                     decoration: BoxDecoration(
-                      color: Colors.amber.shade100,
+                      color: Colors.amberAccent,
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
@@ -555,7 +563,6 @@ class ProductCard extends StatelessWidget {
 
                 const Gap(8),
 
-                // Price + add
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
