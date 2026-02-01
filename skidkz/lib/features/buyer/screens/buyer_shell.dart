@@ -20,7 +20,7 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
     if (location.startsWith('/buyer/favorites')) return 2;
     if (location.startsWith('/buyer/cart')) return 3;
     if (location.startsWith('/buyer/profile')) return 4;
-    return 0;
+    return 0; // /buyer/home
   }
 
   void _onTabTap(BuildContext context, int index) {
@@ -84,13 +84,18 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               child: Row(
                 children: [
-                  const Icon(Icons.location_on_outlined,
-                      color: Colors.white, size: 20),
+                  const Icon(
+                    Icons.location_on_outlined,
+                    color: Colors.white,
+                    size: 20,
+                  ),
                   const SizedBox(width: 4),
                   Text(
                     _city,
                     style: const TextStyle(
-                        color: Colors.white, fontWeight: FontWeight.w600),
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   const SizedBox(width: 6),
                 ],
@@ -112,11 +117,17 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
           BottomNavigationBarItem(icon: Icon(Icons.store), label: 'Магазин'),
           BottomNavigationBarItem(icon: Icon(Icons.grid_view), label: 'Каталог'),
           BottomNavigationBarItem(
-              icon: Icon(Icons.favorite_border), label: 'Избранное'),
+            icon: Icon(Icons.favorite_border),
+            label: 'Избранное',
+          ),
           BottomNavigationBarItem(
-              icon: Icon(Icons.shopping_cart_outlined), label: 'Корзина'),
+            icon: Icon(Icons.shopping_cart_outlined),
+            label: 'Корзина',
+          ),
           BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline), label: 'Профиль'),
+            icon: Icon(Icons.person_outline),
+            label: 'Профиль',
+          ),
         ],
       ),
     );
@@ -168,11 +179,10 @@ class BuyerDrawer extends StatelessWidget {
     try {
       await fb.FirebaseAuth.instance.signOut();
     } catch (_) {
-      // молча, это MVP
+      // MVP: молча
     }
 
     if (Navigator.canPop(context)) Navigator.pop(context);
-    // после выхода — остаёмся в публичной зоне покупателя
     context.go('/buyer/home');
   }
 
@@ -186,266 +196,257 @@ class BuyerDrawer extends StatelessWidget {
       child: StreamBuilder<fb.User?>(
         stream: fb.FirebaseAuth.instance.authStateChanges(),
         builder: (context, snap) {
-          final user = snap.data; // null => гость
+          final user = snap.data;
           final isAuthed = user != null;
 
-          return ListView(
-            padding: EdgeInsets.zero,
-            children: [
-              // -------------------------
-              // HEADER (синий + умная карточка)
-              // -------------------------
-              Container(
-                color: AppTheme.primary,
-                padding: EdgeInsets.only(
-                  top: MediaQuery.of(context).padding.top + 12,
-                  left: 16,
-                  right: 16,
-                  bottom: 14,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'SkidKZ',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-
-                    InkWell(
-                      onTap: () {
-                        _closeDrawer(context);
-                        if (isAuthed) {
-                          context.go('/buyer/profile');
-                        } else {
-                          context.go('/login');
-                        }
-                      },
-                      borderRadius: BorderRadius.circular(14),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 12),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(14),
-                          border:
-                              Border.all(color: Colors.white.withOpacity(0.18)),
+          return SafeArea(
+            child: SingleChildScrollView(
+              // ✅ всегда скроллится если не влазит
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // -------------------------
+                  // HEADER (синий + умная карточка)
+                  // -------------------------
+                  Container(
+                    color: AppTheme.primary,
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'SkidKZ',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
-                        child: Row(
-                          children: [
-                            // аватар
-                            Container(
-                              width: 38,
-                              height: 38,
-                              decoration: BoxDecoration(
+                        const SizedBox(height: 12),
+                        InkWell(
+                          onTap: () {
+                            _closeDrawer(context);
+                            if (isAuthed) {
+                              context.go('/buyer/profile');
+                            } else {
+                              context.go('/login');
+                            }
+                          },
+                          borderRadius: BorderRadius.circular(14),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 12,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
                                 color: Colors.white.withOpacity(0.18),
-                                shape: BoxShape.circle,
-                              ),
-                              alignment: Alignment.center,
-                              child: Icon(
-                                isAuthed
-                                    ? Icons.person
-                                    : Icons.person_outline,
-                                color: Colors.white,
                               ),
                             ),
-                            const SizedBox(width: 12),
-
-                            // тексты
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    isAuthed
-                                        ? _displayName(user!)
-                                        : 'Войти / Регистрация',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w800,
-                                    ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 38,
+                                  height: 38,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.18),
+                                    shape: BoxShape.circle,
                                   ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    isAuthed
-                                        ? _subtitle(user!)
-                                        : 'Заказы, избранное, бонусы',
-                                    style: const TextStyle(
-                                      color: Colors.white70,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w500,
-                                    ),
+                                  alignment: Alignment.center,
+                                  child: Icon(
+                                    isAuthed ? Icons.person : Icons.person_outline,
+                                    color: Colors.white,
                                   ),
-                                ],
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        isAuthed
+                                            ? _displayName(user!)
+                                            : 'Войти / Регистрация',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        isAuthed
+                                            ? _subtitle(user!)
+                                            : 'Заказы, избранное, бонусы',
+                                        style: const TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const Icon(Icons.chevron_right, color: Colors.white),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Text(
+                              isAuthed ? 'Покупатель' : 'Гость',
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.85),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
-
-                            const Icon(Icons.chevron_right, color: Colors.white),
+                            const Spacer(),
+                            if (isAuthed)
+                              TextButton(
+                                onPressed: () => _signOutAndClose(context),
+                                style: TextButton.styleFrom(
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 6,
+                                  ),
+                                  minimumSize: Size.zero,
+                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                ),
+                                child: const Text(
+                                  'Выйти',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    decoration: TextDecoration.underline,
+                                  ),
+                                ),
+                              ),
                           ],
                         ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 10),
-
-                    Row(
-                      children: [
-                        Text(
-                          isAuthed ? 'Покупатель' : 'Гость',
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.85),
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const Spacer(),
-
-                        if (isAuthed)
-                          TextButton(
-                            onPressed: () => _signOutAndClose(context),
-                            style: TextButton.styleFrom(
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 10, vertical: 6),
-                              minimumSize: Size.zero,
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            ),
-                            child: const Text(
-                              'Выйти',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w700,
-                                decoration: TextDecoration.underline,
-                              ),
-                            ),
-                          ),
                       ],
                     ),
-                  ],
-                ),
-              ),
+                  ),
 
-              // -------------------------
-              // АККАУНТ
-              // -------------------------
-              _sectionTitle('Аккаунт'),
-              ListTile(
-                leading: const Icon(Icons.receipt_long_outlined),
-                title: const Text('Мои заказы'),
-                onTap: () {
-                  _closeDrawer(context);
-                  if (isAuthed) {
-                    // пока можно вести в профиль (когда появится orders screen — поменяем)
-                    context.go('/buyer/profile');
-                  } else {
-                    context.go('/login');
-                  }
-                },
-              ),
+                  // -------------------------
+                  // АККАУНТ
+                  // -------------------------
+                  _sectionTitle('Аккаунт'),
+                  ListTile(
+                    leading: const Icon(Icons.receipt_long_outlined),
+                    title: const Text('Мои заказы'),
+                    onTap: () {
+                      _closeDrawer(context);
+                      if (isAuthed) {
+                        context.go('/buyer/profile'); // пока сюда
+                      } else {
+                        context.go('/login');
+                      }
+                    },
+                  ),
 
-              const Divider(height: 1),
+                  const Divider(height: 1),
 
-              // -------------------------
-              // КАБИНЕТЫ
-              // -------------------------
-              _sectionTitle('Кабинеты'),
-              ListTile(
-                leading: const Icon(Icons.store_mall_directory_outlined),
-                title: const Text('Кабинет магазина'),
-                subtitle: const Text('Продажи, товары, заказы'),
-                onTap: () {
-                  _closeDrawer(context);
-                  // умно: всегда доступно нажать — роутер сам отправит на /login если надо
-                  context.go('/cabinet');
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.campaign_outlined),
-                title: const Text('Кабинет ванхуна'),
-                subtitle: const Text('Заработать на промокодах'),
-                onTap: () {
-                  _closeDrawer(context);
-                  context.go('/cabinet');
-                },
-              ),
+                  // -------------------------
+                  // КАБИНЕТЫ
+                  // -------------------------
+                  _sectionTitle('Кабинеты'),
+                  ListTile(
+                    leading: const Icon(Icons.store_mall_directory_outlined),
+                    title: const Text('Кабинет магазина'),
+                    subtitle: const Text('Продажи, товары, заказы'),
+                    onTap: () {
+                      _closeDrawer(context);
+                      context.go('/cabinet');
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.campaign_outlined),
+                    title: const Text('Кабинет ванхуна'),
+                    subtitle: const Text('Заработать на промокодах'),
+                    onTap: () {
+                      _closeDrawer(context);
+                      context.go('/cabinet');
+                    },
+                  ),
 
-              const Divider(height: 1),
+                  const Divider(height: 1),
 
-              // -------------------------
-              // СЕРВИС
-              // -------------------------
-              _sectionTitle('Сервис'),
-              ListTile(
-                leading: const Icon(Icons.support_agent_outlined),
-                title: const Text('Поддержка'),
-                onTap: () => _closeDrawer(context),
-              ),
-              ListTile(
-                leading: const Icon(Icons.info_outline),
-                title: const Text('О приложении'),
-                onTap: () => _closeDrawer(context),
-              ),
+                  // ✅ -------------------------
+                  // ✅ ДЛЯ БИЗНЕСА (теперь ВЫШЕ "Сервис")
+                  // -------------------------
+                  _sectionTitle('Для бизнеса'),
+                  ListTile(
+                    leading: const Icon(Icons.add_business_outlined),
+                    title: const Text('Открыть магазин'),
+                    subtitle: const Text('Как это работает'),
+                    onTap: () {
+                      _closeDrawer(context);
+                      context.go('/info/seller');
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.person_add_alt_1_outlined),
+                    title: const Text('Подключиться как ванхун'),
+                    subtitle: const Text('Условия и старт'),
+                    onTap: () {
+                      _closeDrawer(context);
+                      context.go('/info/wanghong');
+                    },
+                  ),
 
-              const Divider(height: 1),
+                  const Divider(height: 1),
 
-              // -------------------------
-              // ДЛЯ БИЗНЕСА (ВСЕГДА ВНИЗУ, ВСЕГДА ВИДНО/ДОСТУПНО)
-              // -------------------------
-              _sectionTitle('Для бизнеса'),
-              ListTile(
-                leading: const Icon(Icons.add_business_outlined),
-                title: const Text('Открыть магазин'),
-                subtitle: const Text('Как это работает'),
-                onTap: () {
-                  _closeDrawer(context);
-                  // TODO: context.go('/info/seller');
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.person_add_alt_1_outlined),
-                title: const Text('Подключиться как ванхун'),
-                subtitle: const Text('Условия и старт'),
-                onTap: () {
-                  _closeDrawer(context);
-                  // TODO: context.go('/info/wanghong');
-                },
-              ),
+                  // ✅ -------------------------
+                  // ✅ СЕРВИС (теперь НИЖЕ "Для бизнеса")
+                  // -------------------------
+                  _sectionTitle('Сервис'),
+                  ListTile(
+                    leading: const Icon(Icons.support_agent_outlined),
+                    title: const Text('Поддержка'),
+                    onTap: () => _closeDrawer(context),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.info_outline),
+                    title: const Text('О приложении'),
+                    onTap: () => _closeDrawer(context),
+                  ),
 
-              const Divider(height: 1),
+                  const Divider(height: 1),
 
-              // -------------------------
-              // НИЗ: версия / политика / соглашение
-              // -------------------------
-              _sectionTitle('Информация'),
-              ListTile(
-                leading: const Icon(Icons.verified_outlined),
-                title: const Text('Версия приложения'),
-                subtitle: const _AppVersionSubtitle(),
-                onTap: () {},
-              ),
-              ListTile(
-                leading: const Icon(Icons.policy_outlined),
-                title: const Text('Политика конфиденциальности'),
-                onTap: () {
-                  _closeDrawer(context);
-                  // TODO: context.go('/legal/privacy');
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.description_outlined),
-                title: const Text('Пользовательское соглашение'),
-                onTap: () {
-                  _closeDrawer(context);
-                  // TODO: context.go('/legal/terms');
-                },
-              ),
+                  // -------------------------
+                  // ИНФОРМАЦИЯ
+                  // -------------------------
+                  _sectionTitle('Информация'),
+                  ListTile(
+                    leading: const Icon(Icons.verified_outlined),
+                    title: const Text('Версия приложения'),
+                    subtitle: const _AppVersionSubtitle(),
+                    onTap: () {},
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.policy_outlined),
+                    title: const Text('Политика конфиденциальности'),
+                    onTap: () {
+                      _closeDrawer(context);
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.description_outlined),
+                    title: const Text('Пользовательское соглашение'),
+                    onTap: () {
+                      _closeDrawer(context);
+                    },
+                  ),
 
-              const SizedBox(height: 12),
-            ],
+                  const SizedBox(height: 12),
+                ],
+              ),
+            ),
           );
         },
       ),
