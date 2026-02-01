@@ -1,34 +1,51 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:skidkz/core/theme/app_theme.dart';
-import 'package:skidkz/features/home/home_page.dart';
 
-class BuyerShell extends StatefulWidget {
-  const BuyerShell({super.key});
+class BuyerShell extends StatelessWidget {
+  final Widget child;
+  const BuyerShell({super.key, required this.child});
 
-  @override
-  State<BuyerShell> createState() => _BuyerShellState();
-}
+  int _locationToIndex(String location) {
+    if (location.startsWith('/buyer/catalog')) return 1;
+    if (location.startsWith('/buyer/favorites')) return 2;
+    if (location.startsWith('/buyer/cart')) return 3;
+    if (location.startsWith('/buyer/profile')) return 4;
+    return 0; // /buyer/home and fallback
+  }
 
-class _BuyerShellState extends State<BuyerShell> {
-  int _index = 0;
+  void _onTabTap(BuildContext context, int index) {
+    switch (index) {
+      case 0:
+        context.go('/buyer/home');
+        break;
+      case 1:
+        context.go('/buyer/catalog');
+        break;
+      case 2:
+        context.go('/buyer/favorites');
+        break;
+      case 3:
+        context.go('/buyer/cart');
+        break;
+      case 4:
+        context.go('/buyer/profile');
+        break;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final pages = <Widget>[
-      const HomePage(), // витрина
-      const _PlaceholderPage(title: 'Каталог'),
-      const _PlaceholderPage(title: 'Избранное'),
-      const _PlaceholderPage(title: 'Корзина'),
-      const _PlaceholderPage(title: 'Профиль'),
-    ];
+    final location = GoRouterState.of(context).uri.toString();
+    final currentIndex = _locationToIndex(location);
 
     return Scaffold(
-      // ВАЖНО: AppBar НЕ ДЕЛАЕМ (чтобы не было белой шапки)
-      drawer: const AppDrawer(), // ЕДИНЫЙ drawer для "общего приложения"
-      body: pages[_index],
+      // ВАЖНО: без AppBar, чтобы не было белой шапки
+      drawer: const AppDrawer(),
+      body: child,
       bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _index,
-        onTap: (v) => setState(() => _index = v),
+        currentIndex: currentIndex,
+        onTap: (i) => _onTabTap(context, i),
         type: BottomNavigationBarType.fixed,
         selectedItemColor: AppTheme.primary,
         unselectedItemColor: Colors.grey,
@@ -57,7 +74,10 @@ class AppDrawer extends StatelessWidget {
           children: [
             const Padding(
               padding: EdgeInsets.fromLTRB(16, 10, 16, 10),
-              child: Text('SkidKZ', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+              child: Text(
+                'SkidKZ',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+              ),
             ),
             const Divider(height: 1),
 
@@ -66,8 +86,8 @@ class AppDrawer extends StatelessWidget {
               leading: const Icon(Icons.storefront_outlined),
               title: const Text('Витрина'),
               onTap: () {
-                Navigator.pop(context); // закрыть drawer
-                // Витрина — это вкладка 0. В реальном проекте можно прокинуть callback.
+                Navigator.pop(context);
+                context.go('/buyer/home');
               },
             ),
             ListTile(
@@ -78,15 +98,27 @@ class AppDrawer extends StatelessWidget {
 
             const Divider(height: 1),
 
-            // Роли (как ты хотел)
+            // Вход в кабинет (единая точка)
+            ListTile(
+              leading: const Icon(Icons.badge_outlined),
+              title: const Text('Кабинет (магазин/ванхун/админ)'),
+              subtitle: const Text('Войти или выбрать роль'),
+              onTap: () {
+                Navigator.pop(context);
+                context.go('/cabinet'); // router сам отправит на /login если надо
+              },
+            ),
+
+            const Divider(height: 1),
+
+            // Роли (позже привяжешь к маршрутам регистрации/логина)
             ListTile(
               leading: const Icon(Icons.store_mall_directory_outlined),
               title: const Text('Стать магазином'),
               subtitle: const Text('Регистрация продавца'),
               onTap: () {
                 Navigator.pop(context);
-                // TODO: go to seller register route
-                // context.go('/seller/register');
+                // TODO: context.go('/seller/register');
               },
             ),
             ListTile(
@@ -94,7 +126,7 @@ class AppDrawer extends StatelessWidget {
               title: const Text('Войти как магазин'),
               onTap: () {
                 Navigator.pop(context);
-                // TODO: go to seller login route
+                // TODO: context.go('/login?seller=1');
               },
             ),
             ListTile(
@@ -103,7 +135,7 @@ class AppDrawer extends StatelessWidget {
               subtitle: const Text('Регистрация создателя'),
               onTap: () {
                 Navigator.pop(context);
-                // TODO: go to wanghong register route
+                // TODO: context.go('/wanghong/register');
               },
             ),
             ListTile(
@@ -111,7 +143,7 @@ class AppDrawer extends StatelessWidget {
               title: const Text('Войти как ванхун'),
               onTap: () {
                 Navigator.pop(context);
-                // TODO: go to wanghong login route
+                // TODO: context.go('/login?wanghong=1');
               },
             ),
 
@@ -123,7 +155,7 @@ class AppDrawer extends StatelessWidget {
               title: const Text('Войти как клиент'),
               onTap: () {
                 Navigator.pop(context);
-                // TODO: go to buyer login route
+                // TODO: context.go('/buyer/login'); или общий /login с параметром
               },
             ),
 
@@ -138,20 +170,6 @@ class AppDrawer extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _PlaceholderPage extends StatelessWidget {
-  final String title;
-  const _PlaceholderPage({required this.title});
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      child: Center(
-        child: Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
       ),
     );
   }
