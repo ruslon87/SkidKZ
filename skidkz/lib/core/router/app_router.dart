@@ -11,7 +11,9 @@ import 'package:skidkz/data/models/user_model.dart';
 import 'package:skidkz/features/auth/screens/login_screen.dart';
 import 'package:skidkz/features/auth/screens/role_selection_screen.dart';
 
+// ✅ ВАЖНО: buyer_shell.dart теперь содержит BuyerRootShell
 import 'package:skidkz/features/buyer/screens/buyer_shell.dart';
+
 import 'package:skidkz/features/home/home_page.dart';
 import 'package:skidkz/features/buyer/screens/buyer_catalog_screen.dart';
 import 'package:skidkz/features/buyer/screens/buyer_favorites_screen.dart';
@@ -34,8 +36,11 @@ import 'package:skidkz/features/admin/screens/admin_finance_screen.dart';
 /// --------------------
 /// Firebase singletons
 /// --------------------
-final firebaseAuthProvider = Provider<fb.FirebaseAuth>((ref) => fb.FirebaseAuth.instance);
-final firestoreProvider = Provider<FirebaseFirestore>((ref) => FirebaseFirestore.instance);
+final firebaseAuthProvider =
+    Provider<fb.FirebaseAuth>((ref) => fb.FirebaseAuth.instance);
+
+final firestoreProvider =
+    Provider<FirebaseFirestore>((ref) => FirebaseFirestore.instance);
 
 /// --------------------
 /// Auth stream provider
@@ -71,12 +76,15 @@ final activeRoleProvider = FutureProvider<UserRole?>((ref) async {
 /// --------------------
 class _RouterRefreshNotifier extends ChangeNotifier {
   _RouterRefreshNotifier(this.ref) {
-    _subAuth = ref.listen<AsyncValue<fb.User?>>(authStateChangesProvider, (_, __) {
-      notifyListeners();
-    });
-    _subRole = ref.listen<AsyncValue<UserRole?>>(activeRoleProvider, (_, __) {
-      notifyListeners();
-    });
+    _subAuth = ref.listen<AsyncValue<fb.User?>>(
+      authStateChangesProvider,
+      (_, __) => notifyListeners(),
+    );
+
+    _subRole = ref.listen<AsyncValue<UserRole?>>(
+      activeRoleProvider,
+      (_, __) => notifyListeners(),
+    );
   }
 
   final Ref ref;
@@ -91,6 +99,9 @@ class _RouterRefreshNotifier extends ChangeNotifier {
   }
 }
 
+/// --------------------
+/// Helpers
+/// --------------------
 bool _isBuyerArea(String location) {
   return location == '/' || location.startsWith('/buyer');
 }
@@ -117,6 +128,9 @@ String _homeForRole(UserRole role) {
   }
 }
 
+/// --------------------
+/// Router
+/// --------------------
 final routerProvider = Provider<GoRouter>((ref) {
   final refresh = _RouterRefreshNotifier(ref);
 
@@ -177,24 +191,30 @@ final routerProvider = Provider<GoRouter>((ref) {
 
         // Если роль еще не выбрана, а он лезет в seller/wanghong/admin -> отправляем выбирать роль
         if (activeRole == null &&
-            (location.startsWith('/seller') || location.startsWith('/wanghong') || location.startsWith('/admin'))) {
+            (location.startsWith('/seller') ||
+                location.startsWith('/wanghong') ||
+                location.startsWith('/admin'))) {
           return '/role-select';
         }
 
-        // На MVP: если роль выбрана, но пользователь пытается открыть чужую зону — можно запретить.
-        // ЖЕСТКИЙ контроль (рекомендую включить):
+        // ЖЕСТКИЙ контроль (если роль выбрана, запретить чужие зоны)
         if (activeRole != null) {
-          if (location.startsWith('/seller') && activeRole != UserRole.seller) return _homeForRole(activeRole);
-          if (location.startsWith('/wanghong') && activeRole != UserRole.wanghong) return _homeForRole(activeRole);
-          if (location.startsWith('/admin') && activeRole != UserRole.admin) return _homeForRole(activeRole);
+          if (location.startsWith('/seller') && activeRole != UserRole.seller) {
+            return _homeForRole(activeRole);
+          }
+          if (location.startsWith('/wanghong') &&
+              activeRole != UserRole.wanghong) {
+            return _homeForRole(activeRole);
+          }
+          if (location.startsWith('/admin') && activeRole != UserRole.admin) {
+            return _homeForRole(activeRole);
+          }
         }
 
         return null;
       }
 
-      // -----------------------------
-      // fallback: if unknown route
-      // -----------------------------
+      // fallback
       return null;
     },
 
@@ -226,7 +246,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       /// BUYER (PUBLIC) SHELL
       /// -------------------------
       ShellRoute(
-        builder: (context, state, child) => BuyerShell(child: child),
+        // ✅ ВАЖНО: используем BuyerRootShell, чтобы AppBar был всегда
+        builder: (context, state, child) => BuyerRootShell(child: child),
         routes: [
           GoRoute(
             path: '/buyer/home',
