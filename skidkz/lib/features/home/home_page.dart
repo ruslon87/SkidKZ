@@ -109,7 +109,7 @@ class _HomePageState extends ConsumerState<HomePage> {
   final ScrollController _recommendedScrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
 
-  String _city = 'Almaty';
+  String _city = 'Алматы';
 
   @override
   void initState() {
@@ -135,6 +135,7 @@ class _HomePageState extends ConsumerState<HomePage> {
   }
 
   void _openParentDrawer(BuildContext context) {
+    // HomePage НЕ содержит Scaffold. Drawer лежит в BuyerShell.
     final scaffold = Scaffold.maybeOf(context);
     if (scaffold != null && scaffold.hasDrawer) {
       scaffold.openDrawer();
@@ -145,15 +146,14 @@ class _HomePageState extends ConsumerState<HomePage> {
   Widget build(BuildContext context) {
     final homeState = ref.watch(homeProvider);
 
-    // ❗❗❗ ВАЖНО: HomePage больше НЕ Scaffold.
-    // Drawer и BottomNav живут в BuyerShell (ShellRoute).
+    // ВАЖНО: HomePage больше НЕ Scaffold.
     return Container(
       color: const Color(0xFFF4F6F8),
       child: CustomScrollView(
         controller: _pageScrollController,
         slivers: [
           // -----------------------------------------------------------------
-          // CUSTOM HEADER: Menu | SkidKZ | 📍 City
+          // CUSTOM HEADER: ☰ | SkidKZ | 📍 Город
           // -----------------------------------------------------------------
           SliverToBoxAdapter(
             child: Container(
@@ -164,13 +164,14 @@ class _HomePageState extends ConsumerState<HomePage> {
                   padding: const EdgeInsets.fromLTRB(8, 6, 12, 8),
                   child: Row(
                     children: [
-                      // ☰ menu (opens parent drawer from BuyerShell)
+                      // ☰ menu
                       Builder(
                         builder: (ctx) => IconButton(
                           icon: const Icon(Icons.menu, color: Colors.white),
                           onPressed: () => _openParentDrawer(ctx),
                         ),
                       ),
+
                       const SizedBox(width: 6),
 
                       const Text(
@@ -184,16 +185,20 @@ class _HomePageState extends ConsumerState<HomePage> {
 
                       const Spacer(),
 
+                      // 📍 + City
                       InkWell(
                         onTap: () {
+                          // TODO: открыть выбор города
                           setState(() {
-                            _city = _city == 'Almaty' ? 'Astana' : 'Almaty';
+                            _city = _city == 'Алматы' ? 'Астана' : 'Алматы';
                           });
                         },
                         borderRadius: BorderRadius.circular(12),
                         child: Padding(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 8),
+                            horizontal: 10,
+                            vertical: 8,
+                          ),
                           child: Row(
                             children: [
                               const Icon(
@@ -235,7 +240,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                   controller: _searchController,
                   onChanged: (_) => setState(() {}),
                   decoration: InputDecoration(
-                    hintText: 'Search products...',
+                    hintText: 'Поиск в магазине',
                     prefixIcon: const Icon(Icons.search, color: Colors.grey),
                     suffixIcon: _searchController.text.isEmpty
                         ? null
@@ -264,9 +269,9 @@ class _HomePageState extends ConsumerState<HomePage> {
                 controller: PageController(viewportFraction: 0.9),
                 padEnds: false,
                 children: [
-                  _buildBanner(Colors.blue.shade300, "Super Sale"),
-                  _buildBanner(Colors.red.shade300, "Hot Deals"),
-                  _buildBanner(Colors.green.shade300, "New Arrivals"),
+                  _buildBanner(Colors.blue.shade300, "Супер скидки"),
+                  _buildBanner(Colors.red.shade300, "Горячие предложения"),
+                  _buildBanner(Colors.green.shade300, "Новинки"),
                 ],
               ),
             ),
@@ -280,11 +285,11 @@ class _HomePageState extends ConsumerState<HomePage> {
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 children: [
-                  _buildCategory(Icons.phone_android, "Phones"),
-                  _buildCategory(Icons.laptop, "Laptops"),
-                  _buildCategory(Icons.checkroom, "Clothes"),
-                  _buildCategory(Icons.home, "Home"),
-                  _buildCategory(Icons.sports_soccer, "Sport"),
+                  _buildCategory(Icons.phone_android, "Телефоны"),
+                  _buildCategory(Icons.laptop, "Ноутбуки"),
+                  _buildCategory(Icons.checkroom, "Одежда"),
+                  _buildCategory(Icons.home, "Дом"),
+                  _buildCategory(Icons.sports_soccer, "Спорт"),
                 ],
               ),
             ),
@@ -295,7 +300,7 @@ class _HomePageState extends ConsumerState<HomePage> {
             child: Padding(
               padding: const EdgeInsets.all(16.0),
               child: Text(
-                "Recently Viewed",
+                "Вы недавно смотрели",
                 style: Theme.of(context)
                     .textTheme
                     .titleLarge
@@ -321,7 +326,7 @@ class _HomePageState extends ConsumerState<HomePage> {
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
               child: Text(
-                "Recommended for you",
+                "Вас могут заинтересовать",
                 style: Theme.of(context)
                     .textTheme
                     .titleLarge
@@ -389,28 +394,30 @@ class _HomePageState extends ConsumerState<HomePage> {
   }
 
   Widget _buildCategory(IconData icon, String label) {
-    return Container(
+    return SizedBox(
       width: 70,
-      margin: const EdgeInsets.only(right: 16),
-      child: Column(
-        children: [
-          Container(
-            height: 56,
-            width: 56,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.only(right: 16),
+        child: Column(
+          children: [
+            Container(
+              height: 56,
+              width: 56,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Icon(icon, color: AppTheme.primary),
             ),
-            child: Icon(icon, color: AppTheme.primary),
-          ),
-          const Gap(8),
-          Text(
-            label,
-            style: const TextStyle(fontSize: 12),
-            textAlign: TextAlign.center,
-            maxLines: 1,
-          ),
-        ],
+            const Gap(8),
+            Text(
+              label,
+              style: const TextStyle(fontSize: 12),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -437,11 +444,16 @@ class _HomePageState extends ConsumerState<HomePage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text("Mock Item",
-                    maxLines: 1, overflow: TextOverflow.ellipsis),
+                const Text(
+                  "Товар (пример)",
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
                 const Gap(4),
-                Text("\$${(index + 1) * 100}",
-                    style: const TextStyle(fontWeight: FontWeight.bold)),
+                Text(
+                  "\$${(index + 1) * 100}",
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
               ],
             ),
           )
@@ -468,6 +480,7 @@ class ProductCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Image
           Expanded(
             child: Stack(
               children: [
@@ -504,6 +517,8 @@ class ProductCard extends StatelessWidget {
               ],
             ),
           ),
+
+          // Content
           Padding(
             padding: const EdgeInsets.all(8.0),
             child: Column(
@@ -516,25 +531,32 @@ class ProductCard extends StatelessWidget {
                   style: const TextStyle(fontSize: 13, height: 1.2),
                 ),
                 const Gap(4),
+
+                // Rating placeholder
                 Row(
                   children: const [
                     Icon(Icons.star, size: 12, color: Colors.amber),
                     Gap(2),
-                    Text("No rating",
-                        style: TextStyle(fontSize: 10, color: Colors.grey)),
+                    Text(
+                      "Нет рейтинга",
+                      style: TextStyle(fontSize: 10, color: Colors.grey),
+                    ),
                   ],
                 ),
+
                 const Gap(6),
+
+                // Bonus
                 if (product.bonusPrice != null && product.bonusPrice! > 0)
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 6, vertical: 3),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                     decoration: BoxDecoration(
                       color: Colors.amberAccent,
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
-                      "+${product.bonusPrice} B",
+                      "+${product.bonusPrice} Б",
                       style: const TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
@@ -542,7 +564,10 @@ class ProductCard extends StatelessWidget {
                       ),
                     ),
                   ),
+
                 const Gap(8),
+
+                // Price + add
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
