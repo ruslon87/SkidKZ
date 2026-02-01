@@ -1,6 +1,6 @@
 name: skidkz
 description: "SkidKZ MVP prototype (role-based app: buyer / wanghong / seller / admin)."
-publish_to: 'none'
+publish_to: "none"
 
 version: 1.0.0+1
 
@@ -28,6 +28,9 @@ dependencies:
   firebase_core: ^3.0.0
   firebase_auth: ^5.0.0
   cloud_firestore: ^5.0.0
+
+  # App info (версия/билд)
+  package_info_plus: ^8.0.0
 
 dev_dependencies:
   flutter_test:
