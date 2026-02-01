@@ -12,19 +12,16 @@ import 'package:skidkz/firebase_options.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 1) Ловим все Flutter-ошибки
   FlutterError.onError = (FlutterErrorDetails details) {
     FlutterError.dumpErrorToConsole(details);
   };
 
-  // 2) Ловим все async-ошибки (включая те, что до первого кадра)
   PlatformDispatcher.instance.onError = (Object error, StackTrace stack) {
     debugPrint('UNCAUGHT (PlatformDispatcher): $error');
     debugPrint('$stack');
-    return true; // ошибка обработана, чтобы не убивало процесс молча
+    return true;
   };
 
-  // 3) Инициализация Firebase (частая причина "висит на сплеше")
   try {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
@@ -35,7 +32,6 @@ Future<void> main() async {
     debugPrint('$st');
   }
 
-  // 4) Запуск приложения
   runZonedGuarded(() {
     runApp(
       const ProviderScope(
