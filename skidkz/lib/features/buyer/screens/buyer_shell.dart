@@ -18,11 +18,14 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
   DateTime? _lastBackPress;
 
   int _locationToIndex(String location) {
+    // ✅ /info/* — это "часть магазина", оставляем активной вкладку 0
+    if (location.startsWith('/info')) return 0;
+
     if (location.startsWith('/buyer/catalog')) return 1;
     if (location.startsWith('/buyer/favorites')) return 2;
     if (location.startsWith('/buyer/cart')) return 3;
     if (location.startsWith('/buyer/profile')) return 4;
-    return 0;
+    return 0; // /buyer/home
   }
 
   void _onTabTap(BuildContext context, int index) {
@@ -83,7 +86,6 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
     if (last == null || now.difference(last) > const Duration(seconds: 2)) {
       _lastBackPress = now;
 
-      // показываем подсказку
       ScaffoldMessenger.of(context)
         ..clearSnackBars()
         ..showSnackBar(
@@ -96,8 +98,7 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
     }
 
     // 5) Второе нажатие: даём системе закрыть приложение
-    // PopScope ниже получит canPop=true и позволит закрытие.
-    // Для этого вызовем SystemNavigator.pop не нужно — пусть ОС делает своё.
+    // PopScope ниже попробует отдать управление системе.
   }
 
   @override
@@ -106,22 +107,20 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
     final currentIndex = _locationToIndex(location);
 
     return PopScope(
-      canPop: false, // мы управляем back сами
+      canPop: false,
       onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
 
-        // Если это второе нажатие на главной — разрешаем закрытие:
         final now = DateTime.now();
         final last = _lastBackPress;
-        final onHome = _isHomeLocation(GoRouterState.of(context).uri.toString());
+        final onHome =
+            _isHomeLocation(GoRouterState.of(context).uri.toString());
 
-        if (onHome && last != null && now.difference(last) <= const Duration(seconds: 2)) {
-          // разрешаем системе закрыть (через Navigator.maybePop верхнего уровня)
-          // Здесь проще: выставить canPop=true нельзя динамически, поэтому используем fallback:
-          // просто выходим через pop у root Navigator, если возможно.
-          // На Android это обычно сворачивает/закрывает как надо.
+        // Если это второе нажатие на главной — пытаемся отдать управление системе
+        if (onHome &&
+            last != null &&
+            now.difference(last) <= const Duration(seconds: 2)) {
           try {
-            // игнор: если не получится — ОС всё равно закроет по системной логике
             Navigator.of(context, rootNavigator: true).maybePop();
           } catch (_) {}
           return;
@@ -132,7 +131,6 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
       child: Scaffold(
         drawer: const BuyerDrawer(),
 
-        // ✅ фиксированная шапка везде
         appBar: AppBar(
           backgroundColor: AppTheme.primary,
           elevation: 0,
@@ -156,7 +154,8 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
               onTap: _toggleCity,
               borderRadius: BorderRadius.circular(12),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 child: Row(
                   children: [
                     const Icon(Icons.location_on_outlined,
@@ -185,7 +184,8 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
           unselectedItemColor: Colors.grey,
           items: const [
             BottomNavigationBarItem(icon: Icon(Icons.store), label: 'Магазин'),
-            BottomNavigationBarItem(icon: Icon(Icons.grid_view), label: 'Каталог'),
+            BottomNavigationBarItem(
+                icon: Icon(Icons.grid_view), label: 'Каталог'),
             BottomNavigationBarItem(
                 icon: Icon(Icons.favorite_border), label: 'Избранное'),
             BottomNavigationBarItem(
