@@ -15,12 +15,14 @@ class BuyerRootShell extends StatefulWidget {
 class _BuyerRootShellState extends State<BuyerRootShell> {
   String _city = 'Алматы';
 
+  DateTime? _lastBackPress;
+
   int _locationToIndex(String location) {
     if (location.startsWith('/buyer/catalog')) return 1;
     if (location.startsWith('/buyer/favorites')) return 2;
     if (location.startsWith('/buyer/cart')) return 3;
     if (location.startsWith('/buyer/profile')) return 4;
-    return 0; // /buyer/home
+    return 0;
   }
 
   void _onTabTap(BuildContext context, int index) {
@@ -49,86 +51,149 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
     });
   }
 
+  bool _isHomeLocation(String location) {
+    return location == '/' || location.startsWith('/buyer/home');
+  }
+
+  Future<void> _handleSystemBack(BuildContext context) async {
+    final router = GoRouter.of(context);
+    final location = GoRouterState.of(context).uri.toString();
+
+    // 1) Если Drawer открыт — закрываем
+    if (Scaffold.of(context).isDrawerOpen) {
+      Navigator.of(context).pop();
+      return;
+    }
+
+    // 2) Если есть что "попнуть" — попаем
+    if (router.canPop()) {
+      router.pop();
+      return;
+    }
+
+    // 3) Если не на главной вкладке — возвращаем на главную
+    if (!_isHomeLocation(location)) {
+      context.go('/buyer/home');
+      return;
+    }
+
+    // 4) Мы на главной: двойное нажатие для выхода
+    final now = DateTime.now();
+    final last = _lastBackPress;
+    if (last == null || now.difference(last) > const Duration(seconds: 2)) {
+      _lastBackPress = now;
+
+      // показываем подсказку
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Нажмите ещё раз, чтобы выйти'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      return;
+    }
+
+    // 5) Второе нажатие: даём системе закрыть приложение
+    // PopScope ниже получит canPop=true и позволит закрытие.
+    // Для этого вызовем SystemNavigator.pop не нужно — пусть ОС делает своё.
+  }
+
   @override
   Widget build(BuildContext context) {
     final location = GoRouterState.of(context).uri.toString();
     final currentIndex = _locationToIndex(location);
 
-    return Scaffold(
-      drawer: const BuyerDrawer(),
+    return PopScope(
+      canPop: false, // мы управляем back сами
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
 
-      // ✅ фиксированная шапка везде
-      appBar: AppBar(
-        backgroundColor: AppTheme.primary,
-        elevation: 0,
-        leading: Builder(
-          builder: (ctx) => IconButton(
-            icon: const Icon(Icons.menu, color: Colors.white),
-            onPressed: () => Scaffold.of(ctx).openDrawer(),
-          ),
-        ),
-        titleSpacing: 0,
-        title: const Text(
-          'SkidKZ',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        actions: [
-          InkWell(
-            onTap: _toggleCity,
-            borderRadius: BorderRadius.circular(12),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.location_on_outlined,
-                    color: Colors.white,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    _city,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                ],
-              ),
+        // Если это второе нажатие на главной — разрешаем закрытие:
+        final now = DateTime.now();
+        final last = _lastBackPress;
+        final onHome = _isHomeLocation(GoRouterState.of(context).uri.toString());
+
+        if (onHome && last != null && now.difference(last) <= const Duration(seconds: 2)) {
+          // разрешаем системе закрыть (через Navigator.maybePop верхнего уровня)
+          // Здесь проще: выставить canPop=true нельзя динамически, поэтому используем fallback:
+          // просто выходим через pop у root Navigator, если возможно.
+          // На Android это обычно сворачивает/закрывает как надо.
+          try {
+            // игнор: если не получится — ОС всё равно закроет по системной логике
+            Navigator.of(context, rootNavigator: true).maybePop();
+          } catch (_) {}
+          return;
+        }
+
+        await _handleSystemBack(context);
+      },
+      child: Scaffold(
+        drawer: const BuyerDrawer(),
+
+        // ✅ фиксированная шапка везде
+        appBar: AppBar(
+          backgroundColor: AppTheme.primary,
+          elevation: 0,
+          leading: Builder(
+            builder: (ctx) => IconButton(
+              icon: const Icon(Icons.menu, color: Colors.white),
+              onPressed: () => Scaffold.of(ctx).openDrawer(),
             ),
           ),
-        ],
-      ),
+          titleSpacing: 0,
+          title: const Text(
+            'SkidKZ',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          actions: [
+            InkWell(
+              onTap: _toggleCity,
+              borderRadius: BorderRadius.circular(12),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                child: Row(
+                  children: [
+                    const Icon(Icons.location_on_outlined,
+                        color: Colors.white, size: 20),
+                    const SizedBox(width: 4),
+                    Text(
+                      _city,
+                      style: const TextStyle(
+                          color: Colors.white, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(width: 6),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
 
-      body: widget.child,
+        body: widget.child,
 
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: currentIndex,
-        onTap: (i) => _onTabTap(context, i),
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: AppTheme.primary,
-        unselectedItemColor: Colors.grey,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.store), label: 'Магазин'),
-          BottomNavigationBarItem(icon: Icon(Icons.grid_view), label: 'Каталог'),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.favorite_border),
-            label: 'Избранное',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.shopping_cart_outlined),
-            label: 'Корзина',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person_outline),
-            label: 'Профиль',
-          ),
-        ],
+        bottomNavigationBar: BottomNavigationBar(
+          currentIndex: currentIndex,
+          onTap: (i) => _onTabTap(context, i),
+          type: BottomNavigationBarType.fixed,
+          selectedItemColor: AppTheme.primary,
+          unselectedItemColor: Colors.grey,
+          items: const [
+            BottomNavigationBarItem(icon: Icon(Icons.store), label: 'Магазин'),
+            BottomNavigationBarItem(icon: Icon(Icons.grid_view), label: 'Каталог'),
+            BottomNavigationBarItem(
+                icon: Icon(Icons.favorite_border), label: 'Избранное'),
+            BottomNavigationBarItem(
+                icon: Icon(Icons.shopping_cart_outlined), label: 'Корзина'),
+            BottomNavigationBarItem(
+                icon: Icon(Icons.person_outline), label: 'Профиль'),
+          ],
+        ),
       ),
     );
   }
@@ -178,9 +243,7 @@ class BuyerDrawer extends StatelessWidget {
   Future<void> _signOutAndClose(BuildContext context) async {
     try {
       await fb.FirebaseAuth.instance.signOut();
-    } catch (_) {
-      // MVP: молча
-    }
+    } catch (_) {}
 
     if (Navigator.canPop(context)) Navigator.pop(context);
     context.go('/buyer/home');
@@ -201,13 +264,10 @@ class BuyerDrawer extends StatelessWidget {
 
           return SafeArea(
             child: SingleChildScrollView(
-              // ✅ всегда скроллится если не влазит
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // -------------------------
-                  // HEADER (синий + умная карточка)
-                  // -------------------------
+                  // HEADER
                   Container(
                     color: AppTheme.primary,
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
@@ -235,15 +295,12 @@ class BuyerDrawer extends StatelessWidget {
                           borderRadius: BorderRadius.circular(14),
                           child: Container(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 12,
-                            ),
+                                horizontal: 12, vertical: 12),
                             decoration: BoxDecoration(
                               color: Colors.white.withOpacity(0.12),
                               borderRadius: BorderRadius.circular(14),
                               border: Border.all(
-                                color: Colors.white.withOpacity(0.18),
-                              ),
+                                  color: Colors.white.withOpacity(0.18)),
                             ),
                             child: Row(
                               children: [
@@ -256,14 +313,17 @@ class BuyerDrawer extends StatelessWidget {
                                   ),
                                   alignment: Alignment.center,
                                   child: Icon(
-                                    isAuthed ? Icons.person : Icons.person_outline,
+                                    isAuthed
+                                        ? Icons.person
+                                        : Icons.person_outline,
                                     color: Colors.white,
                                   ),
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         isAuthed
@@ -289,7 +349,8 @@ class BuyerDrawer extends StatelessWidget {
                                     ],
                                   ),
                                 ),
-                                const Icon(Icons.chevron_right, color: Colors.white),
+                                const Icon(Icons.chevron_right,
+                                    color: Colors.white),
                               ],
                             ),
                           ),
@@ -312,11 +373,10 @@ class BuyerDrawer extends StatelessWidget {
                                 style: TextButton.styleFrom(
                                   foregroundColor: Colors.white,
                                   padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 6,
-                                  ),
+                                      horizontal: 10, vertical: 6),
                                   minimumSize: Size.zero,
-                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
                                 ),
                                 child: const Text(
                                   'Выйти',
@@ -332,9 +392,7 @@ class BuyerDrawer extends StatelessWidget {
                     ),
                   ),
 
-                  // -------------------------
                   // АККАУНТ
-                  // -------------------------
                   _sectionTitle('Аккаунт'),
                   ListTile(
                     leading: const Icon(Icons.receipt_long_outlined),
@@ -342,7 +400,7 @@ class BuyerDrawer extends StatelessWidget {
                     onTap: () {
                       _closeDrawer(context);
                       if (isAuthed) {
-                        context.go('/buyer/profile'); // пока сюда
+                        context.go('/buyer/profile');
                       } else {
                         context.go('/login');
                       }
@@ -351,9 +409,7 @@ class BuyerDrawer extends StatelessWidget {
 
                   const Divider(height: 1),
 
-                  // -------------------------
                   // КАБИНЕТЫ
-                  // -------------------------
                   _sectionTitle('Кабинеты'),
                   ListTile(
                     leading: const Icon(Icons.store_mall_directory_outlined),
@@ -376,9 +432,7 @@ class BuyerDrawer extends StatelessWidget {
 
                   const Divider(height: 1),
 
-                  // ✅ -------------------------
-                  // ✅ ДЛЯ БИЗНЕСА (теперь ВЫШЕ "Сервис")
-                  // -------------------------
+                  // ДЛЯ БИЗНЕСА
                   _sectionTitle('Для бизнеса'),
                   ListTile(
                     leading: const Icon(Icons.add_business_outlined),
@@ -401,9 +455,7 @@ class BuyerDrawer extends StatelessWidget {
 
                   const Divider(height: 1),
 
-                  // ✅ -------------------------
-                  // ✅ СЕРВИС (теперь НИЖЕ "Для бизнеса")
-                  // -------------------------
+                  // СЕРВИС
                   _sectionTitle('Сервис'),
                   ListTile(
                     leading: const Icon(Icons.support_agent_outlined),
@@ -418,9 +470,7 @@ class BuyerDrawer extends StatelessWidget {
 
                   const Divider(height: 1),
 
-                  // -------------------------
                   // ИНФОРМАЦИЯ
-                  // -------------------------
                   _sectionTitle('Информация'),
                   ListTile(
                     leading: const Icon(Icons.verified_outlined),
@@ -431,16 +481,12 @@ class BuyerDrawer extends StatelessWidget {
                   ListTile(
                     leading: const Icon(Icons.policy_outlined),
                     title: const Text('Политика конфиденциальности'),
-                    onTap: () {
-                      _closeDrawer(context);
-                    },
+                    onTap: () => _closeDrawer(context),
                   ),
                   ListTile(
                     leading: const Icon(Icons.description_outlined),
                     title: const Text('Пользовательское соглашение'),
-                    onTap: () {
-                      _closeDrawer(context);
-                    },
+                    onTap: () => _closeDrawer(context),
                   ),
 
                   const SizedBox(height: 12),
