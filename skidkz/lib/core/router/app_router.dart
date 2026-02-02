@@ -11,7 +11,7 @@ import 'package:skidkz/data/models/user_model.dart';
 import 'package:skidkz/features/auth/screens/login_screen.dart';
 import 'package:skidkz/features/auth/screens/role_selection_screen.dart';
 
-// ✅ BuyerRootShell (общая оболочка: верхняя панель + drawer + bottom nav)
+// ✅ BuyerRootShell (общая оболочка: шапка + drawer + bottom nav)
 import 'package:skidkz/features/buyer/screens/buyer_shell.dart';
 
 import 'package:skidkz/features/home/home_page.dart';
@@ -33,9 +33,18 @@ import 'package:skidkz/features/admin/screens/moderation_screen.dart';
 import 'package:skidkz/features/admin/screens/users_screen.dart';
 import 'package:skidkz/features/admin/screens/admin_finance_screen.dart';
 
-// ✅ Инфо-экраны (кто такие продавцы/ванхуны)
+// ✅ Инфо-экраны
 import 'package:skidkz/features/info/screens/seller_info_screen.dart';
 import 'package:skidkz/features/info/screens/wanghong_info_screen.dart';
+
+/// --------------------
+/// Navigator keys (важно для back/pop внутри shell)
+/// --------------------
+final _rootNavigatorKey = GlobalKey<NavigatorState>();
+final _buyerNavigatorKey = GlobalKey<NavigatorState>();
+final _sellerNavigatorKey = GlobalKey<NavigatorState>();
+final _wanghongNavigatorKey = GlobalKey<NavigatorState>();
+final _adminNavigatorKey = GlobalKey<NavigatorState>();
 
 /// --------------------
 /// Firebase singletons
@@ -106,8 +115,6 @@ class _RouterRefreshNotifier extends ChangeNotifier {
 /// --------------------
 /// Helpers
 /// --------------------
-
-// ✅ Публичная зона: buyer + info-страницы
 bool _isPublicArea(String location) {
   return location == '/' ||
       location.startsWith('/buyer') ||
@@ -143,6 +150,7 @@ final routerProvider = Provider<GoRouter>((ref) {
   final refresh = _RouterRefreshNotifier(ref);
 
   return GoRouter(
+    navigatorKey: _rootNavigatorKey,
     initialLocation: '/buyer/home',
     refreshListenable: refresh,
 
@@ -162,40 +170,27 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       if (isLoading) return null;
 
-      // -----------------------------
       // 1) Public area: buyer + info
-      // -----------------------------
-      if (_isPublicArea(location)) {
-        return null;
-      }
+      if (_isPublicArea(location)) return null;
 
-      // -----------------------------
-      // 2) Cabinet area access control
-      // -----------------------------
+      // 2) Cabinet area control
       if (_isCabinetArea(location)) {
-        // Не залогинен -> кабинет только через /login
         if (fbUser == null) {
           return isLogin ? null : '/login';
         }
 
-        // Залогинен -> /login больше не нужен
-        if (isLogin) {
-          return '/cabinet';
-        }
+        if (isLogin) return '/cabinet';
 
-        // /cabinet -> либо role-select, либо кабинет по роли
         if (location == '/cabinet') {
           if (activeRole == null) return '/role-select';
           return _homeForRole(activeRole);
         }
 
-        // /role-select: если роль уже есть — сразу в кабинет по роли
         if (isRoleSelect) {
           if (activeRole == null) return null;
           return _homeForRole(activeRole);
         }
 
-        // Если роль еще не выбрана, а он лезет в seller/wanghong/admin -> отправляем выбирать роль
         if (activeRole == null &&
             (location.startsWith('/seller') ||
                 location.startsWith('/wanghong') ||
@@ -203,7 +198,6 @@ final routerProvider = Provider<GoRouter>((ref) {
           return '/role-select';
         }
 
-        // ЖЕСТКИЙ контроль (если роль выбрана, запретить чужие зоны)
         if (activeRole != null) {
           if (location.startsWith('/seller') && activeRole != UserRole.seller) {
             return _homeForRole(activeRole);
@@ -230,18 +224,6 @@ final routerProvider = Provider<GoRouter>((ref) {
 
     routes: [
       /// -------------------------
-      /// PUBLIC INFO (без логина)
-      /// -------------------------
-      GoRoute(
-        path: '/info/seller',
-        builder: (context, state) => const SellerInfoScreen(),
-      ),
-      GoRoute(
-        path: '/info/wanghong',
-        builder: (context, state) => const WanghongInfoScreen(),
-      ),
-
-      /// -------------------------
       /// AUTH / CABINET ENTRY
       /// -------------------------
       GoRoute(
@@ -261,10 +243,13 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       /// -------------------------
       /// BUYER (PUBLIC) SHELL
+      /// ✅ ВАЖНО: сюда же кладём /info/*, чтобы back/pop работали как ожидается
       /// -------------------------
       ShellRoute(
+        navigatorKey: _buyerNavigatorKey,
         builder: (context, state, child) => BuyerRootShell(child: child),
         routes: [
+          // buyer tabs
           GoRoute(
             path: '/buyer/home',
             builder: (context, state) => const HomePage(),
@@ -285,6 +270,16 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: '/buyer/profile',
             builder: (context, state) => const BuyerProfileScreen(),
           ),
+
+          // ✅ info screens (внутри buyer shell)
+          GoRoute(
+            path: '/info/seller',
+            builder: (context, state) => const SellerInfoScreen(),
+          ),
+          GoRoute(
+            path: '/info/wanghong',
+            builder: (context, state) => const WanghongInfoScreen(),
+          ),
         ],
       ),
 
@@ -292,6 +287,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       /// SELLER (AUTH REQUIRED)
       /// -------------------------
       ShellRoute(
+        navigatorKey: _sellerNavigatorKey,
         builder: (context, state, child) => SellerShell(child: child),
         routes: [
           GoRoute(
@@ -313,6 +309,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       /// WANGHONG (AUTH REQUIRED)
       /// -------------------------
       ShellRoute(
+        navigatorKey: _wanghongNavigatorKey,
         builder: (context, state, child) => WanghongShell(child: child),
         routes: [
           GoRoute(
@@ -326,6 +323,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       /// ADMIN (AUTH REQUIRED)
       /// -------------------------
       ShellRoute(
+        navigatorKey: _adminNavigatorKey,
         builder: (context, state, child) => AdminShell(child: child),
         routes: [
           GoRoute(
