@@ -11,7 +11,6 @@ import 'package:skidkz/data/models/user_model.dart';
 import 'package:skidkz/features/auth/screens/login_screen.dart';
 import 'package:skidkz/features/auth/screens/role_selection_screen.dart';
 
-// ✅ BuyerRootShell (общая оболочка: шапка + drawer + bottom nav)
 import 'package:skidkz/features/buyer/screens/buyer_shell.dart';
 
 import 'package:skidkz/features/home/home_page.dart';
@@ -33,18 +32,10 @@ import 'package:skidkz/features/admin/screens/moderation_screen.dart';
 import 'package:skidkz/features/admin/screens/users_screen.dart';
 import 'package:skidkz/features/admin/screens/admin_finance_screen.dart';
 
-// ✅ Инфо-экраны
 import 'package:skidkz/features/info/screens/seller_info_screen.dart';
 import 'package:skidkz/features/info/screens/wanghong_info_screen.dart';
 
-/// --------------------
-/// Navigator keys (важно для back/pop внутри shell)
-/// --------------------
-final _rootNavigatorKey = GlobalKey<NavigatorState>();
-final _buyerNavigatorKey = GlobalKey<NavigatorState>();
-final _sellerNavigatorKey = GlobalKey<NavigatorState>();
-final _wanghongNavigatorKey = GlobalKey<NavigatorState>();
-final _adminNavigatorKey = GlobalKey<NavigatorState>();
+import 'package:skidkz/features/onboarding/screens/buyer_onboarding_screen.dart';
 
 /// --------------------
 /// Firebase singletons
@@ -63,25 +54,68 @@ final authStateChangesProvider = StreamProvider<fb.User?>((ref) {
 });
 
 /// --------------------
-/// Active role provider
-/// users/{uid}.activeRole -> "buyer"|"wanghong"|"seller"|"admin"
+/// Ensure/Migrate user doc provider
+/// - creates users/{uid} if missing
+/// - migrates legacy role/activeRole -> roles[]
+/// - returns UserModel
 /// --------------------
-final activeRoleProvider = FutureProvider<UserRole?>((ref) async {
+final currentUserDocProvider = FutureProvider<UserModel?>((ref) async {
   final fbUser = await ref.watch(authStateChangesProvider.future);
   if (fbUser == null) return null;
 
   final db = ref.watch(firestoreProvider);
-  final doc = await db.collection('users').doc(fbUser.uid).get();
-  if (!doc.exists) return null;
+  final refDoc = db.collection('users').doc(fbUser.uid);
 
-  final data = doc.data();
-  final roleStr = data?['activeRole'] as String?;
-  if (roleStr == null) return null;
+  final snap = await refDoc.get();
 
-  return UserRole.values.firstWhere(
-    (r) => r.name == roleStr,
-    orElse: () => UserRole.buyer,
-  );
+  // Create if missing
+  if (!snap.exists) {
+    final phone = (fbUser.phoneNumber ?? '').trim();
+
+    await refDoc.set({
+      'uid': fbUser.uid,
+      'phone': phone,
+      'roles': ['buyer'],
+      'activeRole': 'buyer',
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+      'profiles': {
+        'buyer': {
+          'completed': false,
+          'city': 'Алматы',
+        },
+        'seller': {'completed': false},
+        'wanghong': {'completed': false},
+      },
+    });
+
+    final created = await refDoc.get();
+    return UserModel.fromFirestore(created.id, created.data() ?? {});
+  }
+
+  final data = snap.data() ?? {};
+
+  // Migrate legacy fields to roles[]
+  final hasRoles = data['roles'] is List;
+  final legacyRole = data['role'];
+  final legacyActive = data['activeRole'];
+
+  if (!hasRoles && legacyRole is String && legacyRole.trim().isNotEmpty) {
+    final active = (legacyActive is String && legacyActive.trim().isNotEmpty)
+        ? legacyActive.trim()
+        : legacyRole.trim();
+
+    await refDoc.set({
+      'roles': [legacyRole.trim()],
+      'activeRole': active,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    final migrated = await refDoc.get();
+    return UserModel.fromFirestore(migrated.id, migrated.data() ?? {});
+  }
+
+  return UserModel.fromFirestore(snap.id, data);
 });
 
 /// --------------------
@@ -94,20 +128,20 @@ class _RouterRefreshNotifier extends ChangeNotifier {
       (_, __) => notifyListeners(),
     );
 
-    _subRole = ref.listen<AsyncValue<UserRole?>>(
-      activeRoleProvider,
+    _subUser = ref.listen<AsyncValue<UserModel?>>(
+      currentUserDocProvider,
       (_, __) => notifyListeners(),
     );
   }
 
   final Ref ref;
   late final ProviderSubscription<AsyncValue<fb.User?>> _subAuth;
-  late final ProviderSubscription<AsyncValue<UserRole?>> _subRole;
+  late final ProviderSubscription<AsyncValue<UserModel?>> _subUser;
 
   @override
   void dispose() {
     _subAuth.close();
-    _subRole.close();
+    _subUser.close();
     super.dispose();
   }
 }
@@ -127,7 +161,8 @@ bool _isCabinetArea(String location) {
       location == '/role-select' ||
       location.startsWith('/seller') ||
       location.startsWith('/wanghong') ||
-      location.startsWith('/admin');
+      location.startsWith('/admin') ||
+      location.startsWith('/onboarding');
 }
 
 String _homeForRole(UserRole role) {
@@ -143,6 +178,8 @@ String _homeForRole(UserRole role) {
   }
 }
 
+bool _hasRole(UserModel u, UserRole r) => u.roles.contains(r);
+
 /// --------------------
 /// Router
 /// --------------------
@@ -150,7 +187,6 @@ final routerProvider = Provider<GoRouter>((ref) {
   final refresh = _RouterRefreshNotifier(ref);
 
   return GoRouter(
-    navigatorKey: _rootNavigatorKey,
     initialLocation: '/buyer/home',
     refreshListenable: refresh,
 
@@ -158,57 +194,69 @@ final routerProvider = Provider<GoRouter>((ref) {
       final location = state.uri.toString();
 
       final authAsync = ref.read(authStateChangesProvider);
-      final roleAsync = ref.read(activeRoleProvider);
+      final userAsync = ref.read(currentUserDocProvider);
 
       final fbUser = authAsync.asData?.value;
-      final activeRole = roleAsync.asData?.value;
+      final user = userAsync.asData?.value;
 
-      final isLoading = authAsync.isLoading || roleAsync.isLoading;
+      final isLoading = authAsync.isLoading || userAsync.isLoading;
 
-      final isLogin = location == '/login';
-      final isRoleSelect = location == '/role-select';
+      final isLogin = location.startsWith('/login');
+      final isBuyerOnboarding = location.startsWith('/onboarding/buyer');
 
       if (isLoading) return null;
 
-      // 1) Public area: buyer + info
-      if (_isPublicArea(location)) return null;
+      // 1) Public buyer + info always ok
+      if (_isPublicArea(location)) {
+        return null;
+      }
 
-      // 2) Cabinet area control
+      // 2) Cabinet/auth areas
       if (_isCabinetArea(location)) {
+        // Not authed
         if (fbUser == null) {
           return isLogin ? null : '/login';
         }
 
-        if (isLogin) return '/cabinet';
+        // Authed but user doc not ready (rare race)
+        if (user == null) {
+          return null;
+        }
 
+        // If activeRole == buyer and buyer profile not completed -> force onboarding
+        final buyerNeed = user.activeRole == UserRole.buyer &&
+            user.buyerProfile.completed != true;
+
+        if (buyerNeed && !isBuyerOnboarding) {
+          // optional: preserve where he wanted to go
+          final next = Uri.encodeComponent('/buyer/home');
+          return '/onboarding/buyer?next=$next';
+        }
+
+        // login not needed when authed
+        if (isLogin) {
+          // go to cabinet resolver
+          return '/cabinet';
+        }
+
+        // /cabinet -> go to home by activeRole (or by admin priority)
         if (location == '/cabinet') {
-          if (activeRole == null) return '/role-select';
-          return _homeForRole(activeRole);
+          // Admin always can go to admin area even if activeRole другой,
+          // но мы уважаем activeRole как "текущий режим".
+          // Если хочешь всегда по умолчанию в админку — поменяем.
+          return _homeForRole(user.activeRole);
         }
 
-        if (isRoleSelect) {
-          if (activeRole == null) return null;
-          return _homeForRole(activeRole);
+        // Block foreign zones by permissions (roles[])
+        if (location.startsWith('/seller') && !_hasRole(user, UserRole.seller)) {
+          return _homeForRole(user.activeRole);
         }
-
-        if (activeRole == null &&
-            (location.startsWith('/seller') ||
-                location.startsWith('/wanghong') ||
-                location.startsWith('/admin'))) {
-          return '/role-select';
+        if (location.startsWith('/wanghong') &&
+            !_hasRole(user, UserRole.wanghong)) {
+          return _homeForRole(user.activeRole);
         }
-
-        if (activeRole != null) {
-          if (location.startsWith('/seller') && activeRole != UserRole.seller) {
-            return _homeForRole(activeRole);
-          }
-          if (location.startsWith('/wanghong') &&
-              activeRole != UserRole.wanghong) {
-            return _homeForRole(activeRole);
-          }
-          if (location.startsWith('/admin') && activeRole != UserRole.admin) {
-            return _homeForRole(activeRole);
-          }
+        if (location.startsWith('/admin') && !_hasRole(user, UserRole.admin)) {
+          return _homeForRole(user.activeRole);
         }
 
         return null;
@@ -223,6 +271,26 @@ final routerProvider = Provider<GoRouter>((ref) {
     ),
 
     routes: [
+      /// -------------------------
+      /// PUBLIC INFO
+      /// -------------------------
+      GoRoute(
+        path: '/info/seller',
+        builder: (context, state) => const SellerInfoScreen(),
+      ),
+      GoRoute(
+        path: '/info/wanghong',
+        builder: (context, state) => const WanghongInfoScreen(),
+      ),
+
+      /// -------------------------
+      /// ONBOARDING (AUTH REQUIRED)
+      /// -------------------------
+      GoRoute(
+        path: '/onboarding/buyer',
+        builder: (context, state) => const BuyerOnboardingScreen(),
+      ),
+
       /// -------------------------
       /// AUTH / CABINET ENTRY
       /// -------------------------
@@ -243,13 +311,10 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       /// -------------------------
       /// BUYER (PUBLIC) SHELL
-      /// ✅ ВАЖНО: сюда же кладём /info/*, чтобы back/pop работали как ожидается
       /// -------------------------
       ShellRoute(
-        navigatorKey: _buyerNavigatorKey,
         builder: (context, state, child) => BuyerRootShell(child: child),
         routes: [
-          // buyer tabs
           GoRoute(
             path: '/buyer/home',
             builder: (context, state) => const HomePage(),
@@ -270,16 +335,6 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: '/buyer/profile',
             builder: (context, state) => const BuyerProfileScreen(),
           ),
-
-          // ✅ info screens (внутри buyer shell)
-          GoRoute(
-            path: '/info/seller',
-            builder: (context, state) => const SellerInfoScreen(),
-          ),
-          GoRoute(
-            path: '/info/wanghong',
-            builder: (context, state) => const WanghongInfoScreen(),
-          ),
         ],
       ),
 
@@ -287,7 +342,6 @@ final routerProvider = Provider<GoRouter>((ref) {
       /// SELLER (AUTH REQUIRED)
       /// -------------------------
       ShellRoute(
-        navigatorKey: _sellerNavigatorKey,
         builder: (context, state, child) => SellerShell(child: child),
         routes: [
           GoRoute(
@@ -309,7 +363,6 @@ final routerProvider = Provider<GoRouter>((ref) {
       /// WANGHONG (AUTH REQUIRED)
       /// -------------------------
       ShellRoute(
-        navigatorKey: _wanghongNavigatorKey,
         builder: (context, state, child) => WanghongShell(child: child),
         routes: [
           GoRoute(
@@ -323,7 +376,6 @@ final routerProvider = Provider<GoRouter>((ref) {
       /// ADMIN (AUTH REQUIRED)
       /// -------------------------
       ShellRoute(
-        navigatorKey: _adminNavigatorKey,
         builder: (context, state, child) => AdminShell(child: child),
         routes: [
           GoRoute(
