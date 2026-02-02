@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -26,6 +27,31 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  // ✅ ВАЖНО: создаём users/{uid} если его нет
+  Future<void> _ensureUserDoc(User user) async {
+    final db = FirebaseFirestore.instance;
+    final ref = db.collection('users').doc(user.uid);
+
+    try {
+      final snap = await ref.get();
+      if (snap.exists) return; // уже есть (например admin) — НЕ трогаем
+
+      // создаём дефолтного покупателя
+      await ref.set({
+        'uid': user.uid,
+        'phone': user.phoneNumber,
+        'email': user.email,
+        'displayName': user.displayName,
+        'role': 'buyer',        // базовая роль (как в твоих rules)
+        'activeRole': 'buyer',  // текущая активная роль
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      // На MVP можно не падать, но полезно видеть ошибку
+      debugPrint('ensureUserDoc error: $e');
+    }
+  }
+
   Future<void> _sendCode() async {
     final phone = _phoneController.text.trim();
 
@@ -44,8 +70,15 @@ class _LoginScreenState extends State<LoginScreen> {
         // На Android часто срабатывает auto-retrieval
         verificationCompleted: (PhoneAuthCredential credential) async {
           try {
-            await FirebaseAuth.instance.signInWithCredential(credential);
-            // ВАЖНО: не setState / не навигация.
+            final cred =
+                await FirebaseAuth.instance.signInWithCredential(credential);
+
+            // ✅ создаём документ в Firestore (если нет)
+            final u = cred.user;
+            if (u != null) {
+              await _ensureUserDoc(u);
+            }
+
             // GoRouter сам редиректнет по authStateChanges.
           } catch (e) {
             if (!mounted) return;
@@ -67,7 +100,6 @@ class _LoginScreenState extends State<LoginScreen> {
         },
 
         codeAutoRetrievalTimeout: (String verificationId) {
-          // Просто сохраняем, UI не трогаем, чтобы не ловить гонки.
           _verificationId = verificationId;
         },
       );
@@ -99,11 +131,16 @@ class _LoginScreenState extends State<LoginScreen> {
         smsCode: code,
       );
 
-      await FirebaseAuth.instance.signInWithCredential(credential);
+      final cred =
+          await FirebaseAuth.instance.signInWithCredential(credential);
 
-      // ВАЖНО:
-      // Никаких setState / snackbars / navigation после signIn.
-      // Сразу выходим — роутер сам переведёт на /role-select или в роль.
+      // ✅ создаём документ в Firestore (если нет)
+      final u = cred.user;
+      if (u != null) {
+        await _ensureUserDoc(u);
+      }
+
+      // Никаких setState / navigation после signIn.
       return;
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
