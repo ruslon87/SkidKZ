@@ -1,483 +1,470 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:skidkz/core/theme/app_theme.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 import 'package:skidkz/data/product_repository.dart';
 import 'package:skidkz/data/models/product.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:gap/gap.dart';
 
-// -----------------------------------------------------------------------------
-// STATE MANAGEMENT
-// -----------------------------------------------------------------------------
-
-class HomeState {
-  final List<Product> products;
-  final bool isLoading;
-  final bool hasMore;
-
-  HomeState({
-    this.products = const [],
-    this.isLoading = false,
-    this.hasMore = true,
-  });
-
-  HomeState copyWith({
-    List<Product>? products,
-    bool? isLoading,
-    bool? hasMore,
-  }) {
-    return HomeState(
-      products: products ?? this.products,
-      isLoading: isLoading ?? this.isLoading,
-      hasMore: hasMore ?? this.hasMore,
-    );
-  }
-}
-
-class HomeNotifier extends StateNotifier<HomeState> {
-  final ProductRepository _repository;
-
-  HomeNotifier(this._repository) : super(HomeState()) {
-    loadInitial();
-  }
-
-  Future<void> loadInitial() async {
-    if (state.isLoading) return;
-    state = state.copyWith(isLoading: true);
-
-    try {
-      final newProducts = await _repository.fetchProducts(limit: 10);
-      state = state.copyWith(
-        products: newProducts,
-        isLoading: false,
-        hasMore: newProducts.length >= 10,
-      );
-    } catch (_) {
-      state = state.copyWith(isLoading: false);
-    }
-  }
-
-  Future<void> loadMore() async {
-    if (state.isLoading || !state.hasMore) return;
-    if (state.products.isEmpty) return;
-
-    state = state.copyWith(isLoading: true);
-
-    try {
-      final lastProduct = state.products.last;
-      final lastDocSnapshot = await FirebaseFirestore.instance
-          .collection('products')
-          .doc(lastProduct.id)
-          .get();
-
-      final newProducts = await _repository.fetchProducts(
-        lastDocument: lastDocSnapshot,
-        limit: 10,
-      );
-
-      state = state.copyWith(
-        products: [...state.products, ...newProducts],
-        isLoading: false,
-        hasMore: newProducts.length >= 10,
-      );
-    } catch (_) {
-      state = state.copyWith(isLoading: false);
-    }
-  }
-}
-
-final homeProvider =
-    StateNotifierProvider.autoDispose<HomeNotifier, HomeState>((ref) {
-  return HomeNotifier(ref.watch(productRepositoryProvider));
-});
-
-// -----------------------------------------------------------------------------
-// UI
-// -----------------------------------------------------------------------------
-
-class HomePage extends ConsumerStatefulWidget {
+class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
   @override
-  ConsumerState<HomePage> createState() => _HomePageState();
+  State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends ConsumerState<HomePage> {
-  final ScrollController _pageScrollController = ScrollController();
-  final ScrollController _recommendedScrollController = ScrollController();
-  final TextEditingController _searchController = TextEditingController();
+class _HomePageState extends State<HomePage> {
+  late final ProductRepository _repo;
 
   @override
   void initState() {
     super.initState();
-    _recommendedScrollController.addListener(_onRecommendedScroll);
-  }
-
-  void _onRecommendedScroll() {
-    if (!_recommendedScrollController.hasClients) return;
-
-    if (_recommendedScrollController.position.pixels >=
-        _recommendedScrollController.position.maxScrollExtent - 200) {
-      ref.read(homeProvider.notifier).loadMore();
-    }
-  }
-
-  @override
-  void dispose() {
-    _pageScrollController.dispose();
-    _recommendedScrollController.dispose();
-    _searchController.dispose();
-    super.dispose();
+    _repo = ProductRepository(FirebaseFirestore.instance);
   }
 
   @override
   Widget build(BuildContext context) {
-    final homeState = ref.watch(homeProvider);
+    return Scaffold(
+      backgroundColor: const Color(0xFFF3F5F7),
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: const Color(0xFF2E6CF6),
+        title: const Text('SkidKZ'),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: Row(
+              children: const [
+                Icon(Icons.location_on_outlined, color: Colors.white),
+                SizedBox(width: 6),
+                Text('Алматы', style: TextStyle(color: Colors.white)),
+              ],
+            ),
+          ),
+        ],
+      ),
+      drawer: const _SimpleDrawer(),
+      body: StreamBuilder<List<Product>>(
+        stream: _repo.watchActiveProducts(),
+        builder: (context, snap) {
+          final loading = snap.connectionState == ConnectionState.waiting;
+          final products = snap.data ?? const <Product>[];
 
-    return Container(
-      color: const Color(0xFFF4F6F8),
-      child: CustomScrollView(
-        controller: _pageScrollController,
-        slivers: [
-          // Поиск под AppBar (синяя подложка как раньше)
-          SliverToBoxAdapter(
-            child: Container(
-              color: AppTheme.primary,
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
-              child: Container(
-                height: 44,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(10),
+          return CustomScrollView(
+            slivers: [
+              SliverToBoxAdapter(
+                child: _TopSearchBlock(
+                  onTapSearch: () {
+                    // TODO: открыть поиск/каталог
+                  },
                 ),
-                child: TextField(
-                  controller: _searchController,
-                  onChanged: (_) => setState(() {}),
-                  decoration: InputDecoration(
-                    hintText: 'Поиск в магазине',
-                    prefixIcon: const Icon(Icons.search, color: Colors.grey),
-                    suffixIcon: _searchController.text.isEmpty
-                        ? null
-                        : IconButton(
-                            icon: const Icon(Icons.close, color: Colors.grey),
-                            onPressed: () {
-                              _searchController.clear();
-                              setState(() {});
-                            },
-                          ),
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 10),
+              ),
+              SliverToBoxAdapter(
+                child: _BannersRow(),
+              ),
+              SliverToBoxAdapter(
+                child: _CategoriesRow(
+                  categories: const [
+                    _CategoryItem(icon: Icons.phone_android, label: 'Телефоны'),
+                    _CategoryItem(icon: Icons.laptop_mac, label: 'Ноутбуки'),
+                    _CategoryItem(icon: Icons.checkroom, label: 'Одежда'),
+                    _CategoryItem(icon: Icons.home_outlined, label: 'Дом'),
+                    _CategoryItem(icon: Icons.sports_soccer, label: 'Спорт'),
+                  ],
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: _SectionTitle(title: 'Вы недавно смотрели', action: 'Смотреть все'),
+              ),
+              SliverToBoxAdapter(
+                child: _RecentlyViewedPlaceholder(),
+              ),
+
+              SliverToBoxAdapter(
+                child: _SectionTitle(title: 'Вас могут заинтересовать', action: null),
+              ),
+
+              if (loading)
+                const SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.all(20),
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+                )
+              else if (products.isEmpty)
+                SliverToBoxAdapter(
+                  child: _EmptyProductsState(
+                    onCreateProductHint: () {
+                      // TODO: можно открыть seller flow, если текущий пользователь seller/admin
+                    },
+                  ),
+                )
+              else
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                  sliver: SliverGrid(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, i) => _ProductCard(product: products[i]),
+                      childCount: products.length,
+                    ),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      mainAxisSpacing: 12,
+                      crossAxisSpacing: 12,
+                      childAspectRatio: 0.72,
+                    ),
                   ),
                 ),
-              ),
-            ),
-          ),
-
-          // Баннеры
-          SliverToBoxAdapter(
-            child: Container(
-              height: 160,
-              margin: const EdgeInsets.symmetric(vertical: 16),
-              child: PageView(
-                controller: PageController(viewportFraction: 0.9),
-                padEnds: false,
-                children: [
-                  _buildBanner(Colors.blue.shade300, "Супер скидки"),
-                  _buildBanner(Colors.red.shade300, "Горячие предложения"),
-                  _buildBanner(Colors.green.shade300, "Новинки"),
-                ],
-              ),
-            ),
-          ),
-
-          // Категории
-          SliverToBoxAdapter(
-            child: SizedBox(
-              height: 100,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                children: [
-                  _buildCategory(Icons.phone_android, "Телефоны"),
-                  _buildCategory(Icons.laptop, "Ноутбуки"),
-                  _buildCategory(Icons.checkroom, "Одежда"),
-                  _buildCategory(Icons.home, "Дом"),
-                  _buildCategory(Icons.sports_soccer, "Спорт"),
-                ],
-              ),
-            ),
-          ),
-
-          // Вы недавно смотрели
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Text(
-                "Вы недавно смотрели",
-                style: Theme.of(context)
-                    .textTheme
-                    .titleLarge
-                    ?.copyWith(fontWeight: FontWeight.bold),
-              ),
-            ),
-          ),
-          SliverToBoxAdapter(
-            child: SizedBox(
-              height: 200,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: 5,
-                separatorBuilder: (_, __) => const Gap(12),
-                itemBuilder: (context, index) => _buildMockProductCard(index),
-              ),
-            ),
-          ),
-
-          // Вас могут заинтересовать
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
-              child: Text(
-                "Вас могут заинтересовать",
-                style: Theme.of(context)
-                    .textTheme
-                    .titleLarge
-                    ?.copyWith(fontWeight: FontWeight.bold),
-              ),
-            ),
-          ),
-
-          SliverToBoxAdapter(
-            child: SizedBox(
-              height: 260,
-              child: ListView.separated(
-                controller: _recommendedScrollController,
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: homeState.products.length +
-                    ((homeState.hasMore || homeState.isLoading) ? 1 : 0),
-                separatorBuilder: (_, __) => const Gap(12),
-                itemBuilder: (context, index) {
-                  if (index < homeState.products.length) {
-                    return SizedBox(
-                      width: 160,
-                      child: ProductCard(product: homeState.products[index]),
-                    );
-                  }
-                  return const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(16.0),
-                      child: SizedBox(
-                        width: 28,
-                        height: 28,
-                        child: CircularProgressIndicator(strokeWidth: 3),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ),
-
-          const SliverGap(20),
-        ],
+            ],
+          );
+        },
       ),
     );
   }
+}
 
-  Widget _buildBanner(Color color, String text) {
+class _TopSearchBlock extends StatelessWidget {
+  const _TopSearchBlock({required this.onTapSearch});
+
+  final VoidCallback onTapSearch;
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(right: 12),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        text,
-        style: const TextStyle(
+      color: const Color(0xFF2E6CF6),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      child: Container(
+        height: 46,
+        decoration: BoxDecoration(
           color: Colors.white,
-          fontSize: 20,
-          fontWeight: FontWeight.bold,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: onTapSearch,
+          child: Row(
+            children: const [
+              SizedBox(width: 12),
+              Icon(Icons.search, color: Colors.black54),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Поиск в магазине',
+                  style: TextStyle(color: Colors.black54, fontSize: 15),
+                ),
+              ),
+              Icon(Icons.close, color: Colors.black26),
+              SizedBox(width: 12),
+            ],
+          ),
         ),
       ),
     );
   }
+}
 
-  Widget _buildCategory(IconData icon, String label) {
-    return SizedBox(
-      width: 70,
-      child: Padding(
-        padding: const EdgeInsets.only(right: 16),
-        child: Column(
-          children: [
-            Container(
-              height: 56,
-              width: 56,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Icon(icon, color: AppTheme.primary),
+class _BannersRow extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    // Kaspi-style: 2 больших баннера
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+      child: Row(
+        children: [
+          Expanded(child: _BannerCard(text: 'Супер скидки')),
+          const SizedBox(width: 12),
+          Expanded(child: _BannerCard(text: 'Новинки')),
+        ],
+      ),
+    );
+  }
+}
+
+class _BannerCard extends StatelessWidget {
+  const _BannerCard({required this.text});
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 110,
+      decoration: BoxDecoration(
+        color: const Color(0xFF8DB6FF),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Center(
+        child: Text(
+          text,
+          style: const TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.w700),
+        ),
+      ),
+    );
+  }
+}
+
+class _CategoryItem {
+  final IconData icon;
+  final String label;
+  const _CategoryItem({required this.icon, required this.label});
+}
+
+class _CategoriesRow extends StatelessWidget {
+  const _CategoriesRow({required this.categories});
+  final List<_CategoryItem> categories;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 6),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: categories.map((c) => _CategoryChip(item: c)).toList(),
+      ),
+    );
+  }
+}
+
+class _CategoryChip extends StatelessWidget {
+  const _CategoryChip({required this.item});
+  final _CategoryItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Column(
+        children: [
+          Container(
+            height: 54,
+            width: 54,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
             ),
-            const Gap(8),
+            child: Icon(item.icon, color: Colors.black54),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            item.label,
+            style: const TextStyle(fontSize: 12, color: Colors.black87),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle({required this.title, this.action});
+  final String title;
+  final String? action;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              title,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+            ),
+          ),
+          if (action != null)
             Text(
-              label,
-              style: const TextStyle(fontSize: 12),
-              textAlign: TextAlign.center,
-              maxLines: 1,
+              action!,
+              style: const TextStyle(fontSize: 13, color: Colors.black54),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RecentlyViewedPlaceholder extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    // Пока без истории: показываем 3 "пустых" карточки как в Kaspi
+    return SizedBox(
+      height: 180,
+      child: ListView.separated(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+        scrollDirection: Axis.horizontal,
+        itemCount: 3,
+        separatorBuilder: (_, __) => const SizedBox(width: 12),
+        itemBuilder: (context, i) {
+          return Container(
+            width: 130,
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF1F3F5),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.image_outlined, color: Colors.black26),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Товар (пример)',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _EmptyProductsState extends StatelessWidget {
+  const _EmptyProductsState({required this.onCreateProductHint});
+  final VoidCallback onCreateProductHint;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Пока нет товаров',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Как только магазины добавят товары и они пройдут модерацию, они появятся здесь.',
+              style: TextStyle(color: Colors.black54),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton(
+              onPressed: onCreateProductHint,
+              child: const Text('Добавить первый товар (для продавца)'),
             ),
           ],
         ),
       ),
     );
   }
+}
 
-  Widget _buildMockProductCard(int index) {
+class _ProductCard extends StatelessWidget {
+  const _ProductCard({required this.product});
+  final Product product;
+
+  String _formatMoney(int v) {
+    // простая локальная форматилка, без intl
+    final s = v.toString();
+    final buf = StringBuffer();
+    for (int i = 0; i < s.length; i++) {
+      final pos = s.length - i;
+      buf.write(s[i]);
+      if (pos > 1 && pos % 3 == 1) buf.write(' ');
+    }
+    return '${buf.toString()} ₸';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cover = product.coverUrl ?? (product.images.isNotEmpty ? product.images.first.url : null);
+
     return Container(
-      width: 140,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(18),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Container(
-              color: Colors.grey.shade200,
-              alignment: Alignment.center,
-              child: const Icon(Icons.image, color: Colors.grey),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  "Товар (пример)",
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+      child: Padding(
+        padding: const EdgeInsets.all(10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: Container(
+                  color: const Color(0xFFF1F3F5),
+                  child: cover == null || cover.isEmpty
+                      ? const Icon(Icons.image_outlined, color: Colors.black26)
+                      : Image.network(
+                          cover,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) =>
+                              const Icon(Icons.broken_image_outlined, color: Colors.black26),
+                        ),
                 ),
-                const Gap(4),
-                Text(
-                  "\$${(index + 1) * 100}",
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-              ],
+              ),
             ),
-          )
-        ],
+            const SizedBox(height: 10),
+            Text(
+              product.title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              _formatMoney(product.retailPrice),
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              'Маржа: ${_formatMoney(product.margin)}',
+              style: const TextStyle(fontSize: 12, color: Colors.black54),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-class ProductCard extends StatelessWidget {
-  final Product product;
-  const ProductCard({super.key, required this.product});
+class _SimpleDrawer extends StatelessWidget {
+  const _SimpleDrawer();
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: const [
-          BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2)),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Stack(
-              children: [
-                SizedBox(
-                  width: double.infinity,
-                  child: ClipRRect(
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-                    child: (product.imageUrl != null && product.imageUrl!.isNotEmpty)
-                        ? Image.network(
-                            product.imageUrl!,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Container(
-                              color: Colors.grey.shade200,
-                              alignment: Alignment.center,
-                              child: const Icon(Icons.broken_image),
-                            ),
-                          )
-                        : Container(
-                            color: Colors.grey.shade200,
-                            alignment: Alignment.center,
-                            child: const Icon(Icons.image, size: 40, color: Colors.grey),
-                          ),
-                  ),
-                ),
-                const Positioned(
-                  top: 8,
-                  right: 8,
-                  child: Icon(Icons.favorite_border, color: Colors.grey, size: 20),
-                ),
-              ],
+    return Drawer(
+      child: SafeArea(
+        child: ListView(
+          children: const [
+            ListTile(
+              leading: Icon(Icons.storefront_outlined),
+              title: Text('Магазин'),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  product.title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 13, height: 1.2),
-                ),
-                const Gap(4),
-                const Row(
-                  children: [
-                    Icon(Icons.star, size: 12, color: Colors.amber),
-                    Gap(2),
-                    Text("Нет рейтинга", style: TextStyle(fontSize: 10, color: Colors.grey)),
-                  ],
-                ),
-                const Gap(6),
-                if (product.bonusPrice != null && product.bonusPrice! > 0)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: Colors.amberAccent,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      "+${product.bonusPrice} Б",
-                      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black),
-                    ),
-                  ),
-                const Gap(8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      "${product.price} ₸",
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: const BoxDecoration(
-                        color: AppTheme.primary,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(Icons.add, color: Colors.white, size: 16),
-                    ),
-                  ],
-                ),
-              ],
+            ListTile(
+              leading: Icon(Icons.grid_view_rounded),
+              title: Text('Каталог'),
             ),
-          ),
-        ],
+            ListTile(
+              leading: Icon(Icons.favorite_border),
+              title: Text('Избранное'),
+            ),
+            ListTile(
+              leading: Icon(Icons.shopping_cart_outlined),
+              title: Text('Корзина'),
+            ),
+            ListTile(
+              leading: Icon(Icons.person_outline),
+              title: Text('Профиль'),
+            ),
+          ],
+        ),
       ),
     );
   }
