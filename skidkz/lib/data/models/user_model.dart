@@ -49,10 +49,13 @@ class UserModel {
   }
 
   factory UserModel.fromFirestore(String uid, Map<String, dynamic> data) {
-    final phone = data['phone'] as String?;
+    // ✅ читаем и phone, и phoneNumber
+    final phone = (data['phone'] as String?) ?? (data['phoneNumber'] as String?);
 
     final roles = _rolesFromAny(data['roles'], data['role']);
-    final active = _roleFromString((data['activeRole'] as String?) ?? (data['role'] as String?));
+    final active = _roleFromString(
+      (data['activeRole'] as String?) ?? (data['role'] as String?),
+    );
 
     // activeRole must be in roles (sanity)
     final fixedActive = roles.contains(active) ? active : roles.first;
@@ -87,7 +90,11 @@ class UserModel {
   Map<String, dynamic> toFirestore() {
     return {
       'uid': uid,
+
+      // ✅ пишем оба
       'phone': phone,
+      'phoneNumber': phone,
+
       'roles': roles.map((r) => r.name).toList(),
       'activeRole': activeRole.name,
       'profiles': {
@@ -96,7 +103,7 @@ class UserModel {
         'wanghong': wanghongProfile.toMap(),
       },
     };
-  }
+    }
 }
 
 class BuyerProfile {
