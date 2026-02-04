@@ -1,3 +1,5 @@
+// lib/features/auth/screens/role_selection_screen.dart
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -158,20 +160,22 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
     // Админ — только whitelist
     if (role == UserRole.admin) {
       final uidOk = _adminUids.contains(user.uid);
-      final phoneOk = user.phoneNumber != null && _adminPhones.contains(user.phoneNumber);
+      final phoneOk =
+          user.phoneNumber != null && _adminPhones.contains(user.phoneNumber);
       if (!uidOk && !phoneOk) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Доступ администратора запрещён (Whitelist).')),
+          const SnackBar(
+              content: Text('Доступ администратора запрещён (Whitelist).')),
         );
         return;
       }
     }
 
-    // Собираем данные роли
-    final extra = await _collectRoleData(role);
-    if (!mounted) return; // диалог мог закрыть экран
-    if (extra == null) return; // отмена
+    // Собираем данные роли (анкета/поля роли)
+    final profileData = await _collectRoleData(role);
+    if (!mounted) return;
+    if (profileData == null) return; // отмена
 
     setState(() => _saving = true);
 
@@ -179,25 +183,58 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
       final uid = user.uid;
       final phone = user.phoneNumber ?? '';
 
-      // КРИТИЧНО: сохраняем activeRole (и role для совместимости)
-      await FirebaseFirestore.instance.collection('users').doc(uid).set(
+      final userRef = FirebaseFirestore.instance.collection('users').doc(uid);
+      final snap = await userRef.get();
+
+      final existing = snap.data() ?? <String, dynamic>{};
+
+      // Берём существующие roles + гарантируем buyer (потому что покупательская зона всегда нужна)
+      final existingRolesRaw = existing['roles'];
+      final existingLegacyRole = existing['role'] as String?;
+      final mergedRoles = <String>{
+        'buyer',
+        ..._rolesFromAny(existingRolesRaw, existingLegacyRole),
+        role.name,
+      }.toList()
+        ..sort();
+
+      // Гарантируем profiles map
+      final existingProfiles =
+          (existing['profiles'] is Map<String, dynamic>)
+              ? Map<String, dynamic>.from(existing['profiles'])
+              : <String, dynamic>{};
+
+      existingProfiles[role.name] = {
+        ...(existingProfiles[role.name] is Map
+            ? Map<String, dynamic>.from(existingProfiles[role.name])
+            : <String, dynamic>{}),
+        ...profileData,
+      };
+
+      await userRef.set(
         {
           'uid': uid,
+
+          // ✅ пишем оба, чтобы не было рассинхрона
+          'phone': phone,
           'phoneNumber': phone,
 
-          'activeRole': role.name, // то, что роутер читает
-          'role': role.name,       // fallback/совместимость
+          // ✅ роли и активная роль
+          'roles': mergedRoles,
+          'activeRole': role.name,
 
-          'profile': extra,
+          // ✅ оставим legacy "role" как fallback (можно убрать позже)
+          'role': role.name,
 
-          'createdAt': FieldValue.serverTimestamp(),
+          // ✅ единый канон: profiles
+          'profiles': existingProfiles,
+
+          'createdAt': existing['createdAt'] ?? FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
         },
         SetOptions(merge: true),
       );
 
-      // НИКАКОЙ навигации / snackbar после успешного сохранения.
-      // GoRouter сам увезёт пользователя по activeRole.
       return;
     } catch (e) {
       if (!mounted) return;
@@ -210,10 +247,33 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
     }
   }
 
+  // Возвращает список ролей строками из raw roles / legacy role
+  List<String> _rolesFromAny(dynamic rawRoles, String? rawRoleLegacy) {
+    if (rawRoles is List) {
+      final out = <String>[];
+      for (final x in rawRoles) {
+        if (x is String && x.trim().isNotEmpty) out.add(x.trim());
+      }
+      if (out.isNotEmpty) return out.toSet().toList();
+    }
+
+    if (rawRoleLegacy != null && rawRoleLegacy.trim().isNotEmpty) {
+      return [rawRoleLegacy.trim()];
+    }
+
+    return [];
+  }
+
   Future<Map<String, dynamic>?> _collectRoleData(UserRole role) async {
     switch (role) {
       case UserRole.buyer:
-        return {'offerAccepted': true};
+        // Минимум для MVP: отметка, что можно продолжать.
+        // Поля BuyerProfile в модели имеют дефолты, так что map может быть минимальным.
+        return {
+          'completed': false,
+          'acceptedTerms': true,
+          'updatedAt': DateTime.now().toIso8601String(),
+        };
 
       case UserRole.wanghong:
         return _showWanghongDialog();
@@ -222,7 +282,7 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
         return _showSellerDialog();
 
       case UserRole.admin:
-        return {'isWhitelistedAdmin': true};
+        return {'completed': true, 'isWhitelistedAdmin': true};
     }
   }
 
@@ -298,9 +358,11 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                     }
 
                     Navigator.pop(ctx, {
+                      'completed': false,
                       'kaspiNumber': kaspi,
                       'offerAccepted': true,
                       'offerAcceptedAt': DateTime.now().toIso8601String(),
+                      'status': 'pending', // pending/approved/rejected
                       'wallet': {
                         'balance': 0.0,
                         'hold': 0.0,
@@ -393,6 +455,7 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                     }
 
                     Navigator.pop(ctx, {
+                      'completed': false,
                       'storeName': storeName,
                       'isServiceSeller': isService,
                       'offerAccepted': true,
