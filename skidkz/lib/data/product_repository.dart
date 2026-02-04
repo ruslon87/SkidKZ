@@ -1,26 +1,18 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:skidkz/data/models/product.dart';
-
-final productRepositoryProvider = Provider((ref) => ProductRepository(FirebaseFirestore.instance));
+import 'models/product.dart';
 
 class ProductRepository {
-  final FirebaseFirestore _firestore;
+  ProductRepository(this._db);
 
-  ProductRepository(this._firestore);
+  final FirebaseFirestore _db;
 
-  Future<List<Product>> fetchProducts({DocumentSnapshot? lastDocument, int limit = 20}) async {
-    Query query = _firestore
-        .collection('products')
-        .where('isActive', isEqualTo: true)
+  CollectionReference<Map<String, dynamic>> get _products => _db.collection('products');
+
+  Stream<List<Product>> watchActiveProducts() {
+    return _products
+        .where('status', isEqualTo: 'active')
         .orderBy('updatedAt', descending: true)
-        .limit(limit);
-
-    if (lastDocument != null) {
-      query = query.startAfterDocument(lastDocument);
-    }
-
-    final snapshot = await query.get();
-    return snapshot.docs.map((doc) => Product.fromFirestore(doc)).toList();
+        .snapshots()
+        .map((q) => q.docs.map(Product.fromDoc).toList());
   }
 }
