@@ -1,4 +1,4 @@
-import 'package:skidkz/data/models/product_model.dart';
+import 'package:skidkz/data/models/product.dart';
 
 enum OrderStatus { paid, processing, completed, cancelled }
 
