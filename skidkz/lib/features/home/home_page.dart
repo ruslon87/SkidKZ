@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:skidkz/core/theme/app_theme.dart';
 import 'package:skidkz/data/product_repository.dart';
-import 'package:skidkz/models/product.dart';
+import 'package:skidkz/data/models/product.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:gap/gap.dart';
 
