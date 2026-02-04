@@ -7,37 +7,77 @@ enum UserRole { buyer, seller, wanghong, admin }
 /// ---------------------------------------------------------------------------
 /// В проекте есть старые репозитории/mock_database, которые используют AppUser.
 /// Мы оставляем AppUser как совместимый DTO, а канон по Firestore = UserModel+profiles.
+///
+/// Чтобы не ловить ошибки компиляции "No named parameter ...",
+/// AppUser содержит наиболее частые поля анкет/заявок и extra для всего остального.
 class AppUser {
   final String id;
 
+  // базовые
   final String? name;
   final String? phoneNumber;
 
-  /// Legacy: одна "главная" роль
-  final UserRole? role;
+  // роли
+  final UserRole? role; // legacy
+  final List<UserRole>? roles; // new
+  final UserRole? activeRole; // new
 
-  /// Новый формат: список ролей
-  final List<UserRole>? roles;
+  // buyer анкета (минимум)
+  final String? fullName;
+  final String? city;
+  final String? street;
+  final String? apartment;
+  final String? comment;
+  final String? contactPhone;
+  final bool? acceptedTerms;
 
-  /// Новый формат: активная роль
-  final UserRole? activeRole;
+  // общие оферты / чекбоксы
+  final bool? offerAccepted;
 
-  /// Промокод (обычно нужен ванхуну)
+  // wanghong
   final String? promoCode;
+  final String? kaspiPhone; // mock_database может передавать kaspiPhone
+  final String? kaspiNumber; // иногда называют так
+  final Map<String, dynamic>? wallet; // например {balance, hold...}
 
-  /// ✅ Нужно для старого mock_database.dart
-  /// (он передаёт kaspiPhone в конструктор)
-  final String? kaspiPhone;
+  // seller
+  final String? storeName;
+  final bool? isServiceSeller;
+  final String? status; // pending/approved/rejected
+
+  // запасной контейнер под любые будущие поля
+  final Map<String, dynamic>? extra;
 
   const AppUser({
     required this.id,
+
     this.name,
     this.phoneNumber,
+
     this.role,
     this.roles,
     this.activeRole,
+
+    this.fullName,
+    this.city,
+    this.street,
+    this.apartment,
+    this.comment,
+    this.contactPhone,
+    this.acceptedTerms,
+
+    this.offerAccepted,
+
     this.promoCode,
     this.kaspiPhone,
+    this.kaspiNumber,
+    this.wallet,
+
+    this.storeName,
+    this.isServiceSeller,
+    this.status,
+
+    this.extra,
   });
 
   static UserRole _roleFromString(String? s) {
@@ -78,54 +118,118 @@ class AppUser {
       (data['activeRole'] as String?) ?? (data['role'] as String?),
     );
 
-    // promoCode: либо прямо в документе, либо profiles.wanghong.promoCode
-    String? promo;
-    final directPromo = (data['promoCode'] as String?)?.trim();
-    if (directPromo != null && directPromo.isNotEmpty) {
-      promo = directPromo;
-    } else {
-      final profilesRaw = data['profiles'];
-      if (profilesRaw is Map) {
-        final whRaw = profilesRaw['wanghong'];
-        if (whRaw is Map) {
-          final whPromo = (whRaw['promoCode'] as String?)?.trim();
-          if (whPromo != null && whPromo.isNotEmpty) promo = whPromo;
-        }
-      }
+    // profiles может содержать данные анкет
+    final profilesRaw = data['profiles'];
+    Map? buyerRaw;
+    Map? sellerRaw;
+    Map? whRaw;
+
+    if (profilesRaw is Map) {
+      final b = profilesRaw['buyer'];
+      final s = profilesRaw['seller'];
+      final w = profilesRaw['wanghong'];
+      if (b is Map) buyerRaw = b;
+      if (s is Map) sellerRaw = s;
+      if (w is Map) whRaw = w;
     }
 
-    // kaspiPhone: либо прямо в документе, либо profiles.wanghong.kaspiNumber/kaspiPhone
-    String? kaspi;
-    final directKaspi = (data['kaspiPhone'] as String?)?.trim() ??
-        (data['kaspiNumber'] as String?)?.trim();
-    if (directKaspi != null && directKaspi.isNotEmpty) {
-      kaspi = directKaspi;
-    } else {
-      final profilesRaw = data['profiles'];
-      if (profilesRaw is Map) {
-        final whRaw = profilesRaw['wanghong'];
-        if (whRaw is Map) {
-          final whKaspi = (whRaw['kaspiPhone'] as String?)?.trim() ??
-              (whRaw['kaspiNumber'] as String?)?.trim();
-          if (whKaspi != null && whKaspi.isNotEmpty) kaspi = whKaspi;
-        }
-      }
+    // promoCode
+    String? promo = (data['promoCode'] as String?)?.trim();
+    promo ??= (whRaw?['promoCode'] as String?)?.trim();
+
+    // kaspi
+    String? kaspi =
+        (data['kaspiPhone'] as String?)?.trim() ?? (data['kaspiNumber'] as String?)?.trim();
+    kaspi ??= (whRaw?['kaspiPhone'] as String?)?.trim() ?? (whRaw?['kaspiNumber'] as String?)?.trim();
+
+    // wallet
+    Map<String, dynamic>? wallet;
+    final w1 = data['wallet'];
+    if (w1 is Map<String, dynamic>) wallet = w1;
+    final w2 = whRaw?['wallet'];
+    if (wallet == null && w2 is Map) {
+      wallet = Map<String, dynamic>.from(w2 as Map);
     }
+
+    // offerAccepted
+    final offer = (data['offerAccepted'] as bool?) ??
+        (buyerRaw?['offerAccepted'] as bool?) ??
+        (sellerRaw?['offerAccepted'] as bool?) ??
+        (whRaw?['offerAccepted'] as bool?);
+
+    // seller fields
+    final storeName = (data['storeName'] as String?)?.trim() ??
+        (sellerRaw?['storeName'] as String?)?.trim();
+
+    final isServiceSeller = (data['isServiceSeller'] as bool?) ??
+        (sellerRaw?['isServiceSeller'] as bool?);
+
+    final status = (data['status'] as String?)?.trim() ??
+        (sellerRaw?['status'] as String?)?.trim();
+
+    // buyer fields
+    final fullName = (data['fullName'] as String?)?.trim() ??
+        (buyerRaw?['fullName'] as String?)?.trim();
+
+    final city = (data['city'] as String?)?.trim() ??
+        (buyerRaw?['city'] as String?)?.trim();
+
+    final street = (data['street'] as String?)?.trim() ??
+        (buyerRaw?['street'] as String?)?.trim();
+
+    final apartment = (data['apartment'] as String?)?.trim() ??
+        (buyerRaw?['apartment'] as String?)?.trim();
+
+    final comment = (data['comment'] as String?)?.trim() ??
+        (buyerRaw?['comment'] as String?)?.trim();
+
+    final contactPhone = (data['contactPhone'] as String?)?.trim() ??
+        (buyerRaw?['contactPhone'] as String?)?.trim();
+
+    final acceptedTerms = (data['acceptedTerms'] as bool?) ??
+        (buyerRaw?['acceptedTerms'] as bool?);
 
     return AppUser(
       id: uid,
+
       name: (displayName is String && displayName.trim().isNotEmpty)
           ? displayName.trim()
           : null,
       phoneNumber:
           (phone is String && phone.trim().isNotEmpty) ? phone.trim() : null,
+
       role: _roleFromString(
         (data['role'] as String?) ?? (data['activeRole'] as String?),
       ),
       roles: parsedRoles,
       activeRole: parsedActive,
+
+      // buyer
+      fullName: fullName,
+      city: city,
+      street: street,
+      apartment: apartment,
+      comment: comment,
+      contactPhone: contactPhone,
+      acceptedTerms: acceptedTerms,
+
+      // offer
+      offerAccepted: offer,
+
+      // wanghong
       promoCode: promo,
       kaspiPhone: kaspi,
+      kaspiNumber: kaspi,
+      wallet: wallet,
+
+      // seller
+      storeName: storeName,
+      isServiceSeller: isServiceSeller,
+      status: status,
+
+      extra: (data['extra'] is Map<String, dynamic>)
+          ? (data['extra'] as Map<String, dynamic>)
+          : null,
     );
   }
 
@@ -136,11 +240,31 @@ class AppUser {
       'displayName': name,
       'phoneNumber': phoneNumber,
       'phone': phoneNumber,
+
       'role': (role ?? UserRole.buyer).name,
       'roles': (roles ?? const [UserRole.buyer]).map((r) => r.name).toList(),
       'activeRole': (activeRole ?? role ?? UserRole.buyer).name,
+
+      if (fullName != null) 'fullName': fullName,
+      if (city != null) 'city': city,
+      if (street != null) 'street': street,
+      if (apartment != null) 'apartment': apartment,
+      if (comment != null) 'comment': comment,
+      if (contactPhone != null) 'contactPhone': contactPhone,
+      if (acceptedTerms != null) 'acceptedTerms': acceptedTerms,
+
+      if (offerAccepted != null) 'offerAccepted': offerAccepted,
+
       if (promoCode != null) 'promoCode': promoCode,
       if (kaspiPhone != null) 'kaspiPhone': kaspiPhone,
+      if (kaspiNumber != null) 'kaspiNumber': kaspiNumber,
+      if (wallet != null) 'wallet': wallet,
+
+      if (storeName != null) 'storeName': storeName,
+      if (isServiceSeller != null) 'isServiceSeller': isServiceSeller,
+      if (status != null) 'status': status,
+
+      if (extra != null) 'extra': extra,
     };
   }
 }
@@ -194,7 +318,6 @@ class UserModel {
   }
 
   factory UserModel.fromFirestore(String uid, Map<String, dynamic> data) {
-    // читаем и phone, и phoneNumber
     final phone = (data['phone'] as String?) ?? (data['phoneNumber'] as String?);
 
     final roles = _rolesFromAny(data['roles'], data['role']);
@@ -308,28 +431,6 @@ class BuyerProfile {
         'contactPhone': contactPhone,
         'acceptedTerms': acceptedTerms,
       };
-
-  BuyerProfile copyWith({
-    bool? completed,
-    String? fullName,
-    String? city,
-    String? street,
-    String? apartment,
-    String? comment,
-    String? contactPhone,
-    bool? acceptedTerms,
-  }) {
-    return BuyerProfile(
-      completed: completed ?? this.completed,
-      fullName: fullName ?? this.fullName,
-      city: city ?? this.city,
-      street: street ?? this.street,
-      apartment: apartment ?? this.apartment,
-      comment: comment ?? this.comment,
-      contactPhone: contactPhone ?? this.contactPhone,
-      acceptedTerms: acceptedTerms ?? this.acceptedTerms,
-    );
-  }
 }
 
 class SellerProfile {
