@@ -6,16 +6,14 @@ enum UserRole { buyer, seller, wanghong, admin }
 /// LEGACY DTO (чтобы проект собирался)
 /// ---------------------------------------------------------------------------
 /// В проекте есть старые репозитории/mock_database, которые используют AppUser.
-/// Мы оставляем AppUser как совместимый DTO, но канон по Firestore = UserModel+profiles.
-///
-/// Позже можно будет полностью убрать AppUser и переписать репозитории на UserModel.
+/// Мы оставляем AppUser как совместимый DTO, а канон по Firestore = UserModel+profiles.
 class AppUser {
   final String id;
 
   final String? name;
   final String? phoneNumber;
 
-  /// Legacy: одна "главная" роль (часто использовалась ранее)
+  /// Legacy: одна "главная" роль
   final UserRole? role;
 
   /// Новый формат: список ролей
@@ -24,8 +22,12 @@ class AppUser {
   /// Новый формат: активная роль
   final UserRole? activeRole;
 
-  /// Legacy: промокод (обычно нужен ванхуну)
+  /// Промокод (обычно нужен ванхуну)
   final String? promoCode;
+
+  /// ✅ Нужно для старого mock_database.dart
+  /// (он передаёт kaspiPhone в конструктор)
+  final String? kaspiPhone;
 
   const AppUser({
     required this.id,
@@ -35,6 +37,7 @@ class AppUser {
     this.roles,
     this.activeRole,
     this.promoCode,
+    this.kaspiPhone,
   });
 
   static UserRole _roleFromString(String? s) {
@@ -61,30 +64,52 @@ class AppUser {
     return [UserRole.buyer];
   }
 
-  /// ✅ ВАЖНО:
   /// В старом коде у тебя вызывается `AppUser.fromMap(uid, data)`
-  /// Поэтому даём такой factory.
   factory AppUser.fromMap(String uid, Map<String, dynamic> data) {
-    final phone = (data['phoneNumber'] as String?) ?? (data['phone'] as String?);
+    final phone =
+        (data['phoneNumber'] as String?) ?? (data['phone'] as String?);
+
     final displayName = (data['displayName'] as String?) ??
         (data['name'] as String?) ??
         (data['fullName'] as String?);
 
-    final roles = _rolesFromAny(data['roles'], data['role']);
-    final active = _roleFromString(
+    final parsedRoles = _rolesFromAny(data['roles'], data['role']);
+    final parsedActive = _roleFromString(
       (data['activeRole'] as String?) ?? (data['role'] as String?),
     );
 
-    // promoCode: пробуем сверху, иначе из profiles.wanghong.promoCode (если ты так сделаешь)
+    // promoCode: либо прямо в документе, либо profiles.wanghong.promoCode
     String? promo;
     final directPromo = (data['promoCode'] as String?)?.trim();
     if (directPromo != null && directPromo.isNotEmpty) {
       promo = directPromo;
     } else {
-      final profiles = (data['profiles'] is Map) ? data['profiles'] as Map : null;
-      final wh = (profiles?['wanghong'] is Map) ? profiles?['wanghong'] as Map : null;
-      final whPromo = (wh?['promoCode'] as String?)?.trim();
-      if (whPromo != null && whPromo.isNotEmpty) promo = whPromo;
+      final profilesRaw = data['profiles'];
+      if (profilesRaw is Map) {
+        final whRaw = profilesRaw['wanghong'];
+        if (whRaw is Map) {
+          final whPromo = (whRaw['promoCode'] as String?)?.trim();
+          if (whPromo != null && whPromo.isNotEmpty) promo = whPromo;
+        }
+      }
+    }
+
+    // kaspiPhone: либо прямо в документе, либо profiles.wanghong.kaspiNumber/kaspiPhone
+    String? kaspi;
+    final directKaspi = (data['kaspiPhone'] as String?)?.trim() ??
+        (data['kaspiNumber'] as String?)?.trim();
+    if (directKaspi != null && directKaspi.isNotEmpty) {
+      kaspi = directKaspi;
+    } else {
+      final profilesRaw = data['profiles'];
+      if (profilesRaw is Map) {
+        final whRaw = profilesRaw['wanghong'];
+        if (whRaw is Map) {
+          final whKaspi = (whRaw['kaspiPhone'] as String?)?.trim() ??
+              (whRaw['kaspiNumber'] as String?)?.trim();
+          if (whKaspi != null && whKaspi.isNotEmpty) kaspi = whKaspi;
+        }
+      }
     }
 
     return AppUser(
@@ -92,11 +117,15 @@ class AppUser {
       name: (displayName is String && displayName.trim().isNotEmpty)
           ? displayName.trim()
           : null,
-      phoneNumber: (phone is String && phone.trim().isNotEmpty) ? phone.trim() : null,
-      role: _roleFromString((data['role'] as String?) ?? (data['activeRole'] as String?)),
-      roles: roles,
-      activeRole: active,
+      phoneNumber:
+          (phone is String && phone.trim().isNotEmpty) ? phone.trim() : null,
+      role: _roleFromString(
+        (data['role'] as String?) ?? (data['activeRole'] as String?),
+      ),
+      roles: parsedRoles,
+      activeRole: parsedActive,
       promoCode: promo,
+      kaspiPhone: kaspi,
     );
   }
 
@@ -111,6 +140,7 @@ class AppUser {
       'roles': (roles ?? const [UserRole.buyer]).map((r) => r.name).toList(),
       'activeRole': (activeRole ?? role ?? UserRole.buyer).name,
       if (promoCode != null) 'promoCode': promoCode,
+      if (kaspiPhone != null) 'kaspiPhone': kaspiPhone,
     };
   }
 }
@@ -148,7 +178,6 @@ class UserModel {
   }
 
   static List<UserRole> _rolesFromAny(dynamic rawRoles, String? rawRoleLegacy) {
-    // New: roles: ["buyer","seller"...]
     if (rawRoles is List) {
       final out = <UserRole>[];
       for (final x in rawRoles) {
@@ -157,7 +186,6 @@ class UserModel {
       if (out.isNotEmpty) return out.toSet().toList();
     }
 
-    // Legacy: role: "buyer"
     if (rawRoleLegacy is String && rawRoleLegacy.trim().isNotEmpty) {
       return [_roleFromString(rawRoleLegacy)];
     }
@@ -166,7 +194,7 @@ class UserModel {
   }
 
   factory UserModel.fromFirestore(String uid, Map<String, dynamic> data) {
-    // ✅ читаем и phone, и phoneNumber
+    // читаем и phone, и phoneNumber
     final phone = (data['phone'] as String?) ?? (data['phoneNumber'] as String?);
 
     final roles = _rolesFromAny(data['roles'], data['role']);
@@ -174,7 +202,6 @@ class UserModel {
       (data['activeRole'] as String?) ?? (data['role'] as String?),
     );
 
-    // activeRole must be in roles (sanity)
     final fixedActive = roles.contains(active) ? active : roles.first;
 
     final profiles = (data['profiles'] is Map<String, dynamic>)
@@ -207,14 +234,10 @@ class UserModel {
   Map<String, dynamic> toFirestore() {
     return {
       'uid': uid,
-
-      // ✅ пишем оба
       'phone': phone,
       'phoneNumber': phone,
-
       'roles': roles.map((r) => r.name).toList(),
       'activeRole': activeRole.name,
-
       'profiles': {
         'buyer': buyerProfile.toMap(),
         'seller': sellerProfile.toMap(),
