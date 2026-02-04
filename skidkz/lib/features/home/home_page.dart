@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/services.dart';
 
 import 'package:skidkz/data/product_repository.dart';
 import 'package:skidkz/data/models/product.dart';
@@ -14,108 +17,150 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   late final ProductRepository _repo;
 
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
+  DateTime? _lastBackPress;
+
   @override
   void initState() {
     super.initState();
     _repo = ProductRepository(FirebaseFirestore.instance);
   }
 
+  Future<bool> _handleBack() async {
+    // 1) Если drawer открыт — закрываем
+    if (_scaffoldKey.currentState?.isDrawerOpen ?? false) {
+      Navigator.of(context).pop();
+      return false;
+    }
+
+    // 2) На главном: double back to exit
+    final now = DateTime.now();
+    final last = _lastBackPress;
+    if (last == null || now.difference(last) > const Duration(seconds: 2)) {
+      _lastBackPress = now;
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Нажмите ещё раз, чтобы выйти'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return false;
+    }
+
+    return true; // разрешаем выход
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF3F5F7),
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: const Color(0xFF2E6CF6),
-        title: const Text('SkidKZ'),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: Row(
-              children: const [
-                Icon(Icons.location_on_outlined, color: Colors.white),
-                SizedBox(width: 6),
-                Text('Алматы', style: TextStyle(color: Colors.white)),
-              ],
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) async {
+        if (didPop) return;
+
+        final shouldExit = await _handleBack();
+        if (shouldExit && mounted) {
+          // Закрыть приложение (Android)
+          SystemNavigator.pop();
+        }
+      },
+      child: Scaffold(
+        key: _scaffoldKey,
+        backgroundColor: const Color(0xFFF3F5F7),
+        appBar: AppBar(
+          elevation: 0,
+          backgroundColor: const Color(0xFF2E6CF6),
+          title: const Text('SkidKZ'),
+          actions: [
+            Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: Row(
+                children: const [
+                  Icon(Icons.location_on_outlined, color: Colors.white),
+                  SizedBox(width: 6),
+                  Text('Алматы', style: TextStyle(color: Colors.white)),
+                ],
+              ),
             ),
-          ),
-        ],
-      ),
-      drawer: const _SimpleDrawer(),
-      body: StreamBuilder<List<Product>>(
-        stream: _repo.watchActiveProducts(),
-        builder: (context, snap) {
-          final loading = snap.connectionState == ConnectionState.waiting;
-          final products = snap.data ?? const <Product>[];
+          ],
+        ),
 
-          return CustomScrollView(
-            slivers: [
-              SliverToBoxAdapter(
-                child: _TopSearchBlock(
-                  onTapSearch: () {
-                    // TODO: открыть поиск/каталог
-                  },
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: _BannersRow(),
-              ),
-              SliverToBoxAdapter(
-                child: _CategoriesRow(
-                  categories: const [
-                    _CategoryItem(icon: Icons.phone_android, label: 'Телефоны'),
-                    _CategoryItem(icon: Icons.laptop_mac, label: 'Ноутбуки'),
-                    _CategoryItem(icon: Icons.checkroom, label: 'Одежда'),
-                    _CategoryItem(icon: Icons.home_outlined, label: 'Дом'),
-                    _CategoryItem(icon: Icons.sports_soccer, label: 'Спорт'),
-                  ],
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: _SectionTitle(title: 'Вы недавно смотрели', action: 'Смотреть все'),
-              ),
-              SliverToBoxAdapter(
-                child: _RecentlyViewedPlaceholder(),
-              ),
+        // Оставляем ТОЛЬКО “кабинетный” drawer (как на твоем скрине)
+        drawer: const _AccountDrawer(),
 
-              SliverToBoxAdapter(
-                child: _SectionTitle(title: 'Вас могут заинтересовать', action: null),
-              ),
+        body: StreamBuilder<List<Product>>(
+          stream: _repo.watchActiveProducts(),
+          builder: (context, snap) {
+            final loading = snap.connectionState == ConnectionState.waiting;
+            final products = snap.data ?? const <Product>[];
 
-              if (loading)
-                const SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.all(20),
-                    child: Center(child: CircularProgressIndicator()),
-                  ),
-                )
-              else if (products.isEmpty)
+            return CustomScrollView(
+              slivers: [
                 SliverToBoxAdapter(
-                  child: _EmptyProductsState(
-                    onCreateProductHint: () {
-                      // TODO: можно открыть seller flow, если текущий пользователь seller/admin
+                  child: _TopSearchBlock(
+                    onTapSearch: () {
+                      // TODO: открыть поиск/каталог
                     },
                   ),
-                )
-              else
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                  sliver: SliverGrid(
-                    delegate: SliverChildBuilderDelegate(
-                      (context, i) => _ProductCard(product: products[i]),
-                      childCount: products.length,
-                    ),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      mainAxisSpacing: 12,
-                      crossAxisSpacing: 12,
-                      childAspectRatio: 0.72,
-                    ),
+                ),
+                SliverToBoxAdapter(
+                  child: _BannersRow(),
+                ),
+                SliverToBoxAdapter(
+                  child: _CategoriesRow(
+                    categories: const [
+                      _CategoryItem(icon: Icons.phone_android, label: 'Телефоны'),
+                      _CategoryItem(icon: Icons.laptop_mac, label: 'Ноутбуки'),
+                      _CategoryItem(icon: Icons.checkroom, label: 'Одежда'),
+                      _CategoryItem(icon: Icons.home_outlined, label: 'Дом'),
+                      _CategoryItem(icon: Icons.sports_soccer, label: 'Спорт'),
+                    ],
                   ),
                 ),
-            ],
-          );
-        },
+                SliverToBoxAdapter(
+                  child: _SectionTitle(title: 'Вы недавно смотрели', action: 'Смотреть все'),
+                ),
+                SliverToBoxAdapter(
+                  child: _RecentlyViewedPlaceholder(),
+                ),
+                SliverToBoxAdapter(
+                  child: _SectionTitle(title: 'Вас могут заинтересовать', action: null),
+                ),
+                if (loading)
+                  const SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsets.all(20),
+                      child: Center(child: CircularProgressIndicator()),
+                    ),
+                  )
+                else if (products.isEmpty)
+                  SliverToBoxAdapter(
+                    child: _EmptyProductsState(
+                      onCreateProductHint: () {
+                        // TODO: можно открыть seller flow, если текущий пользователь seller/admin
+                      },
+                    ),
+                  )
+                else
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                    sliver: SliverGrid(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, i) => _ProductCard(product: products[i]),
+                        childCount: products.length,
+                      ),
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        mainAxisSpacing: 12,
+                        crossAxisSpacing: 12,
+                        childAspectRatio: 0.72,
+                      ),
+                    ),
+                  ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
@@ -164,7 +209,6 @@ class _TopSearchBlock extends StatelessWidget {
 class _BannersRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    // Kaspi-style: 2 больших баннера
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
       child: Row(
@@ -283,7 +327,6 @@ class _SectionTitle extends StatelessWidget {
 class _RecentlyViewedPlaceholder extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    // Пока без истории: показываем 3 "пустых" карточки как в Kaspi
     return SizedBox(
       height: 180,
       child: ListView.separated(
@@ -369,7 +412,6 @@ class _ProductCard extends StatelessWidget {
   final Product product;
 
   String _formatMoney(int v) {
-    // простая локальная форматилка, без intl
     final s = v.toString();
     final buf = StringBuffer();
     for (int i = 0; i < s.length; i++) {
@@ -434,37 +476,156 @@ class _ProductCard extends StatelessWidget {
   }
 }
 
-class _SimpleDrawer extends StatelessWidget {
-  const _SimpleDrawer();
+// ==============================
+// Drawer "как на твоем скрине"
+// ==============================
+
+class _AccountDrawer extends StatelessWidget {
+  const _AccountDrawer();
 
   @override
   Widget build(BuildContext context) {
     return Drawer(
       child: SafeArea(
         child: ListView(
-          children: const [
+          padding: EdgeInsets.zero,
+          children: [
+            Container(
+              color: const Color(0xFF2E6CF6),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'SkidKZ',
+                    style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 12),
+                  InkWell(
+                    borderRadius: BorderRadius.circular(14),
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      // TODO: открыть экран входа/регистрации
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.14),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: Colors.white.withOpacity(0.18)),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            height: 38,
+                            width: 38,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.18),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(Icons.person_outline, color: Colors.white),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: const [
+                                Text(
+                                  'Войти / Регистрация',
+                                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
+                                ),
+                                SizedBox(height: 2),
+                                Text(
+                                  'Заказы, избранное, бонусы',
+                                  style: TextStyle(color: Colors.white70, fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Icon(Icons.chevron_right, color: Colors.white),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  const Text('Гость', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                ],
+              ),
+            ),
+            const _DrawerSectionTitle('Аккаунт'),
             ListTile(
-              leading: Icon(Icons.storefront_outlined),
-              title: Text('Магазин'),
+              leading: const Icon(Icons.receipt_long_outlined),
+              title: const Text('Мои заказы'),
+              onTap: () {
+                Navigator.of(context).pop();
+                // TODO: открыть "Мои заказы"
+              },
+            ),
+            const _DrawerSectionTitle('Кабинеты'),
+            ListTile(
+              leading: const Icon(Icons.storefront_outlined),
+              title: const Text('Кабинет магазина'),
+              subtitle: const Text('Продажи, товары, заказы'),
+              onTap: () {
+                Navigator.of(context).pop();
+                // TODO: открыть кабинет магазина
+              },
             ),
             ListTile(
-              leading: Icon(Icons.grid_view_rounded),
-              title: Text('Каталог'),
+              leading: const Icon(Icons.campaign_outlined),
+              title: const Text('Кабинет ванхуна'),
+              subtitle: const Text('Заработать на промокодах'),
+              onTap: () {
+                Navigator.of(context).pop();
+                // TODO: открыть кабинет ванхуна
+              },
+            ),
+            const _DrawerSectionTitle('Для бизнеса'),
+            ListTile(
+              leading: const Icon(Icons.add_business_outlined),
+              title: const Text('Открыть магазин'),
+              subtitle: const Text('Как это работает'),
+              onTap: () {
+                Navigator.of(context).pop();
+                // TODO: открыть онбординг продавца
+              },
             ),
             ListTile(
-              leading: Icon(Icons.favorite_border),
-              title: Text('Избранное'),
+              leading: const Icon(Icons.person_add_alt_1_outlined),
+              title: const Text('Подключиться как ванхун'),
+              subtitle: const Text('Условия и старт'),
+              onTap: () {
+                Navigator.of(context).pop();
+                // TODO: открыть онбординг ванхуна
+              },
             ),
+            const _DrawerSectionTitle('Сервис'),
             ListTile(
-              leading: Icon(Icons.shopping_cart_outlined),
-              title: Text('Корзина'),
-            ),
-            ListTile(
-              leading: Icon(Icons.person_outline),
-              title: Text('Профиль'),
+              leading: const Icon(Icons.support_agent_outlined),
+              title: const Text('Поддержка'),
+              onTap: () {
+                Navigator.of(context).pop();
+                // TODO: открыть поддержку
+              },
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _DrawerSectionTitle extends StatelessWidget {
+  const _DrawerSectionTitle(this.text);
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 6),
+      child: Text(
+        text,
+        style: const TextStyle(color: Colors.black38, fontSize: 12, fontWeight: FontWeight.w700),
       ),
     );
   }
