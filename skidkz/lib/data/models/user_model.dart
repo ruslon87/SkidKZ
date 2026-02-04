@@ -2,6 +2,123 @@
 
 enum UserRole { buyer, seller, wanghong, admin }
 
+/// ---------------------------------------------------------------------------
+/// LEGACY DTO (чтобы проект собирался)
+/// ---------------------------------------------------------------------------
+/// В проекте есть старые репозитории/mock_database, которые используют AppUser.
+/// Мы оставляем AppUser как совместимый DTO, но канон по Firestore = UserModel+profiles.
+///
+/// Позже можно будет полностью убрать AppUser и переписать репозитории на UserModel.
+class AppUser {
+  final String id;
+
+  final String? name;
+  final String? phoneNumber;
+
+  /// Legacy: одна "главная" роль (часто использовалась ранее)
+  final UserRole? role;
+
+  /// Новый формат: список ролей
+  final List<UserRole>? roles;
+
+  /// Новый формат: активная роль
+  final UserRole? activeRole;
+
+  /// Legacy: промокод (обычно нужен ванхуну)
+  final String? promoCode;
+
+  const AppUser({
+    required this.id,
+    this.name,
+    this.phoneNumber,
+    this.role,
+    this.roles,
+    this.activeRole,
+    this.promoCode,
+  });
+
+  static UserRole _roleFromString(String? s) {
+    final v = (s ?? 'buyer').trim().toLowerCase();
+    return UserRole.values.firstWhere(
+      (r) => r.name == v,
+      orElse: () => UserRole.buyer,
+    );
+  }
+
+  static List<UserRole> _rolesFromAny(dynamic rawRoles, String? rawRoleLegacy) {
+    if (rawRoles is List) {
+      final out = <UserRole>[];
+      for (final x in rawRoles) {
+        if (x is String) out.add(_roleFromString(x));
+      }
+      if (out.isNotEmpty) return out.toSet().toList();
+    }
+
+    if (rawRoleLegacy is String && rawRoleLegacy.trim().isNotEmpty) {
+      return [_roleFromString(rawRoleLegacy)];
+    }
+
+    return [UserRole.buyer];
+  }
+
+  /// ✅ ВАЖНО:
+  /// В старом коде у тебя вызывается `AppUser.fromMap(uid, data)`
+  /// Поэтому даём такой factory.
+  factory AppUser.fromMap(String uid, Map<String, dynamic> data) {
+    final phone = (data['phoneNumber'] as String?) ?? (data['phone'] as String?);
+    final displayName = (data['displayName'] as String?) ??
+        (data['name'] as String?) ??
+        (data['fullName'] as String?);
+
+    final roles = _rolesFromAny(data['roles'], data['role']);
+    final active = _roleFromString(
+      (data['activeRole'] as String?) ?? (data['role'] as String?),
+    );
+
+    // promoCode: пробуем сверху, иначе из profiles.wanghong.promoCode (если ты так сделаешь)
+    String? promo;
+    final directPromo = (data['promoCode'] as String?)?.trim();
+    if (directPromo != null && directPromo.isNotEmpty) {
+      promo = directPromo;
+    } else {
+      final profiles = (data['profiles'] is Map) ? data['profiles'] as Map : null;
+      final wh = (profiles?['wanghong'] is Map) ? profiles?['wanghong'] as Map : null;
+      final whPromo = (wh?['promoCode'] as String?)?.trim();
+      if (whPromo != null && whPromo.isNotEmpty) promo = whPromo;
+    }
+
+    return AppUser(
+      id: uid,
+      name: (displayName is String && displayName.trim().isNotEmpty)
+          ? displayName.trim()
+          : null,
+      phoneNumber: (phone is String && phone.trim().isNotEmpty) ? phone.trim() : null,
+      role: _roleFromString((data['role'] as String?) ?? (data['activeRole'] as String?)),
+      roles: roles,
+      activeRole: active,
+      promoCode: promo,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'uid': id,
+      'name': name,
+      'displayName': name,
+      'phoneNumber': phoneNumber,
+      'phone': phoneNumber,
+      'role': (role ?? UserRole.buyer).name,
+      'roles': (roles ?? const [UserRole.buyer]).map((r) => r.name).toList(),
+      'activeRole': (activeRole ?? role ?? UserRole.buyer).name,
+      if (promoCode != null) 'promoCode': promoCode,
+    };
+  }
+}
+
+/// ---------------------------------------------------------------------------
+/// CANON MODEL (основной для проекта)
+/// ---------------------------------------------------------------------------
+
 class UserModel {
   final String uid;
   final String? phone;
@@ -97,13 +214,14 @@ class UserModel {
 
       'roles': roles.map((r) => r.name).toList(),
       'activeRole': activeRole.name,
+
       'profiles': {
         'buyer': buyerProfile.toMap(),
         'seller': sellerProfile.toMap(),
         'wanghong': wanghongProfile.toMap(),
       },
     };
-    }
+  }
 }
 
 class BuyerProfile {
