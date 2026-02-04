@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -27,31 +26,6 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  // ✅ ВАЖНО: создаём users/{uid} если его нет
-  Future<void> _ensureUserDoc(User user) async {
-    final db = FirebaseFirestore.instance;
-    final ref = db.collection('users').doc(user.uid);
-
-    try {
-      final snap = await ref.get();
-      if (snap.exists) return; // уже есть (например admin) — НЕ трогаем
-
-      // создаём дефолтного покупателя
-      await ref.set({
-        'uid': user.uid,
-        'phone': user.phoneNumber,
-        'email': user.email,
-        'displayName': user.displayName,
-        'role': 'buyer',        // базовая роль (как в твоих rules)
-        'activeRole': 'buyer',  // текущая активная роль
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-    } catch (e) {
-      // На MVP можно не падать, но полезно видеть ошибку
-      debugPrint('ensureUserDoc error: $e');
-    }
-  }
-
   Future<void> _sendCode() async {
     final phone = _phoneController.text.trim();
 
@@ -67,19 +41,11 @@ class _LoginScreenState extends State<LoginScreen> {
         phoneNumber: phone,
         timeout: const Duration(seconds: 60),
 
-        // На Android часто срабатывает auto-retrieval
+        // На Android может произойти авто-подтверждение без ввода SMS
         verificationCompleted: (PhoneAuthCredential credential) async {
           try {
-            final cred =
-                await FirebaseAuth.instance.signInWithCredential(credential);
-
-            // ✅ создаём документ в Firestore (если нет)
-            final u = cred.user;
-            if (u != null) {
-              await _ensureUserDoc(u);
-            }
-
-            // GoRouter сам редиректнет по authStateChanges.
+            await FirebaseAuth.instance.signInWithCredential(credential);
+            // Навигацию/редирект делает GoRouter по authStateChanges.
           } catch (e) {
             if (!mounted) return;
             _toast('Auto sign-in ошибка: $e');
@@ -131,16 +97,10 @@ class _LoginScreenState extends State<LoginScreen> {
         smsCode: code,
       );
 
-      final cred =
-          await FirebaseAuth.instance.signInWithCredential(credential);
-
-      // ✅ создаём документ в Firestore (если нет)
-      final u = cred.user;
-      if (u != null) {
-        await _ensureUserDoc(u);
-      }
+      await FirebaseAuth.instance.signInWithCredential(credential);
 
       // Никаких setState / navigation после signIn.
+      // GoRouter сам редиректит (а создание users/{uid} должно быть в каноничном слое).
       return;
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
