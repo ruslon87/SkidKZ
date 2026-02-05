@@ -14,6 +14,8 @@ class BuyerRootShell extends StatefulWidget {
 }
 
 class _BuyerRootShellState extends State<BuyerRootShell> {
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+
   String _city = 'Алматы';
   DateTime? _lastBackPress;
 
@@ -60,7 +62,7 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
     final location = GoRouterState.of(context).uri.toString();
 
     // 1) Если Drawer открыт — закрываем
-    if (Scaffold.of(context).isDrawerOpen) {
+    if (_scaffoldKey.currentState?.isDrawerOpen == true) {
       Navigator.of(context).pop();
       return;
     }
@@ -77,7 +79,7 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
       return;
     }
 
-    // 4) Мы на главной: двойное нажатие для выхода
+    // 4) На главной: двойное нажатие для выхода
     final now = DateTime.now();
     final last = _lastBackPress;
     if (last == null || now.difference(last) > const Duration(seconds: 2)) {
@@ -94,7 +96,7 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
       return;
     }
 
-    // 5) Второе нажатие: даём системе закрыть (ОС сама свернёт/закроет)
+    // 5) Второе нажатие — даём системе закрыть
   }
 
   @override
@@ -106,72 +108,16 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
       canPop: false,
       onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
-
-        final now = DateTime.now();
-        final last = _lastBackPress;
-        final onHome = _isHomeLocation(GoRouterState.of(context).uri.toString());
-
-        if (onHome &&
-            last != null &&
-            now.difference(last) <= const Duration(seconds: 2)) {
-          try {
-            Navigator.of(context, rootNavigator: true).maybePop();
-          } catch (_) {}
-          return;
-        }
-
         await _handleSystemBack(context);
       },
       child: Scaffold(
-        drawer: const BuyerDrawer(),
-
-        appBar: AppBar(
-          backgroundColor: AppTheme.primary,
-          elevation: 0,
-          leading: Builder(
-            builder: (ctx) => IconButton(
-              icon: const Icon(Icons.menu, color: Colors.white),
-              onPressed: () => Scaffold.of(ctx).openDrawer(),
-            ),
-          ),
-          titleSpacing: 0,
-          title: const Text(
-            'SkidKZ',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          actions: [
-            InkWell(
-              onTap: _toggleCity,
-              borderRadius: BorderRadius.circular(12),
-              child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                child: Row(
-                  children: [
-                    const Icon(Icons.location_on_outlined,
-                        color: Colors.white, size: 20),
-                    const SizedBox(width: 4),
-                    Text(
-                      _city,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                  ],
-                ),
-              ),
-            ),
-          ],
+        key: _scaffoldKey,
+        drawer: BuyerDrawer(
+          city: _city,
+          onToggleCity: _toggleCity,
         ),
-
+        // ВАЖНО: AppBar УБРАН — чтобы не дублировалось с хедером HomePage
         body: widget.child,
-
         bottomNavigationBar: BottomNavigationBar(
           currentIndex: currentIndex,
           onTap: (i) => _onTabTap(context, i),
@@ -181,12 +127,9 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
           items: const [
             BottomNavigationBarItem(icon: Icon(Icons.store), label: 'Магазин'),
             BottomNavigationBarItem(icon: Icon(Icons.grid_view), label: 'Каталог'),
-            BottomNavigationBarItem(
-                icon: Icon(Icons.favorite_border), label: 'Избранное'),
-            BottomNavigationBarItem(
-                icon: Icon(Icons.shopping_cart_outlined), label: 'Корзина'),
-            BottomNavigationBarItem(
-                icon: Icon(Icons.person_outline), label: 'Профиль'),
+            BottomNavigationBarItem(icon: Icon(Icons.favorite_border), label: 'Избранное'),
+            BottomNavigationBarItem(icon: Icon(Icons.shopping_cart_outlined), label: 'Корзина'),
+            BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'Профиль'),
           ],
         ),
       ),
@@ -195,7 +138,14 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
 }
 
 class BuyerDrawer extends StatelessWidget {
-  const BuyerDrawer({super.key});
+  const BuyerDrawer({
+    super.key,
+    required this.city,
+    required this.onToggleCity,
+  });
+
+  final String city;
+  final VoidCallback onToggleCity;
 
   Widget _sectionTitle(String text) {
     return Padding(
@@ -282,7 +232,6 @@ class BuyerDrawer extends StatelessWidget {
           final user = snap.data; // null => гость
           final isAuthed = user != null;
 
-          // Роль читаем ТОЛЬКО если залогинен
           final roleWidget = !isAuthed
               ? Text(
                   'Гость',
@@ -339,13 +288,11 @@ class BuyerDrawer extends StatelessWidget {
                           },
                           borderRadius: BorderRadius.circular(14),
                           child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 12),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                             decoration: BoxDecoration(
                               color: Colors.white.withOpacity(0.12),
                               borderRadius: BorderRadius.circular(14),
-                              border: Border.all(
-                                  color: Colors.white.withOpacity(0.18)),
+                              border: Border.all(color: Colors.white.withOpacity(0.18)),
                             ),
                             child: Row(
                               children: [
@@ -358,22 +305,17 @@ class BuyerDrawer extends StatelessWidget {
                                   ),
                                   alignment: Alignment.center,
                                   child: Icon(
-                                    isAuthed
-                                        ? Icons.person
-                                        : Icons.person_outline,
+                                    isAuthed ? Icons.person : Icons.person_outline,
                                     color: Colors.white,
                                   ),
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
+                                    crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        isAuthed
-                                            ? _displayName(user!)
-                                            : 'Войти / Регистрация',
+                                        isAuthed ? _displayName(user!) : 'Войти / Регистрация',
                                         style: const TextStyle(
                                           color: Colors.white,
                                           fontSize: 16,
@@ -382,9 +324,7 @@ class BuyerDrawer extends StatelessWidget {
                                       ),
                                       const SizedBox(height: 4),
                                       Text(
-                                        isAuthed
-                                            ? _subtitle(user!)
-                                            : 'Заказы, избранное, бонусы',
+                                        isAuthed ? _subtitle(user!) : 'Заказы, избранное, бонусы',
                                         style: const TextStyle(
                                           color: Colors.white70,
                                           fontSize: 12,
@@ -394,8 +334,7 @@ class BuyerDrawer extends StatelessWidget {
                                     ],
                                   ),
                                 ),
-                                const Icon(Icons.chevron_right,
-                                    color: Colors.white),
+                                const Icon(Icons.chevron_right, color: Colors.white),
                               ],
                             ),
                           ),
@@ -405,16 +344,29 @@ class BuyerDrawer extends StatelessWidget {
                           children: [
                             roleWidget,
                             const Spacer(),
+                            InkWell(
+                              onTap: onToggleCity,
+                              borderRadius: BorderRadius.circular(12),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.location_on_outlined, color: Colors.white, size: 18),
+                                    const SizedBox(width: 4),
+                                    Text(city, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
                             if (isAuthed)
                               TextButton(
                                 onPressed: () => _signOutAndClose(context),
                                 style: TextButton.styleFrom(
                                   foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 10, vertical: 6),
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                                   minimumSize: Size.zero,
-                                  tapTargetSize:
-                                      MaterialTapTargetSize.shrinkWrap,
+                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                 ),
                                 child: const Text(
                                   'Выйти',
@@ -430,7 +382,6 @@ class BuyerDrawer extends StatelessWidget {
                     ),
                   ),
 
-                  // АККАУНТ
                   _sectionTitle('Аккаунт'),
                   ListTile(
                     leading: const Icon(Icons.receipt_long_outlined),
@@ -444,10 +395,8 @@ class BuyerDrawer extends StatelessWidget {
                       }
                     },
                   ),
-
                   const Divider(height: 1),
 
-                  // КАБИНЕТЫ
                   _sectionTitle('Кабинеты'),
                   ListTile(
                     leading: const Icon(Icons.store_mall_directory_outlined),
@@ -467,10 +416,8 @@ class BuyerDrawer extends StatelessWidget {
                       context.go('/cabinet');
                     },
                   ),
-
                   const Divider(height: 1),
 
-                  // ДЛЯ БИЗНЕСА
                   _sectionTitle('Для бизнеса'),
                   ListTile(
                     leading: const Icon(Icons.add_business_outlined),
@@ -490,10 +437,8 @@ class BuyerDrawer extends StatelessWidget {
                       context.go('/info/wanghong');
                     },
                   ),
-
                   const Divider(height: 1),
 
-                  // СЕРВИС
                   _sectionTitle('Сервис'),
                   ListTile(
                     leading: const Icon(Icons.support_agent_outlined),
@@ -505,10 +450,8 @@ class BuyerDrawer extends StatelessWidget {
                     title: const Text('О приложении'),
                     onTap: () => _closeDrawer(context),
                   ),
-
                   const Divider(height: 1),
 
-                  // ИНФОРМАЦИЯ
                   _sectionTitle('Информация'),
                   ListTile(
                     leading: const Icon(Icons.verified_outlined),
@@ -516,18 +459,6 @@ class BuyerDrawer extends StatelessWidget {
                     subtitle: const _AppVersionSubtitle(),
                     onTap: () {},
                   ),
-                  ListTile(
-                    leading: const Icon(Icons.policy_outlined),
-                    title: const Text('Политика конфиденциальности'),
-                    onTap: () => _closeDrawer(context),
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.description_outlined),
-                    title: const Text('Пользовательское соглашение'),
-                    onTap: () => _closeDrawer(context),
-                  ),
-
-                  const SizedBox(height: 12),
                 ],
               ),
             ),
@@ -557,13 +488,9 @@ class _AppVersionSubtitleState extends State<_AppVersionSubtitle> {
   Future<void> _load() async {
     try {
       final info = await PackageInfo.fromPlatform();
-      setState(() {
-        _text = '${info.version} (${info.buildNumber})';
-      });
+      setState(() => _text = '${info.version} (${info.buildNumber})');
     } catch (_) {
-      setState(() {
-        _text = 'неизвестно';
-      });
+      setState(() => _text = '-');
     }
   }
 
