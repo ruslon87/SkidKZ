@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:gap/gap.dart';
+import 'package:go_router/go_router.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -41,11 +42,10 @@ class _LoginScreenState extends State<LoginScreen> {
         phoneNumber: phone,
         timeout: const Duration(seconds: 60),
 
-        // На Android может произойти авто-подтверждение без ввода SMS
         verificationCompleted: (PhoneAuthCredential credential) async {
           try {
             await FirebaseAuth.instance.signInWithCredential(credential);
-            // Навигацию/редирект делает GoRouter по authStateChanges.
+            // редирект сделает GoRouter по authStateChanges
           } catch (e) {
             if (!mounted) return;
             _toast('Auto sign-in ошибка: $e');
@@ -60,6 +60,7 @@ class _LoginScreenState extends State<LoginScreen> {
         codeSent: (String verificationId, int? resendToken) {
           if (!mounted) return;
           _verificationId = verificationId;
+
           setState(() {
             _codeSent = true;
           });
@@ -98,9 +99,6 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       await FirebaseAuth.instance.signInWithCredential(credential);
-
-      // Никаких setState / navigation после signIn.
-      // GoRouter сам редиректит (а создание users/{uid} должно быть в каноничном слое).
       return;
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
@@ -121,12 +119,12 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: !_loading,
+      canPop: false,
       onPopInvoked: (didPop) async {
         if (_loading) return;
-        if (!didPop) {
-          await SystemNavigator.pop();
-        }
+
+        // вместо сворачивания приложения — уходим на главную витрину
+        context.go('/buyer/home');
       },
       child: Scaffold(
         appBar: AppBar(title: const Text('Вход по номеру')),
