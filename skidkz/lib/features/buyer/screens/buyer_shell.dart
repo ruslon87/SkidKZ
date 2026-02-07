@@ -1,180 +1,511 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:skidkz/core/theme/app_theme.dart';
 
 class BuyerRootShell extends StatefulWidget {
-  const BuyerRootShell({super.key, required this.child});
-
   final Widget child;
+  const BuyerRootShell({super.key, required this.child});
 
   @override
   State<BuyerRootShell> createState() => _BuyerRootShellState();
 }
 
 class _BuyerRootShellState extends State<BuyerRootShell> {
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+
+  String _city = 'Алматы';
   DateTime? _lastBackPress;
 
-  int _indexFromLocation(String location) {
+  int _locationToIndex(String location) {
     if (location.startsWith('/buyer/catalog')) return 1;
     if (location.startsWith('/buyer/favorites')) return 2;
     if (location.startsWith('/buyer/cart')) return 3;
     if (location.startsWith('/buyer/profile')) return 4;
-    return 0; // /buyer/home
+    return 0;
   }
 
-  String _locationForIndex(int index) {
+  void _onTabTap(BuildContext context, int index) {
     switch (index) {
       case 0:
-        return '/buyer/home';
+        context.go('/buyer/home');
+        break;
       case 1:
-        return '/buyer/catalog';
+        context.go('/buyer/catalog');
+        break;
       case 2:
-        return '/buyer/favorites';
+        context.go('/buyer/favorites');
+        break;
       case 3:
-        return '/buyer/cart';
+        context.go('/buyer/cart');
+        break;
       case 4:
-        return '/buyer/profile';
-      default:
-        return '/buyer/home';
+        context.go('/buyer/profile');
+        break;
     }
   }
 
-  void _showExitHint() {
-    ScaffoldMessenger.of(context)
-      ..clearSnackBars()
-      ..showSnackBar(
-        const SnackBar(
-          content: Text('Нажмите ещё раз, чтобы выйти'),
-          duration: Duration(seconds: 2),
-        ),
-      );
+  void _toggleCity() {
+    setState(() {
+      _city = _city == 'Алматы' ? 'Астана' : 'Алматы';
+    });
   }
 
-  void _exitApp() {
+  bool _isHomeLocation(String location) {
+    return location == '/' || location.startsWith('/buyer/home');
+  }
+
+  Future<void> _handleSystemBack(BuildContext context) async {
+    final router = GoRouter.of(context);
+    final location = GoRouterState.of(context).uri.toString();
+
+    // 1) Если Drawer открыт — закрываем
+    if (_scaffoldKey.currentState?.isDrawerOpen == true) {
+      Navigator.of(context).pop();
+      return;
+    }
+
+    // 2) Если есть что "попнуть" — попаем
+    if (router.canPop()) {
+      router.pop();
+      return;
+    }
+
+    // 3) Если не на главной вкладке — возвращаем на главную
+    if (!_isHomeLocation(location)) {
+      context.go('/buyer/home');
+      return;
+    }
+
+    // 4) На главной: двойное нажатие для выхода
+    final now = DateTime.now();
+    final last = _lastBackPress;
+
+    if (last == null || now.difference(last) > const Duration(seconds: 2)) {
+      _lastBackPress = now;
+
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Нажмите ещё раз, чтобы выйти'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      return;
+    }
+
+    // 5) Второе нажатие — выходим из приложения
     SystemNavigator.pop();
   }
 
   @override
   Widget build(BuildContext context) {
     final location = GoRouterState.of(context).uri.toString();
-    final currentIndex = _indexFromLocation(location);
+    final currentIndex = _locationToIndex(location);
 
     return PopScope(
       canPop: false,
       onPopInvoked: (didPop) async {
-        // 1) Если есть что закрыть в стеке — закрываем
-        final router = GoRouter.of(context);
-        if (router.canPop()) {
-          router.pop();
-          return;
-        }
-
-        // 2) Если мы НЕ на главной витрине — возвращаем на /buyer/home
-        if (!location.startsWith('/buyer/home')) {
-          context.go('/buyer/home');
-          return;
-        }
-
-        // 3) Мы на /buyer/home: двойной Back для выхода
-        final now = DateTime.now();
-        final last = _lastBackPress;
-
-        if (last == null || now.difference(last) > const Duration(seconds: 2)) {
-          _lastBackPress = now;
-          _showExitHint();
-          return;
-        }
-
-        _exitApp();
+        if (didPop) return;
+        await _handleSystemBack(context);
       },
       child: Scaffold(
-        drawer: Drawer(
-          child: SafeArea(
-            child: ListView(
-              padding: EdgeInsets.zero,
-              children: [
-                const ListTile(
-                  title: Text('SkidKZ', style: TextStyle(fontWeight: FontWeight.w700)),
-                  subtitle: Text('Меню'),
-                ),
-                const Divider(),
-                ListTile(
-                  leading: const Icon(Icons.storefront_outlined),
-                  title: const Text('Магазин'),
-                  onTap: () {
-                    Navigator.of(context).pop();
-                    context.go('/buyer/home');
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.grid_view_outlined),
-                  title: const Text('Каталог'),
-                  onTap: () {
-                    Navigator.of(context).pop();
-                    context.go('/buyer/catalog');
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.favorite_border),
-                  title: const Text('Избранное'),
-                  onTap: () {
-                    Navigator.of(context).pop();
-                    context.go('/buyer/favorites');
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.shopping_cart_outlined),
-                  title: const Text('Корзина'),
-                  onTap: () {
-                    Navigator.of(context).pop();
-                    context.go('/buyer/cart');
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.person_outline),
-                  title: const Text('Профиль'),
-                  onTap: () {
-                    Navigator.of(context).pop();
-                    context.go('/buyer/profile');
-                  },
-                ),
-              ],
-            ),
-          ),
+        key: _scaffoldKey,
+        drawer: BuyerDrawer(
+          city: _city,
+          onToggleCity: _toggleCity,
         ),
+        // AppBar не нужен (у тебя шапка в HomePage pinned)
         body: widget.child,
         bottomNavigationBar: BottomNavigationBar(
           currentIndex: currentIndex,
+          onTap: (i) => _onTabTap(context, i),
           type: BottomNavigationBarType.fixed,
-          onTap: (i) {
-            final target = _locationForIndex(i);
-            if (target == location) return;
-            context.go(target);
-          },
+          selectedItemColor: AppTheme.primary,
+          unselectedItemColor: Colors.grey,
           items: const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.storefront_outlined),
-              label: 'Магазин',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.grid_view_outlined),
-              label: 'Каталог',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.favorite_border),
-              label: 'Избранное',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.shopping_cart_outlined),
-              label: 'Корзина',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline),
-              label: 'Профиль',
-            ),
+            BottomNavigationBarItem(icon: Icon(Icons.store), label: 'Магазин'),
+            BottomNavigationBarItem(icon: Icon(Icons.grid_view), label: 'Каталог'),
+            BottomNavigationBarItem(icon: Icon(Icons.favorite_border), label: 'Избранное'),
+            BottomNavigationBarItem(icon: Icon(Icons.shopping_cart_outlined), label: 'Корзина'),
+            BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'Профиль'),
           ],
         ),
       ),
     );
+  }
+}
+
+class BuyerDrawer extends StatelessWidget {
+  const BuyerDrawer({
+    super.key,
+    required this.city,
+    required this.onToggleCity,
+  });
+
+  final String city;
+  final VoidCallback onToggleCity;
+
+  Widget _sectionTitle(String text) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontSize: 12,
+          color: Colors.grey,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+
+  String _displayName(fb.User u) {
+    final dn = (u.displayName ?? '').trim();
+    if (dn.isNotEmpty) return dn;
+
+    final phone = (u.phoneNumber ?? '').trim();
+    if (phone.isNotEmpty) return phone;
+
+    final email = (u.email ?? '').trim();
+    if (email.isNotEmpty) return email;
+
+    return 'Пользователь';
+  }
+
+  String _subtitle(fb.User u) {
+    final email = (u.email ?? '').trim();
+    final phone = (u.phoneNumber ?? '').trim();
+
+    if (phone.isNotEmpty && email.isNotEmpty) return '$phone • $email';
+    if (phone.isNotEmpty) return phone;
+    if (email.isNotEmpty) return email;
+
+    return 'Аккаунт SkidKZ';
+  }
+
+  String _roleLabelFromActiveRole(String? activeRole) {
+    switch ((activeRole ?? 'buyer').toLowerCase()) {
+      case 'admin':
+        return 'Админ';
+      case 'seller':
+        return 'Продавец';
+      case 'wanghong':
+        return 'Ванхун';
+      case 'buyer':
+      default:
+        return 'Покупатель';
+    }
+  }
+
+  Stream<String?> _activeRoleStream(String uid) {
+    return FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .snapshots()
+        .map((doc) {
+      final data = doc.data();
+      return data?['activeRole'] as String?;
+    });
+  }
+
+  Future<void> _signOutAndClose(BuildContext context) async {
+    try {
+      await fb.FirebaseAuth.instance.signOut();
+    } catch (_) {}
+
+    if (Navigator.canPop(context)) Navigator.pop(context);
+    context.go('/buyer/home');
+  }
+
+  void _closeDrawer(BuildContext context) {
+    if (Navigator.canPop(context)) Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Drawer(
+      child: StreamBuilder<fb.User?>(
+        stream: fb.FirebaseAuth.instance.authStateChanges(),
+        builder: (context, snap) {
+          final user = snap.data; // null => гость
+          final isAuthed = user != null;
+
+          final roleWidget = !isAuthed
+              ? Text(
+                  'Гость',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.85),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                )
+              : StreamBuilder<String?>(
+                  stream: _activeRoleStream(user!.uid),
+                  builder: (context, roleSnap) {
+                    final role = _roleLabelFromActiveRole(roleSnap.data);
+                    return Text(
+                      role,
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.85),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    );
+                  },
+                );
+
+          return SafeArea(
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // HEADER
+                  Container(
+                    color: AppTheme.primary,
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'SkidKZ',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        InkWell(
+                          onTap: () {
+                            _closeDrawer(context);
+                            if (isAuthed) {
+                              context.go('/buyer/profile');
+                            } else {
+                              context.go('/login');
+                            }
+                          },
+                          borderRadius: BorderRadius.circular(14),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: Colors.white.withOpacity(0.18)),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 38,
+                                  height: 38,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.18),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: Icon(
+                                    isAuthed ? Icons.person : Icons.person_outline,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        isAuthed ? _displayName(user!) : 'Войти / Регистрация',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        isAuthed ? _subtitle(user!) : 'Заказы, избранное, бонусы',
+                                        style: const TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const Icon(Icons.chevron_right, color: Colors.white),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            roleWidget,
+                            const Spacer(),
+                            InkWell(
+                              onTap: onToggleCity,
+                              borderRadius: BorderRadius.circular(12),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.location_on_outlined,
+                                        color: Colors.white, size: 18),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      city,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            if (isAuthed)
+                              TextButton(
+                                onPressed: () => _signOutAndClose(context),
+                                style: TextButton.styleFrom(
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                  minimumSize: Size.zero,
+                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                ),
+                                child: const Text(
+                                  'Выйти',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    decoration: TextDecoration.underline,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  _sectionTitle('Аккаунт'),
+                  ListTile(
+                    leading: const Icon(Icons.receipt_long_outlined),
+                    title: const Text('Мои заказы'),
+                    onTap: () {
+                      _closeDrawer(context);
+                      if (isAuthed) {
+                        context.go('/buyer/profile');
+                      } else {
+                        context.go('/login');
+                      }
+                    },
+                  ),
+                  const Divider(height: 1),
+
+                  _sectionTitle('Кабинеты'),
+                  ListTile(
+                    leading: const Icon(Icons.store_mall_directory_outlined),
+                    title: const Text('Кабинет магазина'),
+                    subtitle: const Text('Продажи, товары, заказы'),
+                    onTap: () {
+                      _closeDrawer(context);
+                      context.go('/cabinet');
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.campaign_outlined),
+                    title: const Text('Кабинет ванхуна'),
+                    subtitle: const Text('Заработать на промокодах'),
+                    onTap: () {
+                      _closeDrawer(context);
+                      context.go('/cabinet');
+                    },
+                  ),
+                  const Divider(height: 1),
+
+                  _sectionTitle('Для бизнеса'),
+                  ListTile(
+                    leading: const Icon(Icons.add_business_outlined),
+                    title: const Text('Открыть магазин'),
+                    subtitle: const Text('Как это работает'),
+                    onTap: () {
+                      _closeDrawer(context);
+                      context.go('/info/seller');
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.person_add_alt_1_outlined),
+                    title: const Text('Подключиться как ванхун'),
+                    subtitle: const Text('Условия и старт'),
+                    onTap: () {
+                      _closeDrawer(context);
+                      context.go('/info/wanghong');
+                    },
+                  ),
+                  const Divider(height: 1),
+
+                  _sectionTitle('Сервис'),
+                  ListTile(
+                    leading: const Icon(Icons.support_agent_outlined),
+                    title: const Text('Поддержка'),
+                    onTap: () => _closeDrawer(context),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.info_outline),
+                    title: const Text('О приложении'),
+                    onTap: () => _closeDrawer(context),
+                  ),
+                  const Divider(height: 1),
+
+                  _sectionTitle('Информация'),
+                  ListTile(
+                    leading: const Icon(Icons.verified_outlined),
+                    title: const Text('Версия приложения'),
+                    subtitle: const _AppVersionSubtitle(),
+                    onTap: () {},
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _AppVersionSubtitle extends StatefulWidget {
+  const _AppVersionSubtitle();
+
+  @override
+  State<_AppVersionSubtitle> createState() => _AppVersionSubtitleState();
+}
+
+class _AppVersionSubtitleState extends State<_AppVersionSubtitle> {
+  String _text = '...';
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      setState(() => _text = '${info.version} (${info.buildNumber})');
+    } catch (_) {
+      setState(() => _text = '-');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(_text);
   }
 }
