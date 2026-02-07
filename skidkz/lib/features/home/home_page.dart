@@ -12,13 +12,15 @@ class HomePage extends ConsumerStatefulWidget {
 }
 
 class _HomePageState extends ConsumerState<HomePage> {
-  static const double _headerHeight = 150; // подогнано под твою шапку
-
   @override
   Widget build(BuildContext context) {
     final productsAsync = ref.watch(activeProductsStreamProvider);
     final loading = productsAsync.isLoading;
     final products = productsAsync.asData?.value ?? const <Product>[];
+
+    // Динамическая высота шапки: статус-бар + твои отступы/высоты
+    final top = MediaQuery.of(context).padding.top;
+    final headerHeight = top + 14 + 48 + 12 + 46 + 16;
 
     return DecoratedBox(
       decoration: const BoxDecoration(color: Color(0xFFF3F5F7)),
@@ -33,7 +35,7 @@ class _HomePageState extends ConsumerState<HomePage> {
             SliverPersistentHeader(
               pinned: true,
               delegate: _PinnedHeaderDelegate(
-                height: _headerHeight,
+                height: headerHeight,
                 child: _TopHeader(
                   city: 'Алматы',
                   onTapSearch: () {
@@ -191,6 +193,7 @@ class _TopHeader extends StatelessWidget {
                         child: Text(
                           'Поиск в магазине',
                           style: TextStyle(color: Colors.black54, fontSize: 15),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       Icon(Icons.close, color: Colors.black26),
