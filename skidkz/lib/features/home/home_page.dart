@@ -18,9 +18,8 @@ class _HomePageState extends ConsumerState<HomePage> {
     final loading = productsAsync.isLoading;
     final products = productsAsync.asData?.value ?? const <Product>[];
 
-    // Динамическая высота шапки: статус-бар + твои отступы/высоты
-    final top = MediaQuery.of(context).padding.top;
-    final headerHeight = top + 14 + 48 + 12 + 46 + 16;
+    // ВАЖНО: SafeArea уже внутри _TopHeader, поэтому padding.top тут НЕ добавляем.
+    final headerHeight = 14 + 48 + 12 + 46 + 16;
 
     return DecoratedBox(
       decoration: const BoxDecoration(color: Color(0xFFF3F5F7)),
@@ -152,53 +151,58 @@ class _TopHeader extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
           child: Column(
             children: [
-              Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.menu, color: Colors.white),
-                    onPressed: () => Scaffold.of(context).openDrawer(),
-                    tooltip: 'Меню',
-                  ),
-                  const SizedBox(width: 8),
-                  const Text(
-                    'SkidKZ',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
+              SizedBox(
+                height: 48,
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.menu, color: Colors.white),
+                      onPressed: () => Scaffold.of(context).openDrawer(),
+                      tooltip: 'Меню',
                     ),
-                  ),
-                  const Spacer(),
-                  const Icon(Icons.location_on_outlined, color: Colors.white),
-                  const SizedBox(width: 6),
-                  Text(city, style: const TextStyle(color: Colors.white)),
-                ],
+                    const SizedBox(width: 8),
+                    const Text(
+                      'SkidKZ',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const Spacer(),
+                    const Icon(Icons.location_on_outlined, color: Colors.white),
+                    const SizedBox(width: 6),
+                    Text(city, style: const TextStyle(color: Colors.white)),
+                  ],
+                ),
               ),
               const SizedBox(height: 12),
-              Container(
+              SizedBox(
                 height: 46,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(14),
-                  onTap: onTapSearch,
-                  child: Row(
-                    children: const [
-                      SizedBox(width: 12),
-                      Icon(Icons.search, color: Colors.black54),
-                      SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          'Поиск в магазине',
-                          style: TextStyle(color: Colors.black54, fontSize: 15),
-                          overflow: TextOverflow.ellipsis,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(14),
+                    onTap: onTapSearch,
+                    child: Row(
+                      children: const [
+                        SizedBox(width: 12),
+                        Icon(Icons.search, color: Colors.black54),
+                        SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Поиск в магазине',
+                            style: TextStyle(color: Colors.black54, fontSize: 15),
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
-                      ),
-                      Icon(Icons.close, color: Colors.black26),
-                      SizedBox(width: 12),
-                    ],
+                        Icon(Icons.close, color: Colors.black26),
+                        SizedBox(width: 12),
+                      ],
+                    ),
                   ),
                 ),
               ),
