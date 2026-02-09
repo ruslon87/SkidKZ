@@ -25,10 +25,20 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
     if (location.startsWith('/buyer/favorites')) return 2;
     if (location.startsWith('/buyer/cart')) return 3;
     if (location.startsWith('/buyer/profile')) return 4;
-    return 0;
+    return 0; // home
   }
 
-  void _onTabTap(BuildContext context, int index) {
+  bool _isHomeLocation(String location) {
+    return location == '/' || location.startsWith('/buyer/home');
+  }
+
+  void _toggleCity() {
+    setState(() {
+      _city = _city == 'Алматы' ? 'Астана' : 'Алматы';
+    });
+  }
+
+  void _goTab(BuildContext context, int index) {
     switch (index) {
       case 0:
         context.go('/buyer/home');
@@ -48,47 +58,35 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
     }
   }
 
-  void _toggleCity() {
-    setState(() {
-      _city = _city == 'Алматы' ? 'Астана' : 'Алматы';
-    });
-  }
-
-  bool _isHomeLocation(String location) {
-    return location == '/' || location.startsWith('/buyer/home');
-  }
-
-  Future<void> _handleSystemBack(BuildContext context) async {
-    final router = GoRouter.of(context);
+  Future<bool> _onWillPop() async {
     final location = GoRouterState.of(context).uri.toString();
+    final router = GoRouter.of(context);
 
-    // 0) СНАЧАЛА закрываем любой overlay route (drawer / dialog / bottomsheet)
-    // Это чинит кейс: "первое открытие drawer -> back сворачивает"
+    // 0) Закрыть любой overlay (drawer/dialog/bottomsheet) — ВСЕГДА первым делом
     final rootNav = Navigator.of(context, rootNavigator: true);
     if (rootNav.canPop()) {
       rootNav.pop();
-      return;
+      return false; // мы обработали Back сами
     }
 
-    // 1) Если есть что pop у go_router (push-страницы в его навигаторе) — pop
+    // 1) Если есть что pop в роутере — pop
     if (router.canPop()) {
       router.pop();
-      return;
+      return false;
     }
 
-    // 2) Если не на /buyer/home — возвращаем на /buyer/home
+    // 2) Если не home — на home
     if (!_isHomeLocation(location)) {
       context.go('/buyer/home');
-      return;
+      return false;
     }
 
-    // 3) На /buyer/home: двойное нажатие для выхода
+    // 3) На home — двойной Back = выход
     final now = DateTime.now();
     final last = _lastBackPress;
 
     if (last == null || now.difference(last) > const Duration(seconds: 2)) {
       _lastBackPress = now;
-
       ScaffoldMessenger.of(context)
         ..clearSnackBars()
         ..showSnackBar(
@@ -97,10 +95,11 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
             duration: Duration(seconds: 2),
           ),
         );
-      return;
+      return false;
     }
 
     SystemNavigator.pop();
+    return false;
   }
 
   @override
@@ -108,12 +107,8 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
     final location = GoRouterState.of(context).uri.toString();
     final currentIndex = _locationToIndex(location);
 
-    return PopScope(
-      canPop: false,
-      onPopInvoked: (didPop) async {
-        if (didPop) return;
-        await _handleSystemBack(context);
-      },
+    return WillPopScope(
+      onWillPop: _onWillPop,
       child: Scaffold(
         key: _scaffoldKey,
         drawer: BuyerDrawer(
@@ -123,7 +118,7 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
         body: widget.child,
         bottomNavigationBar: BottomNavigationBar(
           currentIndex: currentIndex,
-          onTap: (i) => _onTabTap(context, i),
+          onTap: (i) => _goTab(context, i),
           type: BottomNavigationBarType.fixed,
           selectedItemColor: AppTheme.primary,
           unselectedItemColor: Colors.grey,
@@ -164,6 +159,11 @@ class BuyerDrawer extends StatelessWidget {
     );
   }
 
+  void _closeDrawer(BuildContext context) {
+    final rootNav = Navigator.of(context, rootNavigator: true);
+    if (rootNav.canPop()) rootNav.pop();
+  }
+
   String _displayName(fb.User u) {
     final dn = (u.displayName ?? '').trim();
     if (dn.isNotEmpty) return dn;
@@ -191,7 +191,6 @@ class BuyerDrawer extends StatelessWidget {
         return 'Продавец';
       case 'wanghong':
         return 'Ванхун';
-      case 'buyer':
       default:
         return 'Покупатель';
     }
@@ -209,17 +208,8 @@ class BuyerDrawer extends StatelessWidget {
     try {
       await fb.FirebaseAuth.instance.signOut();
     } catch (_) {}
-
-    // Закрываем drawer (если открыт)
-    final rootNav = Navigator.of(context, rootNavigator: true);
-    if (rootNav.canPop()) rootNav.pop();
-
+    _closeDrawer(context);
     context.go('/buyer/home');
-  }
-
-  void _closeDrawer(BuildContext context) {
-    final rootNav = Navigator.of(context, rootNavigator: true);
-    if (rootNav.canPop()) rootNav.pop();
   }
 
   @override
@@ -228,7 +218,7 @@ class BuyerDrawer extends StatelessWidget {
       child: StreamBuilder<fb.User?>(
         stream: fb.FirebaseAuth.instance.authStateChanges(),
         builder: (context, snap) {
-          final user = snap.data; // null => гость
+          final user = snap.data;
           final isAuthed = user != null;
 
           final roleWidget = !isAuthed
@@ -278,12 +268,12 @@ class BuyerDrawer extends StatelessWidget {
                         const SizedBox(height: 12),
                         InkWell(
                           onTap: () {
+                            // ЛОГИН — тут норм закрыть drawer, потому что это “переход”
                             _closeDrawer(context);
                             if (isAuthed) {
                               context.go('/buyer/profile');
                             } else {
-                              // push => чтобы системный Back возвращал назад
-                              context.push('/login');
+                              context.push('/login'); // push для нормального Back
                             }
                           },
                           borderRadius: BorderRadius.circular(14),
@@ -398,7 +388,7 @@ class BuyerDrawer extends StatelessWidget {
                       if (isAuthed) {
                         context.go('/buyer/profile');
                       } else {
-                        context.push('/login'); // push!
+                        context.push('/login');
                       }
                     },
                   ),
@@ -431,8 +421,8 @@ class BuyerDrawer extends StatelessWidget {
                     title: const Text('Открыть магазин'),
                     subtitle: const Text('Как это работает'),
                     onTap: () {
-                      _closeDrawer(context);
-                      // push => чтобы системный Back возвращал назад
+                      // ВАЖНО: drawer НЕ закрываем.
+                      // Тогда Back/стрелка/“Позже” вернут именно в drawer.
                       context.push('/info/seller');
                     },
                   ),
@@ -441,8 +431,7 @@ class BuyerDrawer extends StatelessWidget {
                     title: const Text('Подключиться как ванхун'),
                     subtitle: const Text('Условия и старт'),
                     onTap: () {
-                      _closeDrawer(context);
-                      // push => чтобы системный Back возвращал назад
+                      // ВАЖНО: drawer НЕ закрываем.
                       context.push('/info/wanghong');
                     },
                   ),
