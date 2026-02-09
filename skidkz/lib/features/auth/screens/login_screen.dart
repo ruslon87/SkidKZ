@@ -1,8 +1,7 @@
-import 'dart:async';
+// lib/features/auth/screens/login_screen.dart
 
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/material.dart';
-import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -14,21 +13,19 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _phoneController = TextEditingController(text: '+7');
-  final _codeController = TextEditingController();
+  final _smsController = TextEditingController();
 
+  final _smsFocus = FocusNode();
+
+  String? _verificationId;
   bool _codeSent = false;
   bool _loading = false;
 
-  String? _verificationId;
-
-  int _resendSecondsLeft = 0;
-  Timer? _resendTimer;
-
   @override
   void dispose() {
-    _resendTimer?.cancel();
     _phoneController.dispose();
-    _codeController.dispose();
+    _smsController.dispose();
+    _smsFocus.dispose();
     super.dispose();
   }
 
@@ -39,125 +36,87 @@ class _LoginScreenState extends State<LoginScreen> {
       ..showSnackBar(SnackBar(content: Text(msg)));
   }
 
-  void _startResendTimer([int seconds = 60]) {
-    _resendTimer?.cancel();
-    setState(() => _resendSecondsLeft = seconds);
-
-    _resendTimer = Timer.periodic(const Duration(seconds: 1), (t) {
-      if (!mounted) return;
-      if (_resendSecondsLeft <= 1) {
-        t.cancel();
-        setState(() => _resendSecondsLeft = 0);
-      } else {
-        setState(() => _resendSecondsLeft -= 1);
-      }
-    });
+  String _normalizePhone(String raw) {
+    var s = raw.trim();
+    s = s.replaceAll(RegExp(r'[\s\-\(\)]'), '');
+    if (!s.startsWith('+')) s = '+$s';
+    return s;
   }
 
   Future<void> _sendCode() async {
-    final phone = _phoneController.text.trim();
-
-    if (phone.isEmpty || phone.length < 10 || !phone.startsWith('+')) {
-      _toast('Введите номер в формате +7XXXXXXXXXX');
+    final phone = _normalizePhone(_phoneController.text);
+    if (phone.length < 10) {
+      _toast('Введите номер телефона');
       return;
     }
-
-    if (_loading) return;
-    if (_resendSecondsLeft > 0) return;
 
     setState(() => _loading = true);
 
     try {
-      await FirebaseAuth.instance.verifyPhoneNumber(
+      await fb.FirebaseAuth.instance.verifyPhoneNumber(
         phoneNumber: phone,
         timeout: const Duration(seconds: 60),
-
-        // Автоподтверждение (иногда срабатывает на Android)
-        verificationCompleted: (PhoneAuthCredential credential) async {
+        verificationCompleted: (credential) async {
           try {
-            await FirebaseAuth.instance.signInWithCredential(credential);
+            await fb.FirebaseAuth.instance.signInWithCredential(credential);
             if (!mounted) return;
             context.go('/cabinet');
-          } on FirebaseAuthException catch (e) {
-            if (!mounted) return;
-            _toast('Auto sign-in ошибка: ${e.message ?? e.code}');
-          } catch (e) {
-            if (!mounted) return;
-            _toast('Auto sign-in ошибка: $e');
-          } finally {
-            if (!mounted) return;
-            setState(() => _loading = false);
-          }
+          } catch (_) {}
         },
-
-        verificationFailed: (FirebaseAuthException e) {
-          if (!mounted) return;
-          setState(() => _loading = false);
-          _toast('Ошибка отправки SMS: ${e.message ?? e.code}');
+        verificationFailed: (e) {
+          _toast('Не удалось отправить код: ${e.message ?? e.code}');
         },
-
-        codeSent: (String verificationId, int? resendToken) {
-          if (!mounted) return;
-
-          _verificationId = verificationId;
-
-          // Важно: сразу показываем ввод кода, убираем loading,
-          // иначе будет “кажется, ничего не произошло”
+        codeSent: (verificationId, resendToken) {
           setState(() {
+            _verificationId = verificationId;
             _codeSent = true;
-            _loading = false;
           });
 
-          _startResendTimer(60);
+          Future.microtask(() {
+            if (!mounted) return;
+            _smsController.clear();
+            _smsFocus.requestFocus();
+          });
         },
-
-        codeAutoRetrievalTimeout: (String verificationId) {
+        codeAutoRetrievalTimeout: (verificationId) {
           _verificationId = verificationId;
-          // timeout — это не ошибка, просто авто-ретрив не успел
         },
       );
     } catch (e) {
+      _toast('Ошибка: $e');
+    } finally {
       if (!mounted) return;
       setState(() => _loading = false);
-      _toast('Ошибка: $e');
     }
   }
 
-  Future<void> _verifyCode() async {
-    final code = _codeController.text.trim();
-    final vid = _verificationId;
-
-    if (vid == null) {
-      _toast('Сначала запросите код');
+  Future<void> _confirmCode() async {
+    final smsCode = _smsController.text.trim();
+    if (smsCode.length < 4) {
+      _toast('Введите SMS-код');
+      return;
+    }
+    if (_verificationId == null) {
+      _toast('Код устарел. Запросите новый.');
+      setState(() => _codeSent = false);
       return;
     }
 
-    if (code.length < 4) {
-      _toast('Введите SMS код');
-      return;
-    }
-
-    if (_loading) return;
     setState(() => _loading = true);
 
     try {
-      final credential = PhoneAuthProvider.credential(
-        verificationId: vid,
-        smsCode: code,
+      final credential = fb.PhoneAuthProvider.credential(
+        verificationId: _verificationId!,
+        smsCode: smsCode,
       );
 
-      await FirebaseAuth.instance.signInWithCredential(credential);
+      await fb.FirebaseAuth.instance.signInWithCredential(credential);
 
       if (!mounted) return;
-
-      // После входа сразу уходим в /cabinet (резолвер):
-      // он создаст users/{uid} и отправит на onboarding/home
       context.go('/cabinet');
-    } on FirebaseAuthException catch (e) {
-      if (!mounted) return;
-      _toast('Ошибка входа: ${e.message ?? e.code}');
+    } on fb.FirebaseAuthException catch (e) {
+      _toast('Неверный код: ${e.message ?? e.code}');
     } catch (e) {
-      if (!mounted) return;
       _toast('Ошибка входа: $e');
     } finally {
       if (!mounted) return;
@@ -165,97 +124,90 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  Future<bool> _onWillPop() async {
-    if (_loading) return false;
+  void _back() {
+    if (_loading) return;
 
-    // На шаге ввода SMS — назад возвращает к вводу номера
     if (_codeSent) {
       setState(() {
         _codeSent = false;
+        _smsController.clear();
         _verificationId = null;
-        _codeController.clear();
       });
-      return false;
+      return;
     }
 
-    // На шаге ввода номера — просто закрываем экран
-    if (context.canPop()) {
-      context.pop();
-      return false;
-    }
-
-    // Если вдруг логин первый экран (редкий кейс)
-    context.go('/buyer/home');
-    return false;
+    context.pop();
   }
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: _onWillPop,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Вход по номеру v2'), // МАРКЕР: должен быть виден
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
-            onPressed: _loading ? null : () => _onWillPop(),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) => _back(),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: Scaffold(
+          appBar: AppBar(
+            title: const Text('Вход по номеру'),
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back),
+              onPressed: _back,
+            ),
           ),
-        ),
-        body: Stack(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (!_codeSent) ...[
-                    TextField(
-                      controller: _phoneController,
-                      keyboardType: TextInputType.phone,
-                      enabled: !_loading,
-                      decoration: const InputDecoration(
-                        labelText: 'Номер телефона',
-                        hintText: '+77770001122',
-                      ),
+          body: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (!_codeSent) ...[
+                  TextField(
+                    controller: _phoneController,
+                    enabled: !_loading,
+                    keyboardType: TextInputType.phone,
+                    decoration: const InputDecoration(
+                      labelText: 'Номер телефона',
+                      hintText: '+7XXXXXXXXXX',
                     ),
-                    const Gap(16),
-                    ElevatedButton(
-                      onPressed: (_loading || _resendSecondsLeft > 0) ? null : _sendCode,
+                    onSubmitted: (_) => _loading ? null : _sendCode(),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _loading ? null : _sendCode,
                       child: _loading
                           ? const SizedBox(
                               height: 18,
                               width: 18,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
-                          : Text(
-                              _resendSecondsLeft > 0
-                                  ? 'Повтор через $_resendSecondsLeft c'
-                                  : 'Получить код',
-                            ),
+                          : const Text('Получить код'),
                     ),
-                    const Gap(10),
-                    const Text(
-                      'После нажатия Firebase делает проверку, это может занять 1–3 секунды.',
-                      style: TextStyle(color: Colors.black54),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Отправляем SMS и проверяем номер. Это может занять несколько секунд.',
+                    style: TextStyle(color: Colors.black54),
+                  ),
+                ] else ...[
+                  const Text('Введите код из SMS'),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _smsController,
+                    focusNode: _smsFocus,
+                    enabled: !_loading,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'SMS код',
                     ),
-                  ] else ...[
-                    Text(
-                      'Код отправлен на ${_phoneController.text.trim()}',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                    const Gap(12),
-                    TextField(
-                      controller: _codeController,
-                      keyboardType: TextInputType.number,
-                      enabled: !_loading,
-                      decoration: const InputDecoration(
-                        labelText: 'SMS код',
-                        hintText: 'Например: 438743',
-                      ),
-                    ),
-                    const Gap(16),
-                    ElevatedButton(
-                      onPressed: _loading ? null : _verifyCode,
+                    onSubmitted: (_) => _loading ? null : _confirmCode(),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _loading ? null : _confirmCode,
                       child: _loading
                           ? const SizedBox(
                               height: 18,
@@ -264,43 +216,24 @@ class _LoginScreenState extends State<LoginScreen> {
                             )
                           : const Text('Подтвердить и войти'),
                     ),
-                    const Gap(8),
-                    TextButton(
-                      onPressed: (_loading || _resendSecondsLeft > 0) ? null : _sendCode,
-                      child: Text(
-                        _resendSecondsLeft > 0
-                            ? 'Отправить повторно через $_resendSecondsLeft c'
-                            : 'Отправить код повторно',
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: _loading
-                          ? null
-                          : () {
-                              setState(() {
-                                _codeSent = false;
-                                _verificationId = null;
-                                _codeController.clear();
-                              });
-                            },
-                      child: const Text('Изменить номер'),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-
-            // Блокер на время загрузки, чтобы нельзя было “протыкать” UI
-            if (_loading)
-              Positioned.fill(
-                child: AbsorbPointer(
-                  absorbing: true,
-                  child: Container(
-                    color: Colors.black.withOpacity(0.04),
                   ),
-                ),
-              ),
-          ],
+                  const SizedBox(height: 12),
+                  TextButton(
+                    onPressed: _loading
+                        ? null
+                        : () {
+                            setState(() {
+                              _codeSent = false;
+                              _smsController.clear();
+                              _verificationId = null;
+                            });
+                          },
+                    child: const Text('Изменить номер'),
+                  ),
+                ],
+              ],
+            ),
+          ),
         ),
       ),
     );
