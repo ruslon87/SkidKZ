@@ -62,25 +62,27 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
     final router = GoRouter.of(context);
     final location = GoRouterState.of(context).uri.toString();
 
-    // 1) Если Drawer открыт — закрываем
+    // 0) Если открыт Drawer — закрываем его (это должно быть ПЕРВЫМ)
     if (_scaffoldKey.currentState?.isDrawerOpen == true) {
-      Navigator.of(context).pop();
+      Navigator.of(context).pop(); // закрывает drawer route
       return;
     }
 
-    // 2) Если есть что "попнуть" — попаем
+    // 1) Если сверху есть что pop'нуть (push экраны, диалоги и т.п.) — pop
+    // ВАЖНО: это именно "обычный pop" для истории. Чтобы info-экраны возвращались назад,
+    // они должны быть открыты через context.push(...).
     if (router.canPop()) {
       router.pop();
       return;
     }
 
-    // 3) Если не на главной вкладке — возвращаем на главную
+    // 2) Если не на /buyer/home — возвращаем на home
     if (!_isHomeLocation(location)) {
       context.go('/buyer/home');
       return;
     }
 
-    // 4) На главной: двойное нажатие для выхода
+    // 3) На /buyer/home: двойное нажатие для выхода
     final now = DateTime.now();
     final last = _lastBackPress;
 
@@ -98,7 +100,6 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
       return;
     }
 
-    // 5) Второе нажатие — выходим из приложения
     SystemNavigator.pop();
   }
 
@@ -119,7 +120,6 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
           city: _city,
           onToggleCity: _toggleCity,
         ),
-        // AppBar не нужен (у тебя шапка в HomePage pinned)
         body: widget.child,
         bottomNavigationBar: BottomNavigationBar(
           currentIndex: currentIndex,
@@ -167,24 +167,19 @@ class BuyerDrawer extends StatelessWidget {
   String _displayName(fb.User u) {
     final dn = (u.displayName ?? '').trim();
     if (dn.isNotEmpty) return dn;
-
     final phone = (u.phoneNumber ?? '').trim();
     if (phone.isNotEmpty) return phone;
-
     final email = (u.email ?? '').trim();
     if (email.isNotEmpty) return email;
-
     return 'Пользователь';
   }
 
   String _subtitle(fb.User u) {
     final email = (u.email ?? '').trim();
     final phone = (u.phoneNumber ?? '').trim();
-
     if (phone.isNotEmpty && email.isNotEmpty) return '$phone • $email';
     if (phone.isNotEmpty) return phone;
     if (email.isNotEmpty) return email;
-
     return 'Аккаунт SkidKZ';
   }
 
@@ -207,18 +202,14 @@ class BuyerDrawer extends StatelessWidget {
         .collection('users')
         .doc(uid)
         .snapshots()
-        .map((doc) {
-      final data = doc.data();
-      return data?['activeRole'] as String?;
-    });
+        .map((doc) => doc.data()?['activeRole'] as String?);
   }
 
   Future<void> _signOutAndClose(BuildContext context) async {
     try {
       await fb.FirebaseAuth.instance.signOut();
     } catch (_) {}
-
-    if (Navigator.canPop(context)) Navigator.pop(context);
+    if (Navigator.canPop(context)) Navigator.pop(context); // close drawer
     context.go('/buyer/home');
   }
 
@@ -286,7 +277,8 @@ class BuyerDrawer extends StatelessWidget {
                             if (isAuthed) {
                               context.go('/buyer/profile');
                             } else {
-                              context.go('/login');
+                              // ВАЖНО: push, чтобы системный Back вернул назад
+                              context.push('/login');
                             }
                           },
                           borderRadius: BorderRadius.circular(14),
@@ -401,7 +393,7 @@ class BuyerDrawer extends StatelessWidget {
                       if (isAuthed) {
                         context.go('/buyer/profile');
                       } else {
-                        context.go('/login');
+                        context.push('/login'); // push!
                       }
                     },
                   ),
@@ -435,7 +427,8 @@ class BuyerDrawer extends StatelessWidget {
                     subtitle: const Text('Как это работает'),
                     onTap: () {
                       _closeDrawer(context);
-                      context.go('/info/seller');
+                      // ВАЖНО: push, иначе системный Back закроет приложение
+                      context.push('/info/seller');
                     },
                   ),
                   ListTile(
@@ -444,7 +437,8 @@ class BuyerDrawer extends StatelessWidget {
                     subtitle: const Text('Условия и старт'),
                     onTap: () {
                       _closeDrawer(context);
-                      context.go('/info/wanghong');
+                      // ВАЖНО: push
+                      context.push('/info/wanghong');
                     },
                   ),
                   const Divider(height: 1),
