@@ -25,7 +25,7 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
     if (location.startsWith('/buyer/favorites')) return 2;
     if (location.startsWith('/buyer/cart')) return 3;
     if (location.startsWith('/buyer/profile')) return 4;
-    return 0; // home
+    return 0;
   }
 
   bool _isHomeLocation(String location) {
@@ -62,26 +62,33 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
     final location = GoRouterState.of(context).uri.toString();
     final router = GoRouter.of(context);
 
-    // 0) Закрыть любой overlay (drawer/dialog/bottomsheet) — ВСЕГДА первым делом
+    // 0) СНАЧАЛА закрываем drawer (срабатывает стабильно даже "в первый раз")
+    final scaffoldState = _scaffoldKey.currentState;
+    if (scaffoldState != null && scaffoldState.isDrawerOpen) {
+      Navigator.of(context).pop(); // закрыть drawer
+      return false;
+    }
+
+    // 1) Закрыть любые overlay (dialog/bottomsheet), если они есть
     final rootNav = Navigator.of(context, rootNavigator: true);
     if (rootNav.canPop()) {
       rootNav.pop();
-      return false; // мы обработали Back сами
+      return false;
     }
 
-    // 1) Если есть что pop в роутере — pop
+    // 2) Если есть что pop в GoRouter — pop
     if (router.canPop()) {
       router.pop();
       return false;
     }
 
-    // 2) Если не home — на home
+    // 3) Если не home — на home
     if (!_isHomeLocation(location)) {
       context.go('/buyer/home');
       return false;
     }
 
-    // 3) На home — двойной Back = выход
+    // 4) На home — двойной Back = выход
     final now = DateTime.now();
     final last = _lastBackPress;
 
@@ -268,12 +275,11 @@ class BuyerDrawer extends StatelessWidget {
                         const SizedBox(height: 12),
                         InkWell(
                           onTap: () {
-                            // ЛОГИН — тут норм закрыть drawer, потому что это “переход”
                             _closeDrawer(context);
                             if (isAuthed) {
                               context.go('/buyer/profile');
                             } else {
-                              context.push('/login'); // push для нормального Back
+                              context.push('/login'); // push для Back
                             }
                           },
                           borderRadius: BorderRadius.circular(14),
@@ -401,7 +407,7 @@ class BuyerDrawer extends StatelessWidget {
                     subtitle: const Text('Продажи, товары, заказы'),
                     onTap: () {
                       _closeDrawer(context);
-                      context.go('/cabinet');
+                      context.push('/cabinet'); // push, чтобы Back был нормальный
                     },
                   ),
                   ListTile(
@@ -410,7 +416,7 @@ class BuyerDrawer extends StatelessWidget {
                     subtitle: const Text('Заработать на промокодах'),
                     onTap: () {
                       _closeDrawer(context);
-                      context.go('/cabinet');
+                      context.push('/cabinet'); // push, чтобы Back был нормальный
                     },
                   ),
                   const Divider(height: 1),
@@ -421,8 +427,7 @@ class BuyerDrawer extends StatelessWidget {
                     title: const Text('Открыть магазин'),
                     subtitle: const Text('Как это работает'),
                     onTap: () {
-                      // ВАЖНО: drawer НЕ закрываем.
-                      // Тогда Back/стрелка/“Позже” вернут именно в drawer.
+                      // drawer НЕ закрываем — Back вернёт в drawer
                       context.push('/info/seller');
                     },
                   ),
@@ -431,7 +436,7 @@ class BuyerDrawer extends StatelessWidget {
                     title: const Text('Подключиться как ванхун'),
                     subtitle: const Text('Условия и старт'),
                     onTap: () {
-                      // ВАЖНО: drawer НЕ закрываем.
+                      // drawer НЕ закрываем — Back вернёт в drawer
                       context.push('/info/wanghong');
                     },
                   ),
