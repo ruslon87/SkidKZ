@@ -19,7 +19,7 @@ class _HomePageState extends ConsumerState<HomePage> {
     final products = productsAsync.asData?.value ?? const <Product>[];
 
     // ВАЖНО: SafeArea уже внутри _TopHeader, поэтому padding.top тут НЕ добавляем.
-    final headerHeight = 14 + 48 + 12 + 46 + 16;
+    final double headerHeight = 14 + 48 + 12 + 46 + 16;
 
     return DecoratedBox(
       decoration: const BoxDecoration(color: Color(0xFFF3F5F7)),
