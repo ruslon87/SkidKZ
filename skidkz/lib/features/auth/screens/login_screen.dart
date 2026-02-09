@@ -21,7 +21,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
   String? _verificationId;
 
-  // Чтобы “получить код” не тыкали по 10 раз
   int _resendSecondsLeft = 0;
   Timer? _resendTimer;
 
@@ -31,6 +30,13 @@ class _LoginScreenState extends State<LoginScreen> {
     _phoneController.dispose();
     _codeController.dispose();
     super.dispose();
+  }
+
+  void _toast(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(SnackBar(content: Text(msg)));
   }
 
   void _startResendTimer([int seconds = 60]) {
@@ -46,13 +52,6 @@ class _LoginScreenState extends State<LoginScreen> {
         setState(() => _resendSecondsLeft -= 1);
       }
     });
-  }
-
-  void _toast(String msg) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..clearSnackBars()
-      ..showSnackBar(SnackBar(content: Text(msg)));
   }
 
   Future<void> _sendCode() async {
@@ -73,14 +72,11 @@ class _LoginScreenState extends State<LoginScreen> {
         phoneNumber: phone,
         timeout: const Duration(seconds: 60),
 
-        // Автоподтверждение на Android может сработать само
+        // Автоподтверждение (иногда срабатывает на Android)
         verificationCompleted: (PhoneAuthCredential credential) async {
           try {
             await FirebaseAuth.instance.signInWithCredential(credential);
-
             if (!mounted) return;
-            // Принудительно уводим в “кабинет-резолвер”.
-            // Дальше router сам решит: onboarding или home по роли.
             context.go('/cabinet');
           } on FirebaseAuthException catch (e) {
             if (!mounted) return;
@@ -105,8 +101,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
           _verificationId = verificationId;
 
-          // ВАЖНО: сразу показываем экран ввода кода,
-          // и сразу убираем loading — тогда UI “откликается” мгновенно.
+          // Важно: сразу показываем ввод кода, убираем loading,
+          // иначе будет “кажется, ничего не произошло”
           setState(() {
             _codeSent = true;
             _loading = false;
@@ -117,7 +113,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
         codeAutoRetrievalTimeout: (String verificationId) {
           _verificationId = verificationId;
-          // timeout не ошибка — просто авто-ретрив не успел
+          // timeout — это не ошибка, просто авто-ретрив не успел
         },
       );
     } catch (e) {
@@ -154,10 +150,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (!mounted) return;
 
-      // КЛЮЧЕВОЕ: сразу уходим в /cabinet.
-      // Тогда твой app_router:
-      // - создаст users/{uid} (currentUserDocProvider)
-      // - проверит completed и отправит на onboarding если надо
+      // После входа сразу уходим в /cabinet (резолвер):
+      // он создаст users/{uid} и отправит на onboarding/home
       context.go('/cabinet');
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
@@ -174,7 +168,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<bool> _onWillPop() async {
     if (_loading) return false;
 
-    // Если мы на экране ввода SMS — назад возвращает на ввод номера
+    // На шаге ввода SMS — назад возвращает к вводу номера
     if (_codeSent) {
       setState(() {
         _codeSent = false;
@@ -184,13 +178,13 @@ class _LoginScreenState extends State<LoginScreen> {
       return false;
     }
 
-    // Иначе — обычный pop (вернёт туда, откуда открыли /login)
+    // На шаге ввода номера — просто закрываем экран
     if (context.canPop()) {
       context.pop();
       return false;
     }
 
-    // Если вдруг логин оказался первым экраном (редкий кейс) — на главную
+    // Если вдруг логин первый экран (редкий кейс)
     context.go('/buyer/home');
     return false;
   }
@@ -201,14 +195,10 @@ class _LoginScreenState extends State<LoginScreen> {
       onWillPop: _onWillPop,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Вход по номеру'),
+          title: const Text('Вход по номеру v2'), // МАРКЕР: должен быть виден
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
-            onPressed: _loading
-                ? null
-                : () async {
-                    await _onWillPop();
-                  },
+            onPressed: _loading ? null : () => _onWillPop(),
           ),
         ),
         body: Stack(
@@ -222,14 +212,13 @@ class _LoginScreenState extends State<LoginScreen> {
                     TextField(
                       controller: _phoneController,
                       keyboardType: TextInputType.phone,
+                      enabled: !_loading,
                       decoration: const InputDecoration(
                         labelText: 'Номер телефона',
                         hintText: '+77770001122',
                       ),
-                      enabled: !_loading,
                     ),
                     const Gap(16),
-
                     ElevatedButton(
                       onPressed: (_loading || _resendSecondsLeft > 0) ? null : _sendCode,
                       child: _loading
@@ -244,9 +233,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                   : 'Получить код',
                             ),
                     ),
-                    const Gap(8),
+                    const Gap(10),
                     const Text(
-                      'После нажатия начнётся проверка Firebase (это может занять 1–3 секунды).',
+                      'После нажатия Firebase делает проверку, это может занять 1–3 секунды.',
                       style: TextStyle(color: Colors.black54),
                     ),
                   ] else ...[
@@ -255,18 +244,16 @@ class _LoginScreenState extends State<LoginScreen> {
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
                     const Gap(12),
-
                     TextField(
                       controller: _codeController,
                       keyboardType: TextInputType.number,
+                      enabled: !_loading,
                       decoration: const InputDecoration(
                         labelText: 'SMS код',
                         hintText: 'Например: 438743',
                       ),
-                      enabled: !_loading,
                     ),
                     const Gap(16),
-
                     ElevatedButton(
                       onPressed: _loading ? null : _verifyCode,
                       child: _loading
@@ -278,16 +265,14 @@ class _LoginScreenState extends State<LoginScreen> {
                           : const Text('Подтвердить и войти'),
                     ),
                     const Gap(8),
-
                     TextButton(
                       onPressed: (_loading || _resendSecondsLeft > 0) ? null : _sendCode,
                       child: Text(
                         _resendSecondsLeft > 0
-                            ? 'Повторить через $_resendSecondsLeft c'
+                            ? 'Отправить повторно через $_resendSecondsLeft c'
                             : 'Отправить код повторно',
                       ),
                     ),
-
                     TextButton(
                       onPressed: _loading
                           ? null
@@ -305,7 +290,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             ),
 
-            // Полупрозрачный блокер, чтобы не тыкали по экрану во время загрузки
+            // Блокер на время загрузки, чтобы нельзя было “протыкать” UI
             if (_loading)
               Positioned.fill(
                 child: AbsorbPointer(
