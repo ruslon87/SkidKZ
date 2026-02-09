@@ -1,3 +1,5 @@
+// lib/features/home/home_page.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -12,34 +14,74 @@ class HomePage extends ConsumerStatefulWidget {
 }
 
 class _HomePageState extends ConsumerState<HomePage> {
+  Future<void> _refresh() async {
+    // перезагрузить поток (для MVP достаточно инвалидировать provider)
+    ref.invalidate(activeProductsStreamProvider);
+    await Future.delayed(const Duration(milliseconds: 250));
+  }
+
   @override
   Widget build(BuildContext context) {
     final productsAsync = ref.watch(activeProductsStreamProvider);
     final loading = productsAsync.isLoading;
     final products = productsAsync.asData?.value ?? const <Product>[];
 
-    // ВАЖНО: SafeArea уже внутри _TopHeader, поэтому padding.top тут НЕ добавляем.
-    final double headerHeight = 14 + 48 + 12 + 46 + 16;
+    // TODO: город потом брать из профиля пользователя / настроек
+    const city = 'Алматы';
 
     return DecoratedBox(
       decoration: const BoxDecoration(color: Color(0xFFF3F5F7)),
       child: RefreshIndicator(
-        onRefresh: () async {
-          ref.invalidate(activeProductsStreamProvider);
-          await Future.delayed(const Duration(milliseconds: 250));
-        },
+        onRefresh: _refresh,
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
-            SliverPersistentHeader(
+            SliverAppBar(
               pinned: true,
-              delegate: _PinnedHeaderDelegate(
-                height: headerHeight,
-                child: _TopHeader(
-                  city: 'Алматы',
-                  onTapSearch: () {
-                    // TODO: открыть поиск
-                  },
+              backgroundColor: const Color(0xFF2E6CF6),
+              elevation: 0,
+              automaticallyImplyLeading: false,
+              titleSpacing: 0,
+              title: Padding(
+                padding: const EdgeInsets.only(left: 4),
+                child: Row(
+                  children: [
+                    Builder(
+                      builder: (ctx) => IconButton(
+                        icon: const Icon(Icons.menu, color: Colors.white),
+                        onPressed: () => Scaffold.of(ctx).openDrawer(),
+                        tooltip: 'Меню',
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    const Text(
+                      'SkidKZ',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const Spacer(),
+                    const Icon(Icons.location_on_outlined, color: Colors.white),
+                    const SizedBox(width: 6),
+                    const Text(
+                      city,
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    const SizedBox(width: 12),
+                  ],
+                ),
+              ),
+              bottom: PreferredSize(
+                preferredSize: const Size.fromHeight(72),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+                  child: _SearchBar(
+                    onTap: () {
+                      // TODO: открыть поиск
+                    },
+                  ),
                 ),
               ),
             ),
@@ -102,111 +144,39 @@ class _HomePageState extends ConsumerState<HomePage> {
   }
 }
 
-/// ----------------------------
-/// Pinned header delegate
-/// ----------------------------
-class _PinnedHeaderDelegate extends SliverPersistentHeaderDelegate {
-  _PinnedHeaderDelegate({required this.child, required this.height});
+class _SearchBar extends StatelessWidget {
+  const _SearchBar({required this.onTap});
 
-  final Widget child;
-  final double height;
-
-  @override
-  double get minExtent => height;
-
-  @override
-  double get maxExtent => height;
-
-  @override
-  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
-    return Material(
-      color: Colors.transparent,
-      elevation: overlapsContent ? 2 : 0,
-      child: child,
-    );
-  }
-
-  @override
-  bool shouldRebuild(covariant _PinnedHeaderDelegate oldDelegate) {
-    return oldDelegate.child != child || oldDelegate.height != height;
-  }
-}
-
-class _TopHeader extends StatelessWidget {
-  const _TopHeader({
-    required this.city,
-    required this.onTapSearch,
-  });
-
-  final String city;
-  final VoidCallback onTapSearch;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: const Color(0xFF2E6CF6),
-      child: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-          child: Column(
-            children: [
-              SizedBox(
-                height: 48,
-                child: Row(
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.menu, color: Colors.white),
-                      onPressed: () => Scaffold.of(context).openDrawer(),
-                      tooltip: 'Меню',
-                    ),
-                    const SizedBox(width: 8),
-                    const Text(
-                      'SkidKZ',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const Spacer(),
-                    const Icon(Icons.location_on_outlined, color: Colors.white),
-                    const SizedBox(width: 6),
-                    Text(city, style: const TextStyle(color: Colors.white)),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                height: 46,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(14),
-                    onTap: onTapSearch,
-                    child: Row(
-                      children: const [
-                        SizedBox(width: 12),
-                        Icon(Icons.search, color: Colors.black54),
-                        SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            'Поиск в магазине',
-                            style: TextStyle(color: Colors.black54, fontSize: 15),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        Icon(Icons.close, color: Colors.black26),
-                        SizedBox(width: 12),
-                      ],
-                    ),
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: SizedBox(
+          height: 46,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Row(
+              children: const [
+                Icon(Icons.search, color: Colors.black54),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Поиск в магазине',
+                    style: TextStyle(color: Colors.black54, fontSize: 15),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
-              ),
-            ],
+                SizedBox(width: 10),
+                Icon(Icons.tune, color: Colors.black26),
+              ],
+            ),
           ),
         ),
       ),
@@ -214,7 +184,10 @@ class _TopHeader extends StatelessWidget {
   }
 }
 
-// --- дальше твои виджеты без изменений ---
+// ----------------------------
+// Остальные виджеты витрины
+// ----------------------------
+
 class _BannersRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -327,7 +300,10 @@ class _SectionTitle extends StatelessWidget {
             ),
           ),
           if (action != null)
-            Text(action!, style: const TextStyle(fontSize: 13, color: Colors.black54)),
+            Text(
+              action!,
+              style: const TextStyle(fontSize: 13, color: Colors.black54),
+            ),
         ],
       ),
     );
@@ -434,7 +410,8 @@ class _ProductCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cover = product.coverUrl ?? (product.images.isNotEmpty ? product.images.first.url : null);
+    final cover = product.coverUrl ??
+        (product.images.isNotEmpty ? product.images.first.url : null);
 
     return Container(
       decoration: BoxDecoration(
@@ -456,8 +433,10 @@ class _ProductCard extends StatelessWidget {
                       : Image.network(
                           cover,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) =>
-                              const Icon(Icons.broken_image_outlined, color: Colors.black26),
+                          errorBuilder: (_, __, ___) => const Icon(
+                            Icons.broken_image_outlined,
+                            color: Colors.black26,
+                          ),
                         ),
                 ),
               ),
