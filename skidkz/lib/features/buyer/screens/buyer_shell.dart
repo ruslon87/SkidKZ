@@ -1,3 +1,5 @@
+// lib/features/buyer/screens/buyer_shell.dart
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/material.dart';
@@ -25,7 +27,7 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
     if (location.startsWith('/buyer/favorites')) return 2;
     if (location.startsWith('/buyer/cart')) return 3;
     if (location.startsWith('/buyer/profile')) return 4;
-    return 0;
+    return 0; // home
   }
 
   bool _isHomeLocation(String location) {
@@ -62,33 +64,26 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
     final location = GoRouterState.of(context).uri.toString();
     final router = GoRouter.of(context);
 
-    // 0) СНАЧАЛА закрываем drawer (срабатывает стабильно даже "в первый раз")
-    final scaffoldState = _scaffoldKey.currentState;
-    if (scaffoldState != null && scaffoldState.isDrawerOpen) {
-      Navigator.of(context).pop(); // закрыть drawer
-      return false;
-    }
-
-    // 1) Закрыть любые overlay (dialog/bottomsheet), если они есть
+    // 0) Закрыть любой overlay (drawer/dialog/bottomsheet)
     final rootNav = Navigator.of(context, rootNavigator: true);
     if (rootNav.canPop()) {
       rootNav.pop();
       return false;
     }
 
-    // 2) Если есть что pop в GoRouter — pop
+    // 1) Если есть что pop в роутере — pop
     if (router.canPop()) {
       router.pop();
       return false;
     }
 
-    // 3) Если не home — на home
+    // 2) Если не home — на home
     if (!_isHomeLocation(location)) {
       context.go('/buyer/home');
       return false;
     }
 
-    // 4) На home — двойной Back = выход
+    // 3) На home — двойной Back = выход
     final now = DateTime.now();
     final last = _lastBackPress;
 
@@ -171,16 +166,6 @@ class BuyerDrawer extends StatelessWidget {
     if (rootNav.canPop()) rootNav.pop();
   }
 
-  String _displayName(fb.User u) {
-    final dn = (u.displayName ?? '').trim();
-    if (dn.isNotEmpty) return dn;
-    final phone = (u.phoneNumber ?? '').trim();
-    if (phone.isNotEmpty) return phone;
-    final email = (u.email ?? '').trim();
-    if (email.isNotEmpty) return email;
-    return 'Пользователь';
-  }
-
   String _subtitle(fb.User u) {
     final email = (u.email ?? '').trim();
     final phone = (u.phoneNumber ?? '').trim();
@@ -203,12 +188,34 @@ class BuyerDrawer extends StatelessWidget {
     }
   }
 
+  /// activeRole (строка)
   Stream<String?> _activeRoleStream(String uid) {
     return FirebaseFirestore.instance
         .collection('users')
         .doc(uid)
         .snapshots()
         .map((doc) => doc.data()?['activeRole'] as String?);
+  }
+
+  /// buyer fullName из анкеты
+  Stream<String?> _buyerFullNameStream(String uid) {
+    return FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .snapshots()
+        .map((doc) {
+      final data = doc.data();
+      if (data == null) return null;
+      final profiles = data['profiles'];
+      if (profiles is! Map) return null;
+      final buyer = profiles['buyer'];
+      if (buyer is! Map) return null;
+      final fullName = buyer['fullName'];
+      if (fullName is String && fullName.trim().isNotEmpty) {
+        return fullName.trim();
+      }
+      return null;
+    });
   }
 
   Future<void> _signOutAndClose(BuildContext context) async {
@@ -227,30 +234,6 @@ class BuyerDrawer extends StatelessWidget {
         builder: (context, snap) {
           final user = snap.data;
           final isAuthed = user != null;
-
-          final roleWidget = !isAuthed
-              ? Text(
-                  'Гость',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.85),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                )
-              : StreamBuilder<String?>(
-                  stream: _activeRoleStream(user!.uid),
-                  builder: (context, roleSnap) {
-                    final role = _roleLabelFromActiveRole(roleSnap.data);
-                    return Text(
-                      role,
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.85),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    );
-                  },
-                );
 
           return SafeArea(
             child: SingleChildScrollView(
@@ -273,13 +256,15 @@ class BuyerDrawer extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 12),
+
+                        // карточка аккаунта
                         InkWell(
                           onTap: () {
                             _closeDrawer(context);
                             if (isAuthed) {
                               context.go('/buyer/profile');
                             } else {
-                              context.push('/login'); // push для Back
+                              context.push('/login');
                             }
                           },
                           borderRadius: BorderRadius.circular(14),
@@ -310,14 +295,36 @@ class BuyerDrawer extends StatelessWidget {
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Text(
-                                        isAuthed ? _displayName(user!) : 'Войти / Регистрация',
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w800,
+                                      if (!isAuthed)
+                                        const Text(
+                                          'Войти / Регистрация',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w800,
+                                          ),
+                                        )
+                                      else
+                                        StreamBuilder<String?>(
+                                          stream: _buyerFullNameStream(user!.uid),
+                                          builder: (context, nameSnap) {
+                                            final name = nameSnap.data;
+                                            final fallback =
+                                                (user.phoneNumber ?? '').trim().isNotEmpty
+                                                    ? (user.phoneNumber ?? '').trim()
+                                                    : 'Пользователь';
+                                            return Text(
+                                              name ?? fallback,
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w800,
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            );
+                                          },
                                         ),
-                                      ),
                                       const SizedBox(height: 4),
                                       Text(
                                         isAuthed ? _subtitle(user!) : 'Заказы, избранное, бонусы',
@@ -326,6 +333,8 @@ class BuyerDrawer extends StatelessWidget {
                                           fontSize: 12,
                                           fontWeight: FontWeight.w500,
                                         ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                       ),
                                     ],
                                   ),
@@ -335,11 +344,39 @@ class BuyerDrawer extends StatelessWidget {
                             ),
                           ),
                         ),
+
                         const SizedBox(height: 10),
+
+                        // нижняя строка: роль + город + выйти
                         Row(
                           children: [
-                            roleWidget,
+                            if (!isAuthed)
+                              Text(
+                                'Гость',
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.85),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              )
+                            else
+                              StreamBuilder<String?>(
+                                stream: _activeRoleStream(user!.uid),
+                                builder: (context, roleSnap) {
+                                  final role = _roleLabelFromActiveRole(roleSnap.data);
+                                  return Text(
+                                    role,
+                                    style: TextStyle(
+                                      color: Colors.white.withOpacity(0.85),
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  );
+                                },
+                              ),
                             const Spacer(),
+
+                            // ГОРОД — только тут (без дубликатов)
                             InkWell(
                               onTap: onToggleCity,
                               borderRadius: BorderRadius.circular(12),
@@ -361,7 +398,9 @@ class BuyerDrawer extends StatelessWidget {
                                 ),
                               ),
                             ),
+
                             const SizedBox(width: 8),
+
                             if (isAuthed)
                               TextButton(
                                 onPressed: () => _signOutAndClose(context),
@@ -407,7 +446,7 @@ class BuyerDrawer extends StatelessWidget {
                     subtitle: const Text('Продажи, товары, заказы'),
                     onTap: () {
                       _closeDrawer(context);
-                      context.push('/cabinet'); // push, чтобы Back был нормальный
+                      context.go('/cabinet');
                     },
                   ),
                   ListTile(
@@ -416,7 +455,7 @@ class BuyerDrawer extends StatelessWidget {
                     subtitle: const Text('Заработать на промокодах'),
                     onTap: () {
                       _closeDrawer(context);
-                      context.push('/cabinet'); // push, чтобы Back был нормальный
+                      context.go('/cabinet');
                     },
                   ),
                   const Divider(height: 1),
@@ -427,7 +466,6 @@ class BuyerDrawer extends StatelessWidget {
                     title: const Text('Открыть магазин'),
                     subtitle: const Text('Как это работает'),
                     onTap: () {
-                      // drawer НЕ закрываем — Back вернёт в drawer
                       context.push('/info/seller');
                     },
                   ),
@@ -436,7 +474,6 @@ class BuyerDrawer extends StatelessWidget {
                     title: const Text('Подключиться как ванхун'),
                     subtitle: const Text('Условия и старт'),
                     onTap: () {
-                      // drawer НЕ закрываем — Back вернёт в drawer
                       context.push('/info/wanghong');
                     },
                   ),
