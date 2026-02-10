@@ -1,5 +1,3 @@
-// lib/features/buyer/screens/buyer_shell.dart
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/material.dart';
@@ -17,8 +15,6 @@ class BuyerRootShell extends StatefulWidget {
 }
 
 class _BuyerRootShellState extends State<BuyerRootShell> {
-  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-
   String _city = 'Алматы';
   DateTime? _lastBackPress;
 
@@ -27,12 +23,11 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
     if (location.startsWith('/buyer/favorites')) return 2;
     if (location.startsWith('/buyer/cart')) return 3;
     if (location.startsWith('/buyer/profile')) return 4;
-    return 0; // home
+    return 0;
   }
 
-  bool _isHomeLocation(String location) {
-    return location == '/' || location.startsWith('/buyer/home');
-  }
+  bool _isHome(String location) =>
+      location == '/' || location.startsWith('/buyer/home');
 
   void _toggleCity() {
     setState(() {
@@ -64,30 +59,25 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
     final location = GoRouterState.of(context).uri.toString();
     final router = GoRouter.of(context);
 
-    // 0) Закрыть любой overlay (drawer/dialog/bottomsheet) — первым делом
     final rootNav = Navigator.of(context, rootNavigator: true);
     if (rootNav.canPop()) {
       rootNav.pop();
       return false;
     }
 
-    // 1) Если есть что pop в роутере — pop
     if (router.canPop()) {
       router.pop();
       return false;
     }
 
-    // 2) Если не home — на home
-    if (!_isHomeLocation(location)) {
+    if (!_isHome(location)) {
       context.go('/buyer/home');
       return false;
     }
 
-    // 3) На home — двойной Back = выход
     final now = DateTime.now();
-    final last = _lastBackPress;
-
-    if (last == null || now.difference(last) > const Duration(seconds: 2)) {
+    if (_lastBackPress == null ||
+        now.difference(_lastBackPress!) > const Duration(seconds: 2)) {
       _lastBackPress = now;
       ScaffoldMessenger.of(context)
         ..clearSnackBars()
@@ -112,36 +102,76 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
     return WillPopScope(
       onWillPop: _onWillPop,
       child: Scaffold(
-        key: _scaffoldKey,
-        backgroundColor: AppTheme.background,
-        drawer: BuyerDrawer(
-          city: _city,
-          onToggleCity: _toggleCity,
-        ),
+        drawer: BuyerDrawer(city: _city, onToggleCity: _toggleCity),
         body: widget.child,
 
-        // Divider сверху + Bottom bar как у Freedom (спокойно, читаемо)
-        bottomNavigationBar: DecoratedBox(
+        /// ---------- BOTTOM NAV (FREEDOM STYLE) ----------
+        bottomNavigationBar: Container(
           decoration: const BoxDecoration(
             color: AppTheme.elevated,
             border: Border(
               top: BorderSide(color: AppTheme.divider, width: 1),
             ),
           ),
-          child: BottomNavigationBar(
-            currentIndex: currentIndex,
-            onTap: (i) => _goTab(context, i),
-            type: BottomNavigationBarType.fixed,
-            backgroundColor: AppTheme.elevated,
-            selectedItemColor: AppTheme.primary,
-            unselectedItemColor: AppTheme.textDisabled,
-            items: const [
-              BottomNavigationBarItem(icon: Icon(Icons.store), label: 'Магазин'),
-              BottomNavigationBarItem(icon: Icon(Icons.grid_view), label: 'Каталог'),
-              BottomNavigationBarItem(icon: Icon(Icons.favorite_border), label: 'Избранное'),
-              BottomNavigationBarItem(icon: Icon(Icons.shopping_cart_outlined), label: 'Корзина'),
-              BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'Профиль'),
-            ],
+          padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
+          child: Row(
+            children: List.generate(5, (index) {
+              final isActive = index == currentIndex;
+              final iconData = [
+                Icons.store,
+                Icons.grid_view,
+                Icons.favorite_border,
+                Icons.shopping_cart_outlined,
+                Icons.person_outline,
+              ][index];
+              final label = [
+                'Магазин',
+                'Каталог',
+                'Избранное',
+                'Корзина',
+                'Профиль',
+              ][index];
+
+              return Expanded(
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(14),
+                  onTap: () => _goTab(context, index),
+                  child: Container(
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: isActive
+                          ? AppTheme.primary.withOpacity(0.12)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          iconData,
+                          size: 22,
+                          color: isActive
+                              ? AppTheme.primary
+                              : AppTheme.textDisabled,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          label,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight:
+                                isActive ? FontWeight.w800 : FontWeight.w600,
+                            color: isActive
+                                ? AppTheme.primary
+                                : AppTheme.textDisabled,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }),
           ),
         ),
       ),
@@ -159,81 +189,30 @@ class BuyerDrawer extends StatelessWidget {
   final String city;
   final VoidCallback onToggleCity;
 
-  Widget _sectionTitle(String text) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
-      child: Text(
-        text,
-        style: const TextStyle(
-          fontSize: 12,
-          color: AppTheme.textDisabled,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    );
-  }
-
-  void _closeDrawer(BuildContext context) {
-    final rootNav = Navigator.of(context, rootNavigator: true);
-    if (rootNav.canPop()) rootNav.pop();
-  }
-
   String _subtitle(fb.User u) {
-    final email = (u.email ?? '').trim();
     final phone = (u.phoneNumber ?? '').trim();
-    if (phone.isNotEmpty && email.isNotEmpty) return '$phone • $email';
-    if (phone.isNotEmpty) return phone;
-    if (email.isNotEmpty) return email;
-    return 'Аккаунт SkidKZ';
+    return phone.isNotEmpty ? phone : 'Аккаунт SkidKZ';
   }
 
-  String _roleLabelFromActiveRole(String? activeRole) {
-    switch ((activeRole ?? 'buyer').toLowerCase()) {
-      case 'admin':
-        return 'Админ';
-      case 'seller':
-        return 'Продавец';
-      case 'wanghong':
-        return 'Ванхун';
-      default:
-        return 'Покупатель';
-    }
-  }
-
-  Stream<String?> _activeRoleStream(String uid) {
+  Stream<String?> _buyerName(String uid) {
     return FirebaseFirestore.instance
         .collection('users')
         .doc(uid)
         .snapshots()
-        .map((doc) => doc.data()?['activeRole'] as String?);
-  }
-
-  Stream<String?> _buyerFullNameStream(String uid) {
-    return FirebaseFirestore.instance.collection('users').doc(uid).snapshots().map((doc) {
-      final data = doc.data();
-      if (data == null) return null;
-      final profiles = data['profiles'];
-      if (profiles is! Map) return null;
-      final buyer = profiles['buyer'];
-      if (buyer is! Map) return null;
-      final fullName = buyer['fullName'];
-      if (fullName is String && fullName.trim().isNotEmpty) return fullName.trim();
-      return null;
+        .map((doc) {
+      final p = doc.data()?['profiles']?['buyer'];
+      return p is Map && p['fullName'] is String ? p['fullName'] : null;
     });
   }
 
-  Future<void> _signOutAndClose(BuildContext context) async {
-    try {
-      await fb.FirebaseAuth.instance.signOut();
-    } catch (_) {}
-    _closeDrawer(context);
-    context.go('/buyer/home');
+  void _close(BuildContext context) {
+    Navigator.of(context, rootNavigator: true).pop();
   }
 
   @override
   Widget build(BuildContext context) {
     return Drawer(
-      backgroundColor: AppTheme.surface,
+      backgroundColor: AppTheme.background,
       child: StreamBuilder<fb.User?>(
         stream: fb.FirebaseAuth.instance.authStateChanges(),
         builder: (context, snap) {
@@ -241,130 +220,109 @@ class BuyerDrawer extends StatelessWidget {
           final isAuthed = user != null;
 
           return SafeArea(
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // HEADER (Graphite)
-                  Container(
-                    color: AppTheme.elevated,
-                    padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'SkidKZ',
-                          style: TextStyle(
-                            color: AppTheme.primary,
-                            fontSize: 20,
-                            fontWeight: FontWeight.w900,
-                          ),
+            child: ListView(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  color: AppTheme.elevated,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'SkidKZ',
+                        style: TextStyle(
+                          color: AppTheme.primary,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w900,
                         ),
-                        const SizedBox(height: 12),
-
-                        // карточка аккаунта
-                        InkWell(
-                          onTap: () {
-                            _closeDrawer(context);
-                            if (isAuthed) {
-                              context.go('/buyer/profile');
-                            } else {
-                              context.push('/login');
-                            }
-                          },
-                          borderRadius: BorderRadius.circular(14),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                            decoration: BoxDecoration(
-                              color: AppTheme.surface,
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(color: AppTheme.divider),
-                            ),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 38,
-                                  height: 38,
-                                  decoration: const BoxDecoration(
-                                    color: AppTheme.background,
-                                    shape: BoxShape.circle,
-                                  ),
-                                  alignment: Alignment.center,
-                                  child: Icon(
-                                    isAuthed ? Icons.person : Icons.person_outline,
-                                    color: AppTheme.textSecondary,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      if (!isAuthed)
-                                        const Text(
-                                          'Войти / Регистрация',
-                                          style: TextStyle(
-                                            color: AppTheme.textPrimary,
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w900,
-                                          ),
-                                        )
-                                      else
-                                        StreamBuilder<String?>(
-                                          stream: _buyerFullNameStream(user!.uid),
-                                          builder: (context, nameSnap) {
-                                            final name = nameSnap.data;
-                                            final fallback =
-                                                (user.phoneNumber ?? '').trim().isNotEmpty
-                                                    ? (user.phoneNumber ?? '').trim()
-                                                    : 'Пользователь';
-                                            return Text(
-                                              name ?? fallback,
-                                              style: const TextStyle(
-                                                color: AppTheme.textPrimary,
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.w900,
-                                              ),
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                            );
-                                          },
-                                        ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        isAuthed ? _subtitle(user!) : 'Заказы, избранное, бонусы',
-                                        style: const TextStyle(
-                                          color: AppTheme.textSecondary,
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const Icon(Icons.chevron_right, color: AppTheme.textSecondary),
-                              ],
-                            ),
-                          ),
-                        ),
-
-                        const SizedBox(height: 10),
-
-                        // нижняя строка: роль + город + выйти
-                        Row(
+                      ),
+                      const SizedBox(height: 12),
+                      InkWell(
+                        onTap: () {
+                          _close(context);
+                          isAuthed
+                              ? context.go('/buyer/profile')
+                              : context.push('/login');
+                        },
+                        child: Row(
                           children: [
-                            if (!isAuthed)
-                              const Text(
-                                'Гость',
-                                style: TextStyle(
-                                  color: AppTheme.textSecondary,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              )
-                            else
-                              StreamBuilder<String?>(
-                                stream: _activeRoleStream(user!.uid),
-                                builder
+                            const Icon(Icons.person,
+                                color: AppTheme.textPrimary),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: isAuthed
+                                  ? StreamBuilder<String?>(
+                                      stream: _buyerName(user!.uid),
+                                      builder: (_, s) => Text(
+                                        s.data ?? _subtitle(user),
+                                        style: const TextStyle(
+                                          color: AppTheme.textPrimary,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    )
+                                  : const Text(
+                                      'Войти / Регистрация',
+                                      style: TextStyle(
+                                        color: AppTheme.textPrimary,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      InkWell(
+                        onTap: onToggleCity,
+                        child: Row(
+                          children: [
+                            const Icon(Icons.location_on_outlined,
+                                color: AppTheme.textSecondary),
+                            const SizedBox(width: 6),
+                            Text(
+                              city,
+                              style: const TextStyle(
+                                color: AppTheme.textSecondary,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _AppVersionSubtitle extends StatefulWidget {
+  const _AppVersionSubtitle();
+
+  @override
+  State<_AppVersionSubtitle> createState() => _AppVersionSubtitleState();
+}
+
+class _AppVersionSubtitleState extends State<_AppVersionSubtitle> {
+  String _text = '...';
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final info = await PackageInfo.fromPlatform();
+    setState(() => _text = '${info.version} (${info.buildNumber})');
+  }
+
+  @override
+  Widget build(BuildContext context) => Text(_text);
+}
