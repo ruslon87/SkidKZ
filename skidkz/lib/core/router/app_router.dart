@@ -12,7 +12,6 @@ import 'package:skidkz/features/auth/screens/login_screen.dart';
 import 'package:skidkz/features/auth/screens/role_selection_screen.dart';
 
 import 'package:skidkz/features/buyer/screens/buyer_shell.dart';
-
 import 'package:skidkz/features/home/home_page.dart';
 import 'package:skidkz/features/buyer/screens/buyer_catalog_screen.dart';
 import 'package:skidkz/features/buyer/screens/buyer_favorites_screen.dart';
@@ -228,22 +227,17 @@ final routerProvider = Provider<GoRouter>((ref) {
             user.buyerProfile.completed != true;
 
         if (buyerNeed && !isBuyerOnboarding) {
-          // optional: preserve where he wanted to go
           final next = Uri.encodeComponent('/buyer/home');
           return '/onboarding/buyer?next=$next';
         }
 
         // login not needed when authed
         if (isLogin) {
-          // go to cabinet resolver
           return '/cabinet';
         }
 
-        // /cabinet -> go to home by activeRole (or by admin priority)
+        // /cabinet -> go to home by activeRole
         if (location == '/cabinet') {
-          // Admin always can go to admin area even if activeRole другой,
-          // но мы уважаем activeRole как "текущий режим".
-          // Если хочешь всегда по умолчанию в админку — поменяем.
           return _homeForRole(user.activeRole);
         }
 
@@ -304,9 +298,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/cabinet',
-        builder: (context, state) => const Scaffold(
-          body: Center(child: CircularProgressIndicator()),
-        ),
+        builder: (context, state) => const _CabinetResolverScreen(),
       ),
 
       /// -------------------------
@@ -395,3 +387,49 @@ final routerProvider = Provider<GoRouter>((ref) {
     ],
   );
 });
+
+/// --------------------
+/// Кабинет-резолвер (UX для пункта A)
+/// --------------------
+class _CabinetResolverScreen extends ConsumerWidget {
+  const _CabinetResolverScreen();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final authAsync = ref.watch(authStateChangesProvider);
+    final userAsync = ref.watch(currentUserDocProvider);
+
+    final fbUser = authAsync.asData?.value;
+
+    String text = 'Подготавливаем вход…';
+
+    if (authAsync.isLoading) {
+      text = 'Проверяем сессию…';
+    } else if (fbUser == null) {
+      text = 'Требуется вход…';
+    } else if (userAsync.isLoading) {
+      text = 'Создаём профиль…';
+    } else if (userAsync.hasError) {
+      text = 'Ошибка профиля: ${userAsync.error}';
+    } else {
+      text = 'Готово…';
+    }
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Вход')),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              Text(text, textAlign: TextAlign.center),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
