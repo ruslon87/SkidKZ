@@ -15,7 +15,7 @@ class HomePage extends ConsumerStatefulWidget {
 class _HomePageState extends ConsumerState<HomePage> {
   Future<void> _refresh() async {
     ref.invalidate(activeProductsStreamProvider);
-    await Future.delayed(const Duration(milliseconds: 250));
+    await Future.delayed(const Duration(milliseconds: 300));
   }
 
   @override
@@ -26,67 +26,88 @@ class _HomePageState extends ConsumerState<HomePage> {
 
     const city = 'Алматы';
 
-    return DecoratedBox(
-      decoration: const BoxDecoration(color: AppTheme.background),
-      child: RefreshIndicator(
+    return Scaffold(
+      backgroundColor: AppTheme.background,
+      body: RefreshIndicator(
         color: AppTheme.primary,
-        backgroundColor: AppTheme.elevated,
         onRefresh: _refresh,
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
+            /// ---------------- HEADER ----------------
             SliverAppBar(
               pinned: true,
               backgroundColor: AppTheme.elevated,
               elevation: 0,
               automaticallyImplyLeading: false,
+              toolbarHeight: 64,
               titleSpacing: 0,
-              title: Padding(
-                padding: const EdgeInsets.only(left: 4),
-                child: Row(
-                  children: [
-                    Builder(
-                      builder: (ctx) => IconButton(
-                        icon: const Icon(Icons.menu, color: AppTheme.textPrimary),
-                        onPressed: () => Scaffold.of(ctx).openDrawer(),
+              title: SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Row(
+                    children: [
+                      Builder(
+                        builder: (ctx) => IconButton(
+                          icon: const Icon(Icons.menu),
+                          color: AppTheme.textPrimary,
+                          onPressed: () => Scaffold.of(ctx).openDrawer(),
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 6),
-                    const Text(
-                      'SkidKZ',
-                      style: TextStyle(
-                        color: AppTheme.textPrimary,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
+                      const SizedBox(width: 4),
+                      const Text(
+                        'SkidKZ',
+                        style: TextStyle(
+                          color: AppTheme.primary,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                        ),
                       ),
-                    ),
-                    const Spacer(),
-                    const Icon(Icons.location_on_outlined,
-                        color: AppTheme.textSecondary),
-                    const SizedBox(width: 6),
-                    const Text(
-                      city,
-                      style: TextStyle(color: AppTheme.textSecondary),
-                    ),
-                    const SizedBox(width: 12),
-                  ],
+                      const Spacer(),
+                      const Icon(Icons.location_on_outlined,
+                          color: AppTheme.textSecondary, size: 18),
+                      const SizedBox(width: 4),
+                      const Text(
+                        city,
+                        style: TextStyle(
+                          color: AppTheme.textPrimary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              bottom: const PreferredSize(
-                preferredSize: Size.fromHeight(68),
+              bottom: PreferredSize(
+                preferredSize: const Size.fromHeight(68),
                 child: Padding(
-                  padding: EdgeInsets.fromLTRB(16, 0, 16, 12),
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
                   child: _SearchBar(),
                 ),
               ),
             ),
 
-            const SliverToBoxAdapter(child: _BannersRow()),
-            const SliverToBoxAdapter(child: _CategoriesRow()),
-            const SliverToBoxAdapter(
-              child: _SectionTitle(title: 'Вы недавно смотрели', action: 'Смотреть все'),
+            /// ---------------- CONTENT ----------------
+            SliverToBoxAdapter(child: _BannersRow()),
+
+            SliverToBoxAdapter(
+              child: _CategoriesRow(
+                categories: const [
+                  _CategoryItem(icon: Icons.phone_android, label: 'Телефоны'),
+                  _CategoryItem(icon: Icons.laptop_mac, label: 'Ноутбуки'),
+                  _CategoryItem(icon: Icons.checkroom, label: 'Одежда'),
+                  _CategoryItem(icon: Icons.home_outlined, label: 'Дом'),
+                  _CategoryItem(icon: Icons.sports_soccer, label: 'Спорт'),
+                ],
+              ),
             ),
-            const SliverToBoxAdapter(child: _RecentlyViewedPlaceholder()),
+
+            const SliverToBoxAdapter(
+              child: _SectionTitle(title: 'Вы недавно смотрели'),
+            ),
+            SliverToBoxAdapter(child: _RecentlyViewedPlaceholder()),
+
             const SliverToBoxAdapter(
               child: _SectionTitle(title: 'Вас могут заинтересовать'),
             ),
@@ -94,15 +115,17 @@ class _HomePageState extends ConsumerState<HomePage> {
             if (loading)
               const SliverToBoxAdapter(
                 child: Padding(
-                  padding: EdgeInsets.all(20),
-                  child: Center(child: CircularProgressIndicator()),
+                  padding: EdgeInsets.all(24),
+                  child: Center(
+                    child: CircularProgressIndicator(color: AppTheme.primary),
+                  ),
                 ),
               )
             else if (products.isEmpty)
               const SliverToBoxAdapter(child: _EmptyProductsState())
             else
               SliverPadding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                 sliver: SliverGrid(
                   delegate: SliverChildBuilderDelegate(
                     (context, i) => _ProductCard(product: products[i]),
@@ -123,39 +146,263 @@ class _HomePageState extends ConsumerState<HomePage> {
   }
 }
 
+/// ================= SEARCH =================
 class _SearchBar extends StatelessWidget {
-  const _SearchBar();
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 46,
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppTheme.divider),
+      ),
+      child: Row(
+        children: const [
+          SizedBox(width: 12),
+          Icon(Icons.search, color: AppTheme.textSecondary),
+          SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Поиск',
+              style: TextStyle(
+                color: AppTheme.textSecondary,
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          Icon(Icons.tune, color: AppTheme.textDisabled),
+          SizedBox(width: 12),
+        ],
+      ),
+    );
+  }
+}
+
+/// ================= BANNERS =================
+class _BannersRow extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+      child: Row(
+        children: const [
+          Expanded(child: _BannerCard(text: 'Скидки')),
+          SizedBox(width: 12),
+          Expanded(child: _BannerCard(text: 'Новинки')),
+        ],
+      ),
+    );
+  }
+}
+
+class _BannerCard extends StatelessWidget {
+  const _BannerCard({required this.text});
+  final String text;
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: AppTheme.surface,
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: () {},
-        child: Container(
-          height: 46,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppTheme.divider),
-          ),
-          child: Row(
-            children: const [
-              Icon(Icons.search, color: AppTheme.textDisabled),
-              SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'Поиск в магазине',
-                  style: TextStyle(color: AppTheme.textDisabled),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              Icon(Icons.tune, color: AppTheme.textSecondary),
-            ],
+    return Container(
+      height: 110,
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppTheme.divider),
+      ),
+      child: Center(
+        child: Text(
+          text,
+          style: const TextStyle(
+            color: AppTheme.textPrimary,
+            fontSize: 16,
+            fontWeight: FontWeight.w800,
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// ================= CATEGORIES =================
+class _CategoryItem {
+  final IconData icon;
+  final String label;
+  const _CategoryItem({required this.icon, required this.label});
+}
+
+class _CategoriesRow extends StatelessWidget {
+  const _CategoriesRow({required this.categories});
+  final List<_CategoryItem> categories;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: categories.map((c) => _CategoryChip(item: c)).toList(),
+      ),
+    );
+  }
+}
+
+class _CategoryChip extends StatelessWidget {
+  const _CategoryChip({required this.item});
+  final _CategoryItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Column(
+        children: [
+          Container(
+            height: 54,
+            width: 54,
+            decoration: BoxDecoration(
+              color: AppTheme.surface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppTheme.divider),
+            ),
+            child: Icon(item.icon, color: AppTheme.textSecondary),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            item.label,
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppTheme.textSecondary,
+              fontWeight: FontWeight.w600,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// ================= TITLES =================
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle({required this.title});
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 8),
+      child: Text(
+        title,
+        style: const TextStyle(
+          fontSize: 18,
+          color: AppTheme.textPrimary,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+    );
+  }
+}
+
+/// ================= EMPTY =================
+class _EmptyProductsState extends StatelessWidget {
+  const _EmptyProductsState();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppTheme.surface,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: AppTheme.divider),
+        ),
+        child: const Text(
+          'Пока нет товаров',
+          style: TextStyle(
+            color: AppTheme.textSecondary,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// ================= PRODUCT CARD =================
+class _ProductCard extends StatelessWidget {
+  const _ProductCard({required this.product});
+  final Product product;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppTheme.divider),
+      ),
+      padding: const EdgeInsets.all(10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: Container(
+              decoration: BoxDecoration(
+                color: AppTheme.background,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Icon(Icons.image_outlined, color: AppTheme.textDisabled),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            product.title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: AppTheme.textPrimary,
+              fontWeight: FontWeight.w700,
+              fontSize: 13,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '${product.retailPrice} ₸',
+            style: const TextStyle(
+              color: AppTheme.primary,
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// ================= RECENT =================
+class _RecentlyViewedPlaceholder extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 180,
+      child: ListView.separated(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+        scrollDirection: Axis.horizontal,
+        itemCount: 3,
+        separatorBuilder: (_, __) => const SizedBox(width: 12),
+        itemBuilder: (context, i) {
+          return Container(
+            width: 130,
+            decoration: BoxDecoration(
+              color: AppTheme.surface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppTheme.divider),
+            ),
+          );
+        },
       ),
     );
   }
