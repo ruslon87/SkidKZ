@@ -1,8 +1,7 @@
-// lib/features/home/home_page.dart
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:skidkz/core/theme/app_theme.dart';
 import 'package:skidkz/data/models/product.dart';
 import 'package:skidkz/features/home/providers/home_products_provider.dart';
 
@@ -15,7 +14,6 @@ class HomePage extends ConsumerStatefulWidget {
 
 class _HomePageState extends ConsumerState<HomePage> {
   Future<void> _refresh() async {
-    // перезагрузить поток (для MVP достаточно инвалидировать provider)
     ref.invalidate(activeProductsStreamProvider);
     await Future.delayed(const Duration(milliseconds: 250));
   }
@@ -26,19 +24,20 @@ class _HomePageState extends ConsumerState<HomePage> {
     final loading = productsAsync.isLoading;
     final products = productsAsync.asData?.value ?? const <Product>[];
 
-    // TODO: город потом брать из профиля пользователя / настроек
     const city = 'Алматы';
 
     return DecoratedBox(
-      decoration: const BoxDecoration(color: Color(0xFFF3F5F7)),
+      decoration: const BoxDecoration(color: AppTheme.background),
       child: RefreshIndicator(
+        color: AppTheme.primary,
+        backgroundColor: AppTheme.elevated,
         onRefresh: _refresh,
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
             SliverAppBar(
               pinned: true,
-              backgroundColor: const Color(0xFF2E6CF6),
+              backgroundColor: AppTheme.elevated,
               elevation: 0,
               automaticallyImplyLeading: false,
               titleSpacing: 0,
@@ -48,62 +47,48 @@ class _HomePageState extends ConsumerState<HomePage> {
                   children: [
                     Builder(
                       builder: (ctx) => IconButton(
-                        icon: const Icon(Icons.menu, color: Colors.white),
+                        icon: const Icon(Icons.menu, color: AppTheme.textPrimary),
                         onPressed: () => Scaffold.of(ctx).openDrawer(),
-                        tooltip: 'Меню',
                       ),
                     ),
                     const SizedBox(width: 6),
                     const Text(
                       'SkidKZ',
                       style: TextStyle(
-                        color: Colors.white,
+                        color: AppTheme.textPrimary,
                         fontSize: 18,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
                     const Spacer(),
-                    const Icon(Icons.location_on_outlined, color: Colors.white),
+                    const Icon(Icons.location_on_outlined,
+                        color: AppTheme.textSecondary),
                     const SizedBox(width: 6),
                     const Text(
                       city,
-                      style: TextStyle(color: Colors.white),
+                      style: TextStyle(color: AppTheme.textSecondary),
                     ),
                     const SizedBox(width: 12),
                   ],
                 ),
               ),
-              bottom: PreferredSize(
-                preferredSize: const Size.fromHeight(72),
+              bottom: const PreferredSize(
+                preferredSize: Size.fromHeight(68),
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-                  child: _SearchBar(
-                    onTap: () {
-                      // TODO: открыть поиск
-                    },
-                  ),
+                  padding: EdgeInsets.fromLTRB(16, 0, 16, 12),
+                  child: _SearchBar(),
                 ),
               ),
             ),
 
-            SliverToBoxAdapter(child: _BannersRow()),
-            SliverToBoxAdapter(
-              child: _CategoriesRow(
-                categories: const [
-                  _CategoryItem(icon: Icons.phone_android, label: 'Телефоны'),
-                  _CategoryItem(icon: Icons.laptop_mac, label: 'Ноутбуки'),
-                  _CategoryItem(icon: Icons.checkroom, label: 'Одежда'),
-                  _CategoryItem(icon: Icons.home_outlined, label: 'Дом'),
-                  _CategoryItem(icon: Icons.sports_soccer, label: 'Спорт'),
-                ],
-              ),
-            ),
+            const SliverToBoxAdapter(child: _BannersRow()),
+            const SliverToBoxAdapter(child: _CategoriesRow()),
             const SliverToBoxAdapter(
               child: _SectionTitle(title: 'Вы недавно смотрели', action: 'Смотреть все'),
             ),
-            SliverToBoxAdapter(child: _RecentlyViewedPlaceholder()),
+            const SliverToBoxAdapter(child: _RecentlyViewedPlaceholder()),
             const SliverToBoxAdapter(
-              child: _SectionTitle(title: 'Вас могут заинтересовать', action: null),
+              child: _SectionTitle(title: 'Вас могут заинтересовать'),
             ),
 
             if (loading)
@@ -114,13 +99,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                 ),
               )
             else if (products.isEmpty)
-              SliverToBoxAdapter(
-                child: _EmptyProductsState(
-                  onCreateProductHint: () {
-                    // TODO
-                  },
-                ),
-              )
+              const SliverToBoxAdapter(child: _EmptyProductsState())
             else
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
@@ -145,320 +124,37 @@ class _HomePageState extends ConsumerState<HomePage> {
 }
 
 class _SearchBar extends StatelessWidget {
-  const _SearchBar({required this.onTap});
-
-  final VoidCallback onTap;
+  const _SearchBar();
 
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white,
+      color: AppTheme.surface,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
-        onTap: onTap,
-        child: SizedBox(
+        onTap: () {},
+        child: Container(
           height: 46,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Row(
-              children: const [
-                Icon(Icons.search, color: Colors.black54),
-                SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Поиск в магазине',
-                    style: TextStyle(color: Colors.black54, fontSize: 15),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                SizedBox(width: 10),
-                Icon(Icons.tune, color: Colors.black26),
-              ],
-            ),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppTheme.divider),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-// ----------------------------
-// Остальные виджеты витрины
-// ----------------------------
-
-class _BannersRow extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
-      child: Row(
-        children: const [
-          Expanded(child: _BannerCard(text: 'Супер скидки')),
-          SizedBox(width: 12),
-          Expanded(child: _BannerCard(text: 'Новинки')),
-        ],
-      ),
-    );
-  }
-}
-
-class _BannerCard extends StatelessWidget {
-  const _BannerCard({required this.text});
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 110,
-      decoration: BoxDecoration(
-        color: const Color(0xFF8DB6FF),
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Center(
-        child: Text(
-          text,
-          style: const TextStyle(
-            fontSize: 18,
-            color: Colors.white,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _CategoryItem {
-  final IconData icon;
-  final String label;
-  const _CategoryItem({required this.icon, required this.label});
-}
-
-class _CategoriesRow extends StatelessWidget {
-  const _CategoriesRow({required this.categories});
-  final List<_CategoryItem> categories;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(10, 8, 10, 6),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: categories.map((c) => _CategoryChip(item: c)).toList(),
-      ),
-    );
-  }
-}
-
-class _CategoryChip extends StatelessWidget {
-  const _CategoryChip({required this.item});
-  final _CategoryItem item;
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Column(
-        children: [
-          Container(
-            height: 54,
-            width: 54,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Icon(item.icon, color: Colors.black54),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            item.label,
-            style: const TextStyle(fontSize: 12, color: Colors.black87),
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SectionTitle extends StatelessWidget {
-  const _SectionTitle({required this.title, this.action});
-  final String title;
-  final String? action;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              title,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-            ),
-          ),
-          if (action != null)
-            Text(
-              action!,
-              style: const TextStyle(fontSize: 13, color: Colors.black54),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _RecentlyViewedPlaceholder extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 180,
-      child: ListView.separated(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-        scrollDirection: Axis.horizontal,
-        itemCount: 3,
-        separatorBuilder: (_, __) => const SizedBox(width: 12),
-        itemBuilder: (context, i) {
-          return Container(
-            width: 130,
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF1F3F5),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(Icons.image_outlined, color: Colors.black26),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Товар (пример)',
-                  maxLines: 1,
+          child: Row(
+            children: const [
+              Icon(Icons.search, color: AppTheme.textDisabled),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Поиск в магазине',
+                  style: TextStyle(color: AppTheme.textDisabled),
                   overflow: TextOverflow.ellipsis,
                 ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _EmptyProductsState extends StatelessWidget {
-  const _EmptyProductsState({required this.onCreateProductHint});
-  final VoidCallback onCreateProductHint;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(18),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Пока нет товаров',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'Как только магазины добавят товары и они пройдут модерацию, они появятся здесь.',
-              style: TextStyle(color: Colors.black54),
-            ),
-            const SizedBox(height: 12),
-            OutlinedButton(
-              onPressed: onCreateProductHint,
-              child: const Text('Добавить первый товар (для продавца)'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ProductCard extends StatelessWidget {
-  const _ProductCard({required this.product});
-  final Product product;
-
-  String _formatMoney(int v) {
-    final s = v.toString();
-    final buf = StringBuffer();
-    for (int i = 0; i < s.length; i++) {
-      final pos = s.length - i;
-      buf.write(s[i]);
-      if (pos > 1 && pos % 3 == 1) buf.write(' ');
-    }
-    return '${buf.toString()} ₸';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final cover = product.coverUrl ??
-        (product.images.isNotEmpty ? product.images.first.url : null);
-
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(10),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(14),
-                child: Container(
-                  color: const Color(0xFFF1F3F5),
-                  child: cover == null || cover.isEmpty
-                      ? const Icon(Icons.image_outlined, color: Colors.black26)
-                      : Image.network(
-                          cover,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => const Icon(
-                            Icons.broken_image_outlined,
-                            color: Colors.black26,
-                          ),
-                        ),
-                ),
               ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              product.title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              _formatMoney(product.retailPrice),
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              'Маржа: ${_formatMoney(product.margin)}',
-              style: const TextStyle(fontSize: 12, color: Colors.black54),
-            ),
-          ],
+              Icon(Icons.tune, color: AppTheme.textSecondary),
+            ],
+          ),
         ),
       ),
     );
