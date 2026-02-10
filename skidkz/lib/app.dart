@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'core/router/app_router.dart';
+import 'core/theme/app_theme.dart';
 
 class SkidKZApp extends ConsumerWidget {
   const SkidKZApp({super.key});
@@ -14,6 +15,12 @@ class SkidKZApp extends ConsumerWidget {
     return MaterialApp.router(
       title: 'SkidKZ',
       debugShowCheckedModeBanner: false,
+
+      // ✅ ВАЖНОЕ
+      theme: AppTheme.darkTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: ThemeMode.dark,
+
       routerConfig: router,
     );
   }
