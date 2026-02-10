@@ -79,10 +79,10 @@ class _HomePageState extends ConsumerState<HomePage> {
                   ),
                 ),
               ),
-              bottom: PreferredSize(
-                preferredSize: const Size.fromHeight(68),
+              bottom: const PreferredSize(
+                preferredSize: Size.fromHeight(68),
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+                  padding: EdgeInsets.fromLTRB(16, 0, 16, 14),
                   child: _SearchBar(),
                 ),
               ),
@@ -102,11 +102,6 @@ class _HomePageState extends ConsumerState<HomePage> {
                 ],
               ),
             ),
-
-            const SliverToBoxAdapter(
-              child: _SectionTitle(title: 'Вы недавно смотрели'),
-            ),
-            SliverToBoxAdapter(child: _RecentlyViewedPlaceholder()),
 
             const SliverToBoxAdapter(
               child: _SectionTitle(title: 'Вас могут заинтересовать'),
@@ -135,7 +130,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                     crossAxisCount: 2,
                     mainAxisSpacing: 12,
                     crossAxisSpacing: 12,
-                    childAspectRatio: 0.72,
+                    childAspectRatio: 0.70,
                   ),
                 ),
               ),
@@ -148,6 +143,8 @@ class _HomePageState extends ConsumerState<HomePage> {
 
 /// ================= SEARCH =================
 class _SearchBar extends StatelessWidget {
+  const _SearchBar();
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -330,79 +327,143 @@ class _EmptyProductsState extends StatelessWidget {
   }
 }
 
-/// ================= PRODUCT CARD =================
+/// ================= PRODUCT CARD (FINTECH) =================
 class _ProductCard extends StatelessWidget {
   const _ProductCard({required this.product});
   final Product product;
 
+  String _formatMoney(int v) {
+    // 1234567 -> 1 234 567 ₸
+    final s = v.toString();
+    final buf = StringBuffer();
+    for (int i = 0; i < s.length; i++) {
+      final pos = s.length - i;
+      buf.write(s[i]);
+      if (pos > 1 && pos % 3 == 1) buf.write(' ');
+    }
+    return '${buf.toString()} ₸';
+  }
+
   @override
   Widget build(BuildContext context) {
+    final cover = product.coverUrl ??
+        (product.images.isNotEmpty ? product.images.first.url : null);
+
     return Container(
       decoration: BoxDecoration(
         color: AppTheme.surface,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: AppTheme.divider),
       ),
-      padding: const EdgeInsets.all(10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                color: AppTheme.background,
+      child: Padding(
+        padding: const EdgeInsets.all(10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Media
+            Expanded(
+              child: ClipRRect(
                 borderRadius: BorderRadius.circular(14),
+                child: Container(
+                  color: AppTheme.background,
+                  child: (cover == null || cover.isEmpty)
+                      ? const Center(
+                          child: Icon(Icons.image_outlined,
+                              color: AppTheme.textDisabled),
+                        )
+                      : Image.network(
+                          cover,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => const Center(
+                            child: Icon(Icons.broken_image_outlined,
+                                color: AppTheme.textDisabled),
+                          ),
+                        ),
+                ),
               ),
-              child: const Icon(Icons.image_outlined, color: AppTheme.textDisabled),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            product.title,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: AppTheme.textPrimary,
-              fontWeight: FontWeight.w700,
-              fontSize: 13,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            '${product.retailPrice} ₸',
-            style: const TextStyle(
-              color: AppTheme.primary,
-              fontSize: 16,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
-/// ================= RECENT =================
-class _RecentlyViewedPlaceholder extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 180,
-      child: ListView.separated(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-        scrollDirection: Axis.horizontal,
-        itemCount: 3,
-        separatorBuilder: (_, __) => const SizedBox(width: 12),
-        itemBuilder: (context, i) {
-          return Container(
-            width: 130,
-            decoration: BoxDecoration(
-              color: AppTheme.surface,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppTheme.divider),
+            const SizedBox(height: 10),
+
+            // Title
+            Text(
+              product.title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppTheme.textPrimary,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                height: 1.2,
+              ),
             ),
-          );
-        },
+
+            const SizedBox(height: 8),
+
+            // Price row
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Expanded(
+                  child: Text(
+                    _formatMoney(product.retailPrice),
+                    style: const TextStyle(
+                      color: AppTheme.textPrimary,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      height: 1.0,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8),
+
+                // Margin pill (emerald 10–14% opacity)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primary.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: AppTheme.primary.withOpacity(0.25)),
+                  ),
+                  child: Text(
+                    'Маржа ${_formatMoney(product.margin)}',
+                    style: const TextStyle(
+                      color: AppTheme.primary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 8),
+
+            // Sub meta (optional)
+            Row(
+              children: const [
+                Icon(Icons.verified_outlined, size: 14, color: AppTheme.textDisabled),
+                SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Проверено',
+                    style: TextStyle(
+                      color: AppTheme.textDisabled,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
