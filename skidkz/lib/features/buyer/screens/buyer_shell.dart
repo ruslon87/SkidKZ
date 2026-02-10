@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+
 import 'package:skidkz/core/theme/app_theme.dart';
 
 /// Скоуп, чтобы дочерние экраны могли гарантированно открыть Drawer
@@ -83,7 +84,6 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
   }
 
   void _openDrawer() {
-    // гарантированно открывает drawer нужного Scaffold
     _scaffoldKey.currentState?.openDrawer();
   }
 
@@ -152,7 +152,7 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
             onTap: (i) => _goTab(context, i),
             type: BottomNavigationBarType.fixed,
             selectedItemColor: AppTheme.primary,
-            unselectedItemColor: AppTheme.textDisabled, // чтобы не “серыми” системными
+            unselectedItemColor: AppTheme.textDisabled,
             items: const [
               BottomNavigationBarItem(icon: Icon(Icons.store), label: 'Магазин'),
               BottomNavigationBarItem(icon: Icon(Icons.grid_view), label: 'Каталог'),
@@ -182,9 +182,9 @@ class BuyerDrawer extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
       child: Text(
         text,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 12,
-          color: Colors.grey,
+          color: AppTheme.textDisabled,
           fontWeight: FontWeight.w700,
         ),
       ),
@@ -251,6 +251,7 @@ class BuyerDrawer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Drawer(
+      backgroundColor: AppTheme.background,
       child: StreamBuilder<fb.User?>(
         stream: fb.FirebaseAuth.instance.authStateChanges(),
         builder: (context, snap) {
@@ -262,8 +263,9 @@ class BuyerDrawer extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  // HEADER (ВАЖНО: НЕТ AppTheme.navBar — чтобы не падало)
                   Container(
-                    color: AppTheme.navBar,
+                    color: AppTheme.elevated,
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -278,6 +280,7 @@ class BuyerDrawer extends StatelessWidget {
                         ),
                         const SizedBox(height: 12),
 
+                        // карточка аккаунта
                         InkWell(
                           onTap: () {
                             _closeDrawer(context);
@@ -329,9 +332,10 @@ class BuyerDrawer extends StatelessWidget {
                                           stream: _buyerFullNameStream(user!.uid),
                                           builder: (context, nameSnap) {
                                             final name = nameSnap.data;
-                                            final fallback = (user.phoneNumber ?? '').trim().isNotEmpty
-                                                ? (user.phoneNumber ?? '').trim()
-                                                : 'Пользователь';
+                                            final fallback =
+                                                (user.phoneNumber ?? '').trim().isNotEmpty
+                                                    ? (user.phoneNumber ?? '').trim()
+                                                    : 'Пользователь';
                                             return Text(
                                               name ?? fallback,
                                               style: TextStyle(
@@ -366,6 +370,7 @@ class BuyerDrawer extends StatelessWidget {
 
                         const SizedBox(height: 10),
 
+                        // нижняя строка: роль + город + выйти
                         Row(
                           children: [
                             if (!isAuthed)
@@ -440,8 +445,8 @@ class BuyerDrawer extends StatelessWidget {
 
                   _sectionTitle('Аккаунт'),
                   ListTile(
-                    leading: const Icon(Icons.receipt_long_outlined),
-                    title: const Text('Мои заказы'),
+                    leading: Icon(Icons.receipt_long_outlined, color: AppTheme.textSecondary),
+                    title: Text('Мои заказы', style: TextStyle(color: AppTheme.textPrimary)),
                     onTap: () {
                       _closeDrawer(context);
                       if (isAuthed) {
@@ -451,61 +456,65 @@ class BuyerDrawer extends StatelessWidget {
                       }
                     },
                   ),
-                  const Divider(height: 1),
+                  Divider(height: 1, color: AppTheme.divider),
 
                   _sectionTitle('Кабинеты'),
                   ListTile(
-                    leading: const Icon(Icons.store_mall_directory_outlined),
-                    title: const Text('Кабинет магазина'),
-                    subtitle: const Text('Продажи, товары, заказы'),
+                    leading: Icon(Icons.store_mall_directory_outlined, color: AppTheme.textSecondary),
+                    title: Text('Кабинет магазина', style: TextStyle(color: AppTheme.textPrimary)),
+                    subtitle:
+                        Text('Продажи, товары, заказы', style: TextStyle(color: AppTheme.textSecondary)),
                     onTap: () {
                       _closeDrawer(context);
                       context.go('/cabinet');
                     },
                   ),
                   ListTile(
-                    leading: const Icon(Icons.campaign_outlined),
-                    title: const Text('Кабинет ванхуна'),
-                    subtitle: const Text('Заработать на промокодах'),
+                    leading: Icon(Icons.campaign_outlined, color: AppTheme.textSecondary),
+                    title: Text('Кабинет ванхуна', style: TextStyle(color: AppTheme.textPrimary)),
+                    subtitle:
+                        Text('Заработать на промокодах', style: TextStyle(color: AppTheme.textSecondary)),
                     onTap: () {
                       _closeDrawer(context);
                       context.go('/cabinet');
                     },
                   ),
-                  const Divider(height: 1),
+                  Divider(height: 1, color: AppTheme.divider),
 
                   _sectionTitle('Для бизнеса'),
                   ListTile(
-                    leading: const Icon(Icons.add_business_outlined),
-                    title: const Text('Открыть магазин'),
-                    subtitle: const Text('Как это работает'),
+                    leading: Icon(Icons.add_business_outlined, color: AppTheme.textSecondary),
+                    title: Text('Открыть магазин', style: TextStyle(color: AppTheme.textPrimary)),
+                    subtitle:
+                        Text('Как это работает', style: TextStyle(color: AppTheme.textSecondary)),
                     onTap: () => context.push('/info/seller'),
                   ),
                   ListTile(
-                    leading: const Icon(Icons.person_add_alt_1_outlined),
-                    title: const Text('Подключиться как ванхун'),
-                    subtitle: const Text('Условия и старт'),
+                    leading: Icon(Icons.person_add_alt_1_outlined, color: AppTheme.textSecondary),
+                    title:
+                        Text('Подключиться как ванхун', style: TextStyle(color: AppTheme.textPrimary)),
+                    subtitle: Text('Условия и старт', style: TextStyle(color: AppTheme.textSecondary)),
                     onTap: () => context.push('/info/wanghong'),
                   ),
-                  const Divider(height: 1),
+                  Divider(height: 1, color: AppTheme.divider),
 
                   _sectionTitle('Сервис'),
                   ListTile(
-                    leading: const Icon(Icons.support_agent_outlined),
-                    title: const Text('Поддержка'),
+                    leading: Icon(Icons.support_agent_outlined, color: AppTheme.textSecondary),
+                    title: Text('Поддержка', style: TextStyle(color: AppTheme.textPrimary)),
                     onTap: () => _closeDrawer(context),
                   ),
                   ListTile(
-                    leading: const Icon(Icons.info_outline),
-                    title: const Text('О приложении'),
+                    leading: Icon(Icons.info_outline, color: AppTheme.textSecondary),
+                    title: Text('О приложении', style: TextStyle(color: AppTheme.textPrimary)),
                     onTap: () => _closeDrawer(context),
                   ),
-                  const Divider(height: 1),
+                  Divider(height: 1, color: AppTheme.divider),
 
                   _sectionTitle('Информация'),
                   ListTile(
-                    leading: const Icon(Icons.verified_outlined),
-                    title: const Text('Версия приложения'),
+                    leading: Icon(Icons.verified_outlined, color: AppTheme.textSecondary),
+                    title: Text('Версия приложения', style: TextStyle(color: AppTheme.textPrimary)),
                     subtitle: const _AppVersionSubtitle(),
                     onTap: () {},
                   ),
@@ -546,6 +555,6 @@ class _AppVersionSubtitleState extends State<_AppVersionSubtitle> {
 
   @override
   Widget build(BuildContext context) {
-    return Text(_text);
+    return Text(_text, style: TextStyle(color: AppTheme.textSecondary));
   }
 }
