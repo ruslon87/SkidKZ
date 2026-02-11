@@ -201,7 +201,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isLoading = authAsync.isLoading || userAsync.isLoading;
 
       final isLogin = location.startsWith('/login');
-      final isBuyerOnboarding = location.startsWith('/onboarding/buyer');
+
+      // ✅ обязательный онбординг (вне buyer shell)
+      final isBuyerOnboardingRequired = location.startsWith('/onboarding/buyer');
+
+      // ✅ редактирование профиля (внутри buyer shell)
+      final isBuyerOnboardingEdit = location.startsWith('/buyer/onboarding');
 
       if (isLoading) return null;
 
@@ -226,7 +231,8 @@ final routerProvider = Provider<GoRouter>((ref) {
         final buyerNeed = user.activeRole == UserRole.buyer &&
             user.buyerProfile.completed != true;
 
-        if (buyerNeed && !isBuyerOnboarding) {
+        // ✅ ВАЖНО: если человек сам открыл /buyer/onboarding — не перебрасываем на /onboarding/buyer
+        if (buyerNeed && !isBuyerOnboardingRequired && !isBuyerOnboardingEdit) {
           final next = Uri.encodeComponent('/buyer/home');
           return '/onboarding/buyer?next=$next';
         }
@@ -279,6 +285,7 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       /// -------------------------
       /// ONBOARDING (AUTH REQUIRED)
+      /// (обязательный первый раз)
       /// -------------------------
       GoRoute(
         path: '/onboarding/buyer',
@@ -326,6 +333,12 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/buyer/profile',
             builder: (context, state) => const BuyerProfileScreen(),
+          ),
+
+          // ✅ НОВОЕ: редактирование анкеты покупателя (внутри buyer shell)
+          GoRoute(
+            path: '/buyer/onboarding',
+            builder: (context, state) => const BuyerOnboardingScreen(),
           ),
         ],
       ),
