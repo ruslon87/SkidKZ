@@ -17,6 +17,7 @@ import 'package:skidkz/features/buyer/screens/buyer_catalog_screen.dart';
 import 'package:skidkz/features/buyer/screens/buyer_favorites_screen.dart';
 import 'package:skidkz/features/buyer/screens/buyer_cart_screen.dart';
 import 'package:skidkz/features/buyer/screens/buyer_profile_screen.dart';
+import 'package:skidkz/features/buyer/screens/buyer_orders_screen.dart';
 
 import 'package:skidkz/features/seller/screens/seller_shell.dart';
 import 'package:skidkz/features/seller/screens/seller_products_screen.dart';
@@ -54,9 +55,6 @@ final authStateChangesProvider = StreamProvider<fb.User?>((ref) {
 
 /// --------------------
 /// Ensure/Migrate user doc provider
-/// - creates users/{uid} if missing
-/// - migrates legacy role/activeRole -> roles[]
-/// - returns UserModel
 /// --------------------
 final currentUserDocProvider = FutureProvider<UserModel?>((ref) async {
   final fbUser = await ref.watch(authStateChangesProvider.future);
@@ -179,6 +177,11 @@ String _homeForRole(UserRole role) {
 
 bool _hasRole(UserModel u, UserRole r) => u.roles.contains(r);
 
+String _withNext(String base, String next) {
+  final enc = Uri.encodeComponent(next);
+  return '$base?next=$enc';
+}
+
 /// --------------------
 /// Router
 /// --------------------
@@ -201,53 +204,55 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isLoading = authAsync.isLoading || userAsync.isLoading;
 
       final isLogin = location.startsWith('/login');
-
-      // ✅ обязательный онбординг (вне buyer shell)
-      final isBuyerOnboardingRequired = location.startsWith('/onboarding/buyer');
-
-      // ✅ редактирование профиля (внутри buyer shell)
-      final isBuyerOnboardingEdit = location.startsWith('/buyer/onboarding');
+      final isBuyerOnboarding = location.startsWith('/onboarding/buyer');
 
       if (isLoading) return null;
 
-      // 1) Public buyer + info always ok
+      // 1) PUBLIC buyer + info always ok
       if (_isPublicArea(location)) {
+        // 🔒 Но некоторые buyer-разделы требуют авторизации (как Kaspi):
+        // избранное / корзина / мои заказы
+        final needAuth = location.startsWith('/buyer/favorites') ||
+            location.startsWith('/buyer/cart') ||
+            location.startsWith('/buyer/orders');
+
+        if (needAuth && fbUser == null) {
+          return _withNext('/login', location);
+        }
         return null;
       }
 
       // 2) Cabinet/auth areas
       if (_isCabinetArea(location)) {
-        // Not authed
         if (fbUser == null) {
           return isLogin ? null : '/login';
         }
 
-        // Authed but user doc not ready (rare race)
         if (user == null) {
           return null;
         }
 
-        // If activeRole == buyer and buyer profile not completed -> force onboarding
+        // buyer onboarding if needed
         final buyerNeed = user.activeRole == UserRole.buyer &&
             user.buyerProfile.completed != true;
 
-        // ✅ ВАЖНО: если человек сам открыл /buyer/onboarding — не перебрасываем на /onboarding/buyer
-        if (buyerNeed && !isBuyerOnboardingRequired && !isBuyerOnboardingEdit) {
+        if (buyerNeed && !isBuyerOnboarding) {
           final next = Uri.encodeComponent('/buyer/home');
           return '/onboarding/buyer?next=$next';
         }
 
         // login not needed when authed
         if (isLogin) {
-          return '/cabinet';
+          // если в /login пришли с next — login_screen уже сам уйдёт туда.
+          // но если next нет — ведём в /cabinet
+          return null;
         }
 
-        // /cabinet -> go to home by activeRole
         if (location == '/cabinet') {
           return _homeForRole(user.activeRole);
         }
 
-        // Block foreign zones by permissions (roles[])
+        // permissions
         if (location.startsWith('/seller') && !_hasRole(user, UserRole.seller)) {
           return _homeForRole(user.activeRole);
         }
@@ -285,7 +290,6 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       /// -------------------------
       /// ONBOARDING (AUTH REQUIRED)
-      /// (обязательный первый раз)
       /// -------------------------
       GoRoute(
         path: '/onboarding/buyer',
@@ -334,11 +338,9 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: '/buyer/profile',
             builder: (context, state) => const BuyerProfileScreen(),
           ),
-
-          // ✅ НОВОЕ: редактирование анкеты покупателя (внутри buyer shell)
           GoRoute(
-            path: '/buyer/onboarding',
-            builder: (context, state) => const BuyerOnboardingScreen(),
+            path: '/buyer/orders',
+            builder: (context, state) => const BuyerOrdersScreen(),
           ),
         ],
       ),
