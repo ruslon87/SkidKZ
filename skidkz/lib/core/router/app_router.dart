@@ -37,6 +37,8 @@ import 'package:skidkz/features/info/screens/wanghong_info_screen.dart';
 
 import 'package:skidkz/features/onboarding/screens/buyer_onboarding_screen.dart';
 
+import 'package:skidkz/core/widgets/app_back_handler.dart';
+
 /// --------------------
 /// Firebase singletons
 /// --------------------
@@ -191,6 +193,14 @@ final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: '/buyer/home',
     refreshListenable: refresh,
+
+    // ✅ ВАЖНО: BackHandler должен быть ВНУТРИ GoRouter, а не в MaterialApp.builder
+    navigatorBuilder: (context, state, child) {
+      return AppBackHandler(
+        router: GoRouter.of(context),
+        child: child,
+      );
+    },
 
     redirect: (context, state) {
       final location = state.uri.toString();
