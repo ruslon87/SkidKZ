@@ -8,7 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:skidkz/core/theme/app_theme.dart';
 
-/// Скоуп, чтобы дочерние экраны могли открыть Drawer (из SliverAppBar и т.д.)
+/// Скоуп, чтобы дочерние экраны могли открыть Drawer (из SliverAppBar и т.п.)
 class BuyerShellScope extends InheritedWidget {
   const BuyerShellScope({
     super.key,
@@ -88,7 +88,7 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
     final location = GoRouterState.of(context).uri.toString();
     final router = GoRouter.of(context);
 
-    // 0) Закрыть любой overlay (drawer/dialog/bottomsheet)
+    // 0) Закрыть overlay (drawer/dialog/bottomsheet)
     final rootNav = Navigator.of(context, rootNavigator: true);
     if (rootNav.canPop()) {
       rootNav.pop();
@@ -101,7 +101,7 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
       return false;
     }
 
-    // 2) Если не home — на home (Каталог/Избранное/Корзина/Профиль)
+    // 2) Если не home — на home
     if (!_isHomeLocation(location)) {
       context.go('/buyer/home');
       return false;
@@ -143,7 +143,18 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
             city: _city,
             onToggleCity: _toggleCity,
           ),
-          body: widget.child,
+
+          /// ✅ ВОТ ОНО: закреплённый верх + контент вкладки
+          body: Column(
+            children: [
+              _BuyerTopBar(
+                onMenu: _openDrawer,
+                city: _city,
+              ),
+              Expanded(child: widget.child),
+            ],
+          ),
+
           bottomNavigationBar: BottomNavigationBar(
             currentIndex: currentIndex,
             onTap: (i) => _goTab(context, i),
@@ -156,6 +167,64 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
               BottomNavigationBarItem(icon: Icon(Icons.favorite_border), label: 'Избранное'),
               BottomNavigationBarItem(icon: Icon(Icons.shopping_cart_outlined), label: 'Корзина'),
               BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'Профиль'),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BuyerTopBar extends StatelessWidget {
+  const _BuyerTopBar({
+    required this.onMenu,
+    required this.city,
+  });
+
+  final VoidCallback onMenu;
+  final String city;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppTheme.elevated,
+      child: SafeArea(
+        bottom: false,
+        child: Container(
+          height: 56,
+          padding: const EdgeInsets.symmetric(horizontal: 6),
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(color: AppTheme.divider, width: 1),
+            ),
+          ),
+          child: Row(
+            children: [
+              IconButton(
+                onPressed: onMenu,
+                icon: Icon(Icons.menu, color: AppTheme.textPrimary),
+                splashRadius: 22,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'SkidKZ',
+                style: TextStyle(
+                  color: AppTheme.textPrimary,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const Spacer(),
+              Icon(Icons.location_on_outlined, color: AppTheme.textSecondary, size: 18),
+              const SizedBox(width: 6),
+              Text(
+                city,
+                style: TextStyle(
+                  color: AppTheme.textSecondary,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(width: 10),
             ],
           ),
         ),
@@ -247,7 +316,6 @@ class BuyerDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // делаем “красивый” ripple как ты хочешь — через Theme (а не через ListTileThemeData.splashColor)
     final splash = Colors.white.withOpacity(0.08);
     final highlight = Colors.white.withOpacity(0.05);
 
@@ -270,19 +338,16 @@ class BuyerDrawer extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // HEADER
+                    // HEADER (с градиентом)
                     Container(
                       decoration: const BoxDecoration(
-                        // если хочешь точный градиент “как на скрине” — скажи,
-                        // какой именно (лево->право или диагональ и какие цвета).
-                        // Пока делаю аккуратный, НЕ неон.
                         gradient: LinearGradient(
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                           colors: [
-                            Color(0xFF202625), // elevated
-                            Color(0xFF1A1F1E), // surface
-                            Color(0xFF121817), // background
+                            Color(0xFF202625),
+                            Color(0xFF1A1F1E),
+                            Color(0xFF121817),
                           ],
                           stops: [0.0, 0.55, 1.0],
                         ),
@@ -301,7 +366,6 @@ class BuyerDrawer extends StatelessWidget {
                           ),
                           const SizedBox(height: 12),
 
-                          // карточка аккаунта
                           InkWell(
                             onTap: () {
                               _closeDrawer(context);
@@ -419,7 +483,7 @@ class BuyerDrawer extends StatelessWidget {
                                 ),
                               const Spacer(),
 
-                              // ✅ ГОРОД В DRAWER — ТОЛЬКО ДЛЯ ГОСТЯ (как ты просил убрать дубликат у авторизованного)
+                              // ✅ ГОРОД В DRAWER — ТОЛЬКО ДЛЯ ГОСТЯ (у авторизованного не дублируем)
                               if (!isAuthed)
                                 InkWell(
                                   onTap: onToggleCity,
@@ -474,7 +538,6 @@ class BuyerDrawer extends StatelessWidget {
                       title: Text('Мои заказы', style: TextStyle(color: AppTheme.textPrimary)),
                       onTap: () {
                         _closeDrawer(context);
-                        // роутер сам отрежет гостя и отправит в /login?next=
                         context.go('/buyer/orders');
                       },
                     ),
@@ -484,7 +547,8 @@ class BuyerDrawer extends StatelessWidget {
                     ListTile(
                       leading: Icon(Icons.store_mall_directory_outlined, color: AppTheme.textSecondary),
                       title: Text('Кабинет магазина', style: TextStyle(color: AppTheme.textPrimary)),
-                      subtitle: Text('Продажи, товары, заказы', style: TextStyle(color: AppTheme.textSecondary)),
+                      subtitle: Text('Продажи, товары, заказы',
+                          style: TextStyle(color: AppTheme.textSecondary)),
                       onTap: () {
                         _closeDrawer(context);
                         context.go('/cabinet');
@@ -493,7 +557,8 @@ class BuyerDrawer extends StatelessWidget {
                     ListTile(
                       leading: Icon(Icons.campaign_outlined, color: AppTheme.textSecondary),
                       title: Text('Кабинет ванхуна', style: TextStyle(color: AppTheme.textPrimary)),
-                      subtitle: Text('Заработать на промокодах', style: TextStyle(color: AppTheme.textSecondary)),
+                      subtitle: Text('Заработать на промокодах',
+                          style: TextStyle(color: AppTheme.textSecondary)),
                       onTap: () {
                         _closeDrawer(context);
                         context.go('/cabinet');
@@ -510,7 +575,8 @@ class BuyerDrawer extends StatelessWidget {
                     ),
                     ListTile(
                       leading: Icon(Icons.person_add_alt_1_outlined, color: AppTheme.textSecondary),
-                      title: Text('Подключиться как ванхун', style: TextStyle(color: AppTheme.textPrimary)),
+                      title: Text('Подключиться как ванхун',
+                          style: TextStyle(color: AppTheme.textPrimary)),
                       subtitle: Text('Условия и старт', style: TextStyle(color: AppTheme.textSecondary)),
                       onTap: () => context.push('/info/wanghong'),
                     ),
