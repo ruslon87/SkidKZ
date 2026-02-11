@@ -1,5 +1,3 @@
-// lib/core/router/app_router.dart
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/material.dart';
@@ -37,52 +35,34 @@ import 'package:skidkz/features/info/screens/wanghong_info_screen.dart';
 
 import 'package:skidkz/features/onboarding/screens/buyer_onboarding_screen.dart';
 
-import 'package:skidkz/core/widgets/app_back_handler.dart';
-
-/// --------------------
-/// Firebase singletons
-/// --------------------
 final firebaseAuthProvider =
     Provider<fb.FirebaseAuth>((ref) => fb.FirebaseAuth.instance);
 
 final firestoreProvider =
     Provider<FirebaseFirestore>((ref) => FirebaseFirestore.instance);
 
-/// --------------------
-/// Auth stream provider
-/// --------------------
 final authStateChangesProvider = StreamProvider<fb.User?>((ref) {
   return ref.watch(firebaseAuthProvider).authStateChanges();
 });
 
-/// --------------------
-/// Ensure/Migrate user doc provider
-/// --------------------
 final currentUserDocProvider = FutureProvider<UserModel?>((ref) async {
   final fbUser = await ref.watch(authStateChangesProvider.future);
   if (fbUser == null) return null;
 
   final db = ref.watch(firestoreProvider);
   final refDoc = db.collection('users').doc(fbUser.uid);
-
   final snap = await refDoc.get();
 
-  // Create if missing
   if (!snap.exists) {
-    final phone = (fbUser.phoneNumber ?? '').trim();
-
     await refDoc.set({
       'uid': fbUser.uid,
-      'phone': phone,
+      'phone': fbUser.phoneNumber ?? '',
       'roles': ['buyer'],
       'activeRole': 'buyer',
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
       'profiles': {
-        'buyer': {
-          'completed': false,
-          'city': 'Алматы',
-        },
+        'buyer': {'completed': false, 'city': 'Алматы'},
         'seller': {'completed': false},
         'wanghong': {'completed': false},
       },
@@ -92,50 +72,18 @@ final currentUserDocProvider = FutureProvider<UserModel?>((ref) async {
     return UserModel.fromFirestore(created.id, created.data() ?? {});
   }
 
-  final data = snap.data() ?? {};
-
-  // Migrate legacy fields to roles[]
-  final hasRoles = data['roles'] is List;
-  final legacyRole = data['role'];
-  final legacyActive = data['activeRole'];
-
-  if (!hasRoles && legacyRole is String && legacyRole.trim().isNotEmpty) {
-    final active = (legacyActive is String && legacyActive.trim().isNotEmpty)
-        ? legacyActive.trim()
-        : legacyRole.trim();
-
-    await refDoc.set({
-      'roles': [legacyRole.trim()],
-      'activeRole': active,
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
-
-    final migrated = await refDoc.get();
-    return UserModel.fromFirestore(migrated.id, migrated.data() ?? {});
-  }
-
-  return UserModel.fromFirestore(snap.id, data);
+  return UserModel.fromFirestore(snap.id, snap.data() ?? {});
 });
 
-/// --------------------
-/// Router refresh helper
-/// --------------------
 class _RouterRefreshNotifier extends ChangeNotifier {
   _RouterRefreshNotifier(this.ref) {
-    _subAuth = ref.listen<AsyncValue<fb.User?>>(
-      authStateChangesProvider,
-      (_, __) => notifyListeners(),
-    );
-
-    _subUser = ref.listen<AsyncValue<UserModel?>>(
-      currentUserDocProvider,
-      (_, __) => notifyListeners(),
-    );
+    _subAuth = ref.listen(authStateChangesProvider, (_, __) => notifyListeners());
+    _subUser = ref.listen(currentUserDocProvider, (_, __) => notifyListeners());
   }
 
   final Ref ref;
-  late final ProviderSubscription<AsyncValue<fb.User?>> _subAuth;
-  late final ProviderSubscription<AsyncValue<UserModel?>> _subUser;
+  late final ProviderSubscription _subAuth;
+  late final ProviderSubscription _subUser;
 
   @override
   void dispose() {
@@ -145,62 +93,12 @@ class _RouterRefreshNotifier extends ChangeNotifier {
   }
 }
 
-/// --------------------
-/// Helpers
-/// --------------------
-bool _isPublicArea(String location) {
-  return location == '/' ||
-      location.startsWith('/buyer') ||
-      location.startsWith('/info');
-}
-
-bool _isCabinetArea(String location) {
-  return location == '/cabinet' ||
-      location == '/login' ||
-      location == '/role-select' ||
-      location.startsWith('/seller') ||
-      location.startsWith('/wanghong') ||
-      location.startsWith('/admin') ||
-      location.startsWith('/onboarding');
-}
-
-String _homeForRole(UserRole role) {
-  switch (role) {
-    case UserRole.buyer:
-      return '/buyer/home';
-    case UserRole.wanghong:
-      return '/wanghong/home';
-    case UserRole.seller:
-      return '/seller/products';
-    case UserRole.admin:
-      return '/admin/moderation';
-  }
-}
-
-bool _hasRole(UserModel u, UserRole r) => u.roles.contains(r);
-
-String _withNext(String base, String next) {
-  final enc = Uri.encodeComponent(next);
-  return '$base?next=$enc';
-}
-
-/// --------------------
-/// Router
-/// --------------------
 final routerProvider = Provider<GoRouter>((ref) {
   final refresh = _RouterRefreshNotifier(ref);
 
   return GoRouter(
     initialLocation: '/buyer/home',
     refreshListenable: refresh,
-
-    // ✅ ВАЖНО: BackHandler должен быть ВНУТРИ GoRouter, а не в MaterialApp.builder
-    navigatorBuilder: (context, state, child) {
-      return AppBackHandler(
-        router: GoRouter.of(context),
-        child: child,
-      );
-    },
 
     redirect: (context, state) {
       final location = state.uri.toString();
@@ -211,120 +109,62 @@ final routerProvider = Provider<GoRouter>((ref) {
       final fbUser = authAsync.asData?.value;
       final user = userAsync.asData?.value;
 
-      final isLoading = authAsync.isLoading || userAsync.isLoading;
+      if (authAsync.isLoading || userAsync.isLoading) return null;
 
       final isLogin = location.startsWith('/login');
-      final isBuyerOnboarding = location.startsWith('/onboarding/buyer');
 
-      if (isLoading) return null;
-
-      // 1) PUBLIC buyer + info always ok
-      if (_isPublicArea(location)) {
-        // 🔒 Но некоторые buyer-разделы требуют авторизации (как Kaspi):
-        // избранное / корзина / мои заказы
-        final needAuth = location.startsWith('/buyer/favorites') ||
-            location.startsWith('/buyer/cart') ||
-            location.startsWith('/buyer/orders');
-
-        if (needAuth && fbUser == null) {
-          return _withNext('/login', location);
-        }
+      if (location.startsWith('/buyer') ||
+          location.startsWith('/info') ||
+          location == '/') {
         return null;
       }
 
-      // 2) Cabinet/auth areas
-      if (_isCabinetArea(location)) {
-        if (fbUser == null) {
-          return isLogin ? null : '/login';
-        }
+      if (fbUser == null) {
+        return isLogin ? null : '/login';
+      }
 
-        if (user == null) {
-          return null;
+      if (location == '/cabinet' && user != null) {
+        switch (user.activeRole) {
+          case UserRole.buyer:
+            return '/buyer/home';
+          case UserRole.seller:
+            return '/seller/products';
+          case UserRole.wanghong:
+            return '/wanghong/home';
+          case UserRole.admin:
+            return '/admin/moderation';
         }
-
-        // buyer onboarding if needed
-        final buyerNeed = user.activeRole == UserRole.buyer &&
-            user.buyerProfile.completed != true;
-
-        if (buyerNeed && !isBuyerOnboarding) {
-          final next = Uri.encodeComponent('/buyer/home');
-          return '/onboarding/buyer?next=$next';
-        }
-
-        // login not needed when authed
-        if (isLogin) {
-          // если в /login пришли с next — login_screen уже сам уйдёт туда.
-          // но если next нет — ведём в /cabinet
-          return null;
-        }
-
-        if (location == '/cabinet') {
-          return _homeForRole(user.activeRole);
-        }
-
-        // permissions
-        if (location.startsWith('/seller') && !_hasRole(user, UserRole.seller)) {
-          return _homeForRole(user.activeRole);
-        }
-        if (location.startsWith('/wanghong') &&
-            !_hasRole(user, UserRole.wanghong)) {
-          return _homeForRole(user.activeRole);
-        }
-        if (location.startsWith('/admin') && !_hasRole(user, UserRole.admin)) {
-          return _homeForRole(user.activeRole);
-        }
-
-        return null;
       }
 
       return null;
     },
 
-    errorBuilder: (context, state) => Scaffold(
-      appBar: AppBar(title: const Text('Ошибка')),
-      body: Center(child: Text(state.error.toString())),
-    ),
-
     routes: [
-      /// -------------------------
-      /// PUBLIC INFO
-      /// -------------------------
+      GoRoute(
+        path: '/login',
+        builder: (context, state) => const LoginScreen(),
+      ),
+
+      GoRoute(
+        path: '/role-select',
+        builder: (context, state) => const RoleSelectionScreen(),
+      ),
+
       GoRoute(
         path: '/info/seller',
         builder: (context, state) => const SellerInfoScreen(),
       ),
+
       GoRoute(
         path: '/info/wanghong',
         builder: (context, state) => const WanghongInfoScreen(),
       ),
 
-      /// -------------------------
-      /// ONBOARDING (AUTH REQUIRED)
-      /// -------------------------
       GoRoute(
         path: '/onboarding/buyer',
         builder: (context, state) => const BuyerOnboardingScreen(),
       ),
 
-      /// -------------------------
-      /// AUTH / CABINET ENTRY
-      /// -------------------------
-      GoRoute(
-        path: '/login',
-        builder: (context, state) => const LoginScreen(),
-      ),
-      GoRoute(
-        path: '/role-select',
-        builder: (context, state) => const RoleSelectionScreen(),
-      ),
-      GoRoute(
-        path: '/cabinet',
-        builder: (context, state) => const _CabinetResolverScreen(),
-      ),
-
-      /// -------------------------
-      /// BUYER (PUBLIC) SHELL
-      /// -------------------------
       ShellRoute(
         builder: (context, state, child) => BuyerRootShell(child: child),
         routes: [
@@ -355,9 +195,6 @@ final routerProvider = Provider<GoRouter>((ref) {
         ],
       ),
 
-      /// -------------------------
-      /// SELLER (AUTH REQUIRED)
-      /// -------------------------
       ShellRoute(
         builder: (context, state, child) => SellerShell(child: child),
         routes: [
@@ -376,9 +213,6 @@ final routerProvider = Provider<GoRouter>((ref) {
         ],
       ),
 
-      /// -------------------------
-      /// WANGHONG (AUTH REQUIRED)
-      /// -------------------------
       ShellRoute(
         builder: (context, state, child) => WanghongShell(child: child),
         routes: [
@@ -389,9 +223,6 @@ final routerProvider = Provider<GoRouter>((ref) {
         ],
       ),
 
-      /// -------------------------
-      /// ADMIN (AUTH REQUIRED)
-      /// -------------------------
       ShellRoute(
         builder: (context, state, child) => AdminShell(child: child),
         routes: [
@@ -412,49 +243,3 @@ final routerProvider = Provider<GoRouter>((ref) {
     ],
   );
 });
-
-/// --------------------
-/// Кабинет-резолвер (UX для пункта A)
-/// --------------------
-class _CabinetResolverScreen extends ConsumerWidget {
-  const _CabinetResolverScreen();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final authAsync = ref.watch(authStateChangesProvider);
-    final userAsync = ref.watch(currentUserDocProvider);
-
-    final fbUser = authAsync.asData?.value;
-
-    String text = 'Подготавливаем вход…';
-
-    if (authAsync.isLoading) {
-      text = 'Проверяем сессию…';
-    } else if (fbUser == null) {
-      text = 'Требуется вход…';
-    } else if (userAsync.isLoading) {
-      text = 'Создаём профиль…';
-    } else if (userAsync.hasError) {
-      text = 'Ошибка профиля: ${userAsync.error}';
-    } else {
-      text = 'Готово…';
-    }
-
-    return Scaffold(
-      appBar: AppBar(title: const Text('Вход')),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const CircularProgressIndicator(),
-              const SizedBox(height: 16),
-              Text(text, textAlign: TextAlign.center),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
