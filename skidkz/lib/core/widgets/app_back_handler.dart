@@ -21,51 +21,50 @@ class AppBackHandler extends StatefulWidget {
 class _AppBackHandlerState extends State<AppBackHandler> {
   DateTime? _lastBackPress;
 
+  String get _location =>
+      widget.router.routeInformationProvider.value.uri.toString();
+
+  NavigatorState? get _nav =>
+      widget.router.routerDelegate.navigatorKey.currentState;
+
   bool _isBuyerHome(String loc) =>
       loc == '/' || loc == '/buyer' || loc.startsWith('/buyer/home');
 
-  bool _isBuyerArea(String loc) => loc == '/' || loc.startsWith('/buyer');
+  bool _isBuyerArea(String loc) =>
+      loc == '/' || loc.startsWith('/buyer');
 
-  /// Текущий "location" берём из RouteInformationProvider — он есть всегда.
-  String _location() => widget.router.routeInformationProvider.value.uri.toString();
+  Future<bool> _handleBack() async {
+    final loc = _location;
+    final nav = _nav;
 
-  NavigatorState? _rootNav() => widget.router.routerDelegate.navigatorKey.currentState;
-
-  Future<bool> _onBackPressed() async {
-    final router = widget.router;
-    final loc = _location();
-
-    // 0) Если есть что закрыть в root Navigator (dialog/bottomsheet и т.п.) — закрыть
-    final rootNav = _rootNav();
-    if (rootNav != null && rootNav.canPop()) {
-      rootNav.pop();
+    if (nav == null) {
+      SystemNavigator.pop();
       return true;
     }
 
-    // 1) Если go_router может pop — pop
-    if (router.canPop()) {
-      router.pop();
+    // 1) Если есть вложенный pop (детальный экран, диалог и т.п.)
+    if (nav.canPop()) {
+      nav.pop();
       return true;
     }
 
-    // 2) Логин без стека — назад НЕ закрывает приложение
+    // 2) Логин без стека
     if (loc.startsWith('/login')) {
-      router.go('/buyer/home');
+      widget.router.go('/buyer/home');
       return true;
     }
 
-    // 3) В buyer-зоне, но не на "Магазин" — назад ведёт на "Магазин"
+    // 3) Buyer, но не home → назад на home
     if (_isBuyerArea(loc) && !_isBuyerHome(loc)) {
-      router.go('/buyer/home');
+      widget.router.go('/buyer/home');
       return true;
     }
 
-    // 4) На "Магазин" — двойной back = выход
+    // 4) Home → двойной выход
     if (_isBuyerHome(loc)) {
       final now = DateTime.now();
-      final last = _lastBackPress;
-
-      if (last == null || now.difference(last) > const Duration(seconds: 2)) {
+      if (_lastBackPress == null ||
+          now.difference(_lastBackPress!) > const Duration(seconds: 2)) {
         _lastBackPress = now;
 
         final messenger = ScaffoldMessenger.maybeOf(context);
@@ -85,16 +84,15 @@ class _AppBackHandlerState extends State<AppBackHandler> {
       return true;
     }
 
-    // 5) Фолбэк — закрыть
+    // 5) Фолбэк
     SystemNavigator.pop();
     return true;
   }
 
   @override
   Widget build(BuildContext context) {
-    // BackButtonListener ловит системный Back глобально
     return BackButtonListener(
-      onBackButtonPressed: _onBackPressed,
+      onBackButtonPressed: _handleBack,
       child: widget.child,
     );
   }
