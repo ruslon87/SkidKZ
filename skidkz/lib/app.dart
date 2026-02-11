@@ -21,10 +21,9 @@ class SkidKZApp extends ConsumerWidget {
       theme: AppTheme.darkTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.dark,
-
       routerConfig: router,
 
-      // ✅ ГЛАВНОЕ: глобальный перехват системной кнопки Back
+      // ✅ ГЛОБАЛЬНЫЙ перехват Back для всех экранов
       builder: (context, child) {
         return AppBackHandler(
           child: child ?? const SizedBox.shrink(),
