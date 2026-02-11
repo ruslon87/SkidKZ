@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
+import 'core/widgets/app_back_handler.dart';
 
 class SkidKZApp extends ConsumerWidget {
   const SkidKZApp({super.key});
@@ -17,12 +18,18 @@ class SkidKZApp extends ConsumerWidget {
     return MaterialApp.router(
       title: 'SkidKZ',
       debugShowCheckedModeBanner: false,
-
       theme: AppTheme.darkTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.dark,
 
       routerConfig: router,
+
+      // ✅ ГЛАВНОЕ: глобальный перехват системной кнопки Back
+      builder: (context, child) {
+        return AppBackHandler(
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
     );
   }
 }
