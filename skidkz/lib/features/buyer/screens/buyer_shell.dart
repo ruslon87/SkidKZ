@@ -4,11 +4,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:geolocator/geolocator.dart';
-import 'package:geocoding/geocoding.dart';
-
 import 'package:skidkz/core/theme/app_theme.dart';
 
 /// Скоуп, чтобы дочерние экраны могли открыть Drawer (из SliverAppBar и т.п.)
@@ -22,7 +21,8 @@ class BuyerShellScope extends InheritedWidget {
   final VoidCallback openDrawer;
 
   static BuyerShellScope of(BuildContext context) {
-    final scope = context.dependOnheritedWidgetOfExactType<BuyerShellScope>();
+    final scope =
+        context.dependOnInheritedWidgetOfExactType<BuyerShellScope>();
     assert(scope != null, 'BuyerShellScope not found in widget tree');
     return scope!;
   }
@@ -44,14 +44,13 @@ class BuyerRootShell extends StatefulWidget {
 class _BuyerRootShellState extends State<BuyerRootShell> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
-  String _city = 'Определяем…';
+  String _city = 'Определяем...';
   DateTime? _lastBackPress;
-  bool _detectingCity = false;
 
   @override
   void initState() {
     super.initState();
-    _detectCity(); // ✅ при старте
+    _detectCity(); // при запуске
   }
 
   int _locationToIndex(String location) {
@@ -59,10 +58,11 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
     if (location.startsWith('/buyer/favorites')) return 2;
     if (location.startsWith('/buyer/cart')) return 3;
     if (location.startsWith('/buyer/profile')) return 4;
-    return 0; // /buyer/home
+    return 0; // home
   }
 
   bool _isHomeLocation(String location) {
+    // “Магазин”
     return location == '/' || location.startsWith('/buyer/home');
   }
 
@@ -88,79 +88,92 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
 
   void _openDrawer() => _scaffoldKey.currentState?.openDrawer();
 
-  /// ✅ Гео: определить город при старте и по тапу на город.
   Future<void> _detectCity() async {
-    if (_detectingCity) return;
-    setState(() => _detectingCity = true);
-
     try {
-      var permission = await Geolocator.checkPermission();
+      // 1) сервис
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        if (!mounted) return;
+        setState(() => _city = 'Геолокация выкл.');
+        return;
+      }
 
+      // 2) разрешения
+      var permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
       }
 
-      if (permission == LocationPermission.denied ||
-          permission == LocationPermission.deniedForever) {
-        if (mounted) setState(() => _city = 'Геолокация откл.');
+      if (permission == LocationPermission.denied) {
+        if (!mounted) return;
+        setState(() => _city = 'Геолокация откл.');
         return;
       }
 
-      // На телефоне бывает подвисание — лучше дать таймаут
+      if (permission == LocationPermission.deniedForever) {
+        if (!mounted) return;
+        setState(() => _city = 'Геолокация запрещена');
+        return;
+      }
+
+      if (!mounted) return;
+      setState(() => _city = 'Определяем...');
+
+      // 3) позиция
       final position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
-      ).timeout(const Duration(seconds: 12));
+      );
 
+      // 4) геокодинг
       final placemarks = await placemarkFromCoordinates(
         position.latitude,
         position.longitude,
-      ).timeout(const Duration(seconds: 12));
+      );
 
+      String city = 'Неизвестно';
       if (placemarks.isNotEmpty) {
         final p = placemarks.first;
-        final city = (p.locality ?? p.subAdministrativeArea ?? p.administrativeArea ?? '').trim();
-        if (mounted) setState(() => _city = city.isEmpty ? 'Неизвестно' : city);
-      } else {
-        if (mounted) setState(() => _city = 'Неизвестно');
+        city = (p.locality ?? '').trim();
+        if (city.isEmpty) city = (p.subAdministrativeArea ?? '').trim();
+        if (city.isEmpty) city = (p.administrativeArea ?? '').trim();
+        if (city.isEmpty) city = 'Неизвестно';
       }
+
+      if (!mounted) return;
+      setState(() => _city = city);
     } catch (_) {
-      if (mounted) setState(() => _city = 'Ошибка');
-    } finally {
-      if (mounted) setState(() => _detectingCity = false);
+      if (!mounted) return;
+      setState(() => _city = 'Ошибка');
     }
   }
 
-  /// ✅ Back-логика как ты просил:
-  /// - закрыть overlay
-  /// - если вкладка не 0 -> на home
-  /// - если home -> double back exit
   Future<bool> _onWillPop() async {
     final location = GoRouterState.of(context).uri.toString();
     final router = GoRouter.of(context);
 
-    // 0) Закрыть любой overlay (drawer/dialog/bottomsheet)
+    // 0) Закрыть overlay (drawer/dialog/bottomsheet)
     final rootNav = Navigator.of(context, rootNavigator: true);
     if (rootNav.canPop()) {
       rootNav.pop();
       return false;
     }
 
-    // 1) Если есть что pop в роутере — pop
+    // 1) Если есть что pop в роутере — pop (важно для под-страниц)
     if (router.canPop()) {
       router.pop();
       return false;
     }
 
-    // 2) Если не home вкладка — на home
-    final tabIndex = _locationToIndex(location);
-    if (tabIndex != 0 || !_isHomeLocation(location)) {
+    // 2) Если не “Магазин” — на “Магазин”
+    if (!_isHomeLocation(location)) {
       context.go('/buyer/home');
       return false;
     }
 
-    // 3) На home — двойной Back = выход
+    // 3) На “Магазин” — двойной Back = выход
     final now = DateTime.now();
     final last = _lastBackPress;
+
     if (last == null || now.difference(last) > const Duration(seconds: 2)) {
       _lastBackPress = now;
       ScaffoldMessenger.of(context)
@@ -191,16 +204,16 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
           key: _scaffoldKey,
           drawer: BuyerDrawer(
             city: _city,
-            onCityTap: _detectCity, // ✅ обновить город по гео из Drawer (только гостю)
+            onCityTap: _detectCity, // обновление по нажатию
           ),
 
-          /// ✅ закреплённый верх + контент вкладки
+          // ✅ закреплённый верх + контент вкладки
           body: Column(
             children: [
               _BuyerTopBar(
                 onMenu: _openDrawer,
                 city: _city,
-                onCityTap: _detectCity, // ✅ обновить город по гео из topbar
+                onCityTap: _detectCity, // обновление по нажатию
               ),
               Expanded(child: widget.child),
             ],
@@ -272,10 +285,11 @@ class _BuyerTopBar extends StatelessWidget {
                 onTap: onCityTap,
                 borderRadius: BorderRadius.circular(12),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
                   child: Row(
                     children: [
-                      Icon(Icons.location_on_outlined, color: AppTheme.textSecondary, size: 18),
+                      Icon(Icons.location_on_outlined,
+                          color: AppTheme.textSecondary, size: 18),
                       const SizedBox(width: 6),
                       Text(
                         city,
@@ -380,7 +394,7 @@ class BuyerDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // ✅ эффект “белой подсветки” как в bottom nav — через Theme (Ink работает)
+    // подсветка как в bottom nav (белая, мягкая)
     final splash = Colors.white.withOpacity(0.08);
     final highlight = Colors.white.withOpacity(0.05);
 
@@ -403,7 +417,7 @@ class BuyerDrawer extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // ✅ HEADER с градиентом (как ты отмечал)
+                    // HEADER (градиент как ты просил)
                     Container(
                       decoration: const BoxDecoration(
                         gradient: LinearGradient(
@@ -521,7 +535,7 @@ class BuyerDrawer extends StatelessWidget {
 
                           const SizedBox(height: 10),
 
-                          // нижняя строка: роль + город (только гостю) + выйти
+                          // роль + город (город только для гостя, чтобы не дублировать)
                           Row(
                             children: [
                               if (!isAuthed)
@@ -550,10 +564,9 @@ class BuyerDrawer extends StatelessWidget {
                                 ),
                               const Spacer(),
 
-                              // ✅ город в Drawer только для гостя (не дублируем авторизованному)
                               if (!isAuthed)
                                 InkWell(
-                                  onTap: onCityTap, // ✅ обновить реальную локацию
+                                  onTap: onCityTap, // обновить по реальной гео
                                   borderRadius: BorderRadius.circular(12),
                                   child: Padding(
                                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
@@ -605,8 +618,7 @@ class BuyerDrawer extends StatelessWidget {
                       title: Text('Мои заказы', style: TextStyle(color: AppTheme.textPrimary)),
                       onTap: () {
                         _closeDrawer(context);
-                        // ✅ чтобы не падало: у тебя нет /buyer/orders — пока ведём в профиль
-                        context.go('/buyer/profile');
+                        context.go('/buyer/orders');
                       },
                     ),
                     Divider(height: 1, color: AppTheme.divider),
@@ -639,19 +651,14 @@ class BuyerDrawer extends StatelessWidget {
                       leading: Icon(Icons.add_business_outlined, color: AppTheme.textSecondary),
                       title: Text('Открыть магазин', style: TextStyle(color: AppTheme.textPrimary)),
                       subtitle: Text('Как это работает', style: TextStyle(color: AppTheme.textSecondary)),
-                      onTap: () {
-                        _closeDrawer(context);
-                        context.push('/info/seller');
-                      },
+                      onTap: () => context.push('/info/seller'),
                     ),
                     ListTile(
                       leading: Icon(Icons.person_add_alt_1_outlined, color: AppTheme.textSecondary),
-                      title: Text('Подключиться как ванхун', style: TextStyle(color: AppTheme.textPrimary)),
+                      title: Text('Подключиться как ванхун',
+                          style: TextStyle(color: AppTheme.textPrimary)),
                       subtitle: Text('Условия и старт', style: TextStyle(color: AppTheme.textSecondary)),
-                      onTap: () {
-                        _closeDrawer(context);
-                        context.push('/info/wanghong');
-                      },
+                      onTap: () => context.push('/info/wanghong'),
                     ),
                     Divider(height: 1, color: AppTheme.divider),
 
@@ -700,8 +707,10 @@ class _AppVersionSubtitleState extends State<_AppVersionSubtitle> {
   Future<void> _load() async {
     try {
       final info = await PackageInfo.fromPlatform();
+      if (!mounted) return;
       setState(() => _text = '${info.version} (${info.buildNumber})');
     } catch (_) {
+      if (!mounted) return;
       setState(() => _text = '-');
     }
   }
