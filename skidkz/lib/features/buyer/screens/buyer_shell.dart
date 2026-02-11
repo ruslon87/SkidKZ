@@ -1,14 +1,10 @@
-// lib/features/buyer/screens/buyer_shell.dart
-
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
-import 'package:package_info_plus/package_info_plus.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
 import 'package:skidkz/core/theme/app_theme.dart';
 
-/// Скоуп, чтобы дочерние экраны могли открыть Drawer (из SliverAppBar и т.п.)
 class BuyerShellScope extends InheritedWidget {
   const BuyerShellScope({
     super.key,
@@ -19,15 +15,14 @@ class BuyerShellScope extends InheritedWidget {
   final VoidCallback openDrawer;
 
   static BuyerShellScope of(BuildContext context) {
-    final scope = context.dependOnInheritedWidgetOfExactType<BuyerShellScope>();
-    assert(scope != null, 'BuyerShellScope not found in widget tree');
+    final scope =
+        context.dependOnInheritedWidgetOfExactType<BuyerShellScope>();
     return scope!;
   }
 
   @override
-  bool updateShouldNotify(covariant BuyerShellScope oldWidget) {
-    return oldWidget.openDrawer != openDrawer;
-  }
+  bool updateShouldNotify(covariant BuyerShellScope oldWidget) =>
+      oldWidget.openDrawer != openDrawer;
 }
 
 class BuyerRootShell extends StatefulWidget {
@@ -39,27 +34,76 @@ class BuyerRootShell extends StatefulWidget {
 }
 
 class _BuyerRootShellState extends State<BuyerRootShell> {
-  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  final GlobalKey<ScaffoldState> _scaffoldKey =
+      GlobalKey<ScaffoldState>();
 
-  String _city = 'Алматы';
+  String _city = 'Определяем...';
   DateTime? _lastBackPress;
+
+  @override
+  void initState() {
+    super.initState();
+    _detectCity();
+  }
+
+  Future<void> _detectCity() async {
+    try {
+      if (!mounted) return;
+
+      bool serviceEnabled =
+          await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        setState(() => _city = 'Геолокация выкл.');
+        return;
+      }
+
+      LocationPermission permission =
+          await Geolocator.checkPermission();
+
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        setState(() => _city = 'Нет доступа');
+        return;
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 10),
+      );
+
+      final placemarks = await placemarkFromCoordinates(
+        position.latitude,
+        position.longitude,
+      );
+
+      if (!mounted) return;
+
+      if (placemarks.isNotEmpty) {
+        final p = placemarks.first;
+        final city =
+            p.locality ??
+            p.subAdministrativeArea ??
+            p.administrativeArea ??
+            'Неизвестно';
+
+        setState(() => _city = city);
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _city = 'Ошибка');
+    }
+  }
 
   int _locationToIndex(String location) {
     if (location.startsWith('/buyer/catalog')) return 1;
     if (location.startsWith('/buyer/favorites')) return 2;
     if (location.startsWith('/buyer/cart')) return 3;
     if (location.startsWith('/buyer/profile')) return 4;
-    return 0; // home
-  }
-
-  bool _isHomeLocation(String location) {
-    return location == '/' || location.startsWith('/buyer/home');
-  }
-
-  void _toggleCity() {
-    setState(() {
-      _city = _city == 'Алматы' ? 'Астана' : 'Алматы';
-    });
+    return 0;
   }
 
   void _goTab(BuildContext context, int index) {
@@ -82,42 +126,37 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
     }
   }
 
-  void _openDrawer() => _scaffoldKey.currentState?.openDrawer();
-
   Future<bool> _onWillPop() async {
     final location = GoRouterState.of(context).uri.toString();
-    final router = GoRouter.of(context);
+    final currentIndex = _locationToIndex(location);
 
-    // 0) Закрыть overlay (drawer/dialog/bottomsheet)
-    final rootNav = Navigator.of(context, rootNavigator: true);
+    final rootNav =
+        Navigator.of(context, rootNavigator: true);
+
+    // Закрываем drawer/dialog
     if (rootNav.canPop()) {
       rootNav.pop();
       return false;
     }
 
-    // 1) Если есть что pop в роутере — pop
-    if (router.canPop()) {
-      router.pop();
-      return false;
-    }
-
-    // 2) Если не home — на home
-    if (!_isHomeLocation(location)) {
+    // Если не на Магазине → перейти на Магазин
+    if (currentIndex != 0) {
       context.go('/buyer/home');
       return false;
     }
 
-    // 3) На home — двойной Back = выход
+    // Двойной Back для выхода
     final now = DateTime.now();
-    final last = _lastBackPress;
-
-    if (last == null || now.difference(last) > const Duration(seconds: 2)) {
+    if (_lastBackPress == null ||
+        now.difference(_lastBackPress!) >
+            const Duration(seconds: 2)) {
       _lastBackPress = now;
       ScaffoldMessenger.of(context)
         ..clearSnackBars()
         ..showSnackBar(
           const SnackBar(
-            content: Text('Нажмите ещё раз, чтобы выйти'),
+            content: Text(
+                'Нажмите ещё раз, чтобы выйти'),
             duration: Duration(seconds: 2),
           ),
         );
@@ -136,37 +175,46 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
     return WillPopScope(
       onWillPop: _onWillPop,
       child: BuyerShellScope(
-        openDrawer: _openDrawer,
+        openDrawer: () =>
+            _scaffoldKey.currentState?.openDrawer(),
         child: Scaffold(
           key: _scaffoldKey,
-          drawer: BuyerDrawer(
-            city: _city,
-            onToggleCity: _toggleCity,
-          ),
-
-          /// ✅ ВОТ ОНО: закреплённый верх + контент вкладки
+          drawer: const BuyerDrawer(),
           body: Column(
             children: [
               _BuyerTopBar(
-                onMenu: _openDrawer,
                 city: _city,
+                onMenu: () =>
+                    _scaffoldKey.currentState?.openDrawer(),
+                onCityTap: _detectCity,
               ),
               Expanded(child: widget.child),
             ],
           ),
-
           bottomNavigationBar: BottomNavigationBar(
             currentIndex: currentIndex,
             onTap: (i) => _goTab(context, i),
             type: BottomNavigationBarType.fixed,
             selectedItemColor: AppTheme.primary,
-            unselectedItemColor: AppTheme.textDisabled,
+            unselectedItemColor:
+                AppTheme.textDisabled,
             items: const [
-              BottomNavigationBarItem(icon: Icon(Icons.store), label: 'Магазин'),
-              BottomNavigationBarItem(icon: Icon(Icons.grid_view), label: 'Каталог'),
-              BottomNavigationBarItem(icon: Icon(Icons.favorite_border), label: 'Избранное'),
-              BottomNavigationBarItem(icon: Icon(Icons.shopping_cart_outlined), label: 'Корзина'),
-              BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'Профиль'),
+              BottomNavigationBarItem(
+                  icon: Icon(Icons.store),
+                  label: 'Магазин'),
+              BottomNavigationBarItem(
+                  icon: Icon(Icons.grid_view),
+                  label: 'Каталог'),
+              BottomNavigationBarItem(
+                  icon: Icon(Icons.favorite_border),
+                  label: 'Избранное'),
+              BottomNavigationBarItem(
+                  icon:
+                      Icon(Icons.shopping_cart_outlined),
+                  label: 'Корзина'),
+              BottomNavigationBarItem(
+                  icon: Icon(Icons.person_outline),
+                  label: 'Профиль'),
             ],
           ),
         ),
@@ -176,13 +224,15 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
 }
 
 class _BuyerTopBar extends StatelessWidget {
-  const _BuyerTopBar({
-    required this.onMenu,
-    required this.city,
-  });
-
-  final VoidCallback onMenu;
   final String city;
+  final VoidCallback onMenu;
+  final VoidCallback onCityTap;
+
+  const _BuyerTopBar({
+    required this.city,
+    required this.onMenu,
+    required this.onCityTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -192,18 +242,21 @@ class _BuyerTopBar extends StatelessWidget {
         bottom: false,
         child: Container(
           height: 56,
-          padding: const EdgeInsets.symmetric(horizontal: 6),
+          padding:
+              const EdgeInsets.symmetric(horizontal: 6),
           decoration: BoxDecoration(
             border: Border(
-              bottom: BorderSide(color: AppTheme.divider, width: 1),
+              bottom: BorderSide(
+                  color: AppTheme.divider),
             ),
           ),
           child: Row(
             children: [
               IconButton(
                 onPressed: onMenu,
-                icon: Icon(Icons.menu, color: AppTheme.textPrimary),
-                splashRadius: 22,
+                icon: Icon(Icons.menu,
+                    color:
+                        AppTheme.textPrimary),
               ),
               const SizedBox(width: 6),
               Text(
@@ -211,17 +264,31 @@ class _BuyerTopBar extends StatelessWidget {
                 style: TextStyle(
                   color: AppTheme.textPrimary,
                   fontSize: 18,
-                  fontWeight: FontWeight.w800,
+                  fontWeight:
+                      FontWeight.w800,
                 ),
               ),
               const Spacer(),
-              Icon(Icons.location_on_outlined, color: AppTheme.textSecondary, size: 18),
-              const SizedBox(width: 6),
-              Text(
-                city,
-                style: TextStyle(
-                  color: AppTheme.textSecondary,
-                  fontWeight: FontWeight.w700,
+              GestureDetector(
+                onTap: onCityTap,
+                child: Row(
+                  children: [
+                    Icon(
+                        Icons.location_on_outlined,
+                        color: AppTheme
+                            .textSecondary,
+                        size: 18),
+                    const SizedBox(width: 6),
+                    Text(
+                      city,
+                      style: TextStyle(
+                        color: AppTheme
+                            .textSecondary,
+                        fontWeight:
+                            FontWeight.w700,
+                      ),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(width: 10),
@@ -234,407 +301,29 @@ class _BuyerTopBar extends StatelessWidget {
 }
 
 class BuyerDrawer extends StatelessWidget {
-  const BuyerDrawer({
-    super.key,
-    required this.city,
-    required this.onToggleCity,
-  });
-
-  final String city;
-  final VoidCallback onToggleCity;
-
-  Widget _sectionTitle(String text) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: 12,
-          color: AppTheme.textDisabled,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    );
-  }
-
-  void _closeDrawer(BuildContext context) {
-    final rootNav = Navigator.of(context, rootNavigator: true);
-    if (rootNav.canPop()) rootNav.pop();
-  }
-
-  String _subtitle(fb.User u) {
-    final email = (u.email ?? '').trim();
-    final phone = (u.phoneNumber ?? '').trim();
-    if (phone.isNotEmpty && email.isNotEmpty) return '$phone • $email';
-    if (phone.isNotEmpty) return phone;
-    if (email.isNotEmpty) return email;
-    return 'Аккаунт SkidKZ';
-  }
-
-  String _roleLabelFromActiveRole(String? activeRole) {
-    switch ((activeRole ?? 'buyer').toLowerCase()) {
-      case 'admin':
-        return 'Админ';
-      case 'seller':
-        return 'Продавец';
-      case 'wanghong':
-        return 'Ванхун';
-      default:
-        return 'Покупатель';
-    }
-  }
-
-  Stream<String?> _activeRoleStream(String uid) {
-    return FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .snapshots()
-        .map((doc) => doc.data()?['activeRole'] as String?);
-  }
-
-  Stream<String?> _buyerFullNameStream(String uid) {
-    return FirebaseFirestore.instance.collection('users').doc(uid).snapshots().map((doc) {
-      final data = doc.data();
-      if (data == null) return null;
-      final profiles = data['profiles'];
-      if (profiles is! Map) return null;
-      final buyer = profiles['buyer'];
-      if (buyer is! Map) return null;
-      final fullName = buyer['fullName'];
-      if (fullName is String && fullName.trim().isNotEmpty) return fullName.trim();
-      return null;
-    });
-  }
-
-  Future<void> _signOutAndClose(BuildContext context) async {
-    try {
-      await fb.FirebaseAuth.instance.signOut();
-    } catch (_) {}
-    _closeDrawer(context);
-    context.go('/buyer/home');
-  }
+  const BuyerDrawer({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final splash = Colors.white.withOpacity(0.08);
-    final highlight = Colors.white.withOpacity(0.05);
-
     return Drawer(
       backgroundColor: AppTheme.background,
-      child: Theme(
-        data: Theme.of(context).copyWith(
-          splashColor: splash,
-          highlightColor: highlight,
-          dividerColor: AppTheme.divider,
-        ),
-        child: StreamBuilder<fb.User?>(
-          stream: fb.FirebaseAuth.instance.authStateChanges(),
-          builder: (context, snap) {
-            final user = snap.data;
-            final isAuthed = user != null;
-
-            return SafeArea(
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // HEADER (с градиентом)
-                    Container(
-                      decoration: const BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            Color(0xFF202625),
-                            Color(0xFF1A1F1E),
-                            Color(0xFF121817),
-                          ],
-                          stops: [0.0, 0.55, 1.0],
-                        ),
-                      ),
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'SkidKZ',
-                            style: TextStyle(
-                              color: AppTheme.textPrimary,
-                              fontSize: 20,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-
-                          InkWell(
-                            onTap: () {
-                              _closeDrawer(context);
-                              if (isAuthed) {
-                                context.go('/buyer/profile');
-                              } else {
-                                context.go('/login');
-                              }
-                            },
-                            borderRadius: BorderRadius.circular(14),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                              decoration: BoxDecoration(
-                                color: AppTheme.surface,
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(color: AppTheme.divider),
-                              ),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    width: 38,
-                                    height: 38,
-                                    decoration: BoxDecoration(
-                                      color: AppTheme.elevated,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    alignment: Alignment.center,
-                                    child: Icon(
-                                      isAuthed ? Icons.person : Icons.person_outline,
-                                      color: AppTheme.textPrimary,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        if (!isAuthed)
-                                          Text(
-                                            'Войти / Регистрация',
-                                            style: TextStyle(
-                                              color: AppTheme.textPrimary,
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.w900,
-                                            ),
-                                          )
-                                        else
-                                          StreamBuilder<String?>(
-                                            stream: _buyerFullNameStream(user!.uid),
-                                            builder: (context, nameSnap) {
-                                              final name = nameSnap.data;
-                                              final fallback =
-                                                  (user.phoneNumber ?? '').trim().isNotEmpty
-                                                      ? (user.phoneNumber ?? '').trim()
-                                                      : 'Пользователь';
-                                              return Text(
-                                                name ?? fallback,
-                                                style: TextStyle(
-                                                  color: AppTheme.textPrimary,
-                                                  fontSize: 16,
-                                                  fontWeight: FontWeight.w900,
-                                                ),
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                              );
-                                            },
-                                          ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          isAuthed ? _subtitle(user!) : 'Заказы, избранное, бонусы',
-                                          style: TextStyle(
-                                            color: AppTheme.textSecondary,
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  Icon(Icons.chevron_right, color: AppTheme.textSecondary),
-                                ],
-                              ),
-                            ),
-                          ),
-
-                          const SizedBox(height: 10),
-
-                          Row(
-                            children: [
-                              if (!isAuthed)
-                                Text(
-                                  'Гость',
-                                  style: TextStyle(
-                                    color: AppTheme.textSecondary,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                )
-                              else
-                                StreamBuilder<String?>(
-                                  stream: _activeRoleStream(user!.uid),
-                                  builder: (context, roleSnap) {
-                                    final role = _roleLabelFromActiveRole(roleSnap.data);
-                                    return Text(
-                                      role,
-                                      style: TextStyle(
-                                        color: AppTheme.textSecondary,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    );
-                                  },
-                                ),
-                              const Spacer(),
-
-                              // ✅ ГОРОД В DRAWER — ТОЛЬКО ДЛЯ ГОСТЯ (у авторизованного не дублируем)
-                              if (!isAuthed)
-                                InkWell(
-                                  onTap: onToggleCity,
-                                  borderRadius: BorderRadius.circular(12),
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                                    child: Row(
-                                      children: [
-                                        Icon(Icons.location_on_outlined,
-                                            color: AppTheme.textSecondary, size: 18),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          city,
-                                          style: TextStyle(
-                                            color: AppTheme.textPrimary,
-                                            fontWeight: FontWeight.w800,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-
-                              if (isAuthed) ...[
-                                const SizedBox(width: 8),
-                                TextButton(
-                                  onPressed: () => _signOutAndClose(context),
-                                  style: TextButton.styleFrom(
-                                    foregroundColor: AppTheme.primary,
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                    minimumSize: Size.zero,
-                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                  ),
-                                  child: const Text(
-                                    'Выйти',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                      decoration: TextDecoration.underline,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    _sectionTitle('Аккаунт'),
-                    ListTile(
-                      leading: Icon(Icons.receipt_long_outlined, color: AppTheme.textSecondary),
-                      title: Text('Мои заказы', style: TextStyle(color: AppTheme.textPrimary)),
-                      onTap: () {
-                        _closeDrawer(context);
-                        context.go('/buyer/orders');
-                      },
-                    ),
-                    Divider(height: 1, color: AppTheme.divider),
-
-                    _sectionTitle('Кабинеты'),
-                    ListTile(
-                      leading: Icon(Icons.store_mall_directory_outlined, color: AppTheme.textSecondary),
-                      title: Text('Кабинет магазина', style: TextStyle(color: AppTheme.textPrimary)),
-                      subtitle: Text('Продажи, товары, заказы',
-                          style: TextStyle(color: AppTheme.textSecondary)),
-                      onTap: () {
-                        _closeDrawer(context);
-                        context.go('/cabinet');
-                      },
-                    ),
-                    ListTile(
-                      leading: Icon(Icons.campaign_outlined, color: AppTheme.textSecondary),
-                      title: Text('Кабинет ванхуна', style: TextStyle(color: AppTheme.textPrimary)),
-                      subtitle: Text('Заработать на промокодах',
-                          style: TextStyle(color: AppTheme.textSecondary)),
-                      onTap: () {
-                        _closeDrawer(context);
-                        context.go('/cabinet');
-                      },
-                    ),
-                    Divider(height: 1, color: AppTheme.divider),
-
-                    _sectionTitle('Для бизнеса'),
-                    ListTile(
-                      leading: Icon(Icons.add_business_outlined, color: AppTheme.textSecondary),
-                      title: Text('Открыть магазин', style: TextStyle(color: AppTheme.textPrimary)),
-                      subtitle: Text('Как это работает', style: TextStyle(color: AppTheme.textSecondary)),
-                      onTap: () => context.push('/info/seller'),
-                    ),
-                    ListTile(
-                      leading: Icon(Icons.person_add_alt_1_outlined, color: AppTheme.textSecondary),
-                      title: Text('Подключиться как ванхун',
-                          style: TextStyle(color: AppTheme.textPrimary)),
-                      subtitle: Text('Условия и старт', style: TextStyle(color: AppTheme.textSecondary)),
-                      onTap: () => context.push('/info/wanghong'),
-                    ),
-                    Divider(height: 1, color: AppTheme.divider),
-
-                    _sectionTitle('Сервис'),
-                    ListTile(
-                      leading: Icon(Icons.support_agent_outlined, color: AppTheme.textSecondary),
-                      title: Text('Поддержка', style: TextStyle(color: AppTheme.textPrimary)),
-                      onTap: () => _closeDrawer(context),
-                    ),
-                    Divider(height: 1, color: AppTheme.divider),
-
-                    _sectionTitle('Информация'),
-                    ListTile(
-                      leading: Icon(Icons.verified_outlined, color: AppTheme.textSecondary),
-                      title: Text('Версия приложения', style: TextStyle(color: AppTheme.textPrimary)),
-                      subtitle: const _AppVersionSubtitle(),
-                      onTap: () {},
-                    ),
-                  ],
+      child: SafeArea(
+        child: ListView(
+          children: const [
+            SizedBox(height: 16),
+            ListTile(
+              title: Text(
+                'SkidKZ',
+                style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 20,
                 ),
               ),
-            );
-          },
+            ),
+            Divider(),
+          ],
         ),
       ),
     );
-  }
-}
-
-class _AppVersionSubtitle extends StatefulWidget {
-  const _AppVersionSubtitle();
-
-  @override
-  State<_AppVersionSubtitle> createState() => _AppVersionSubtitleState();
-}
-
-class _AppVersionSubtitleState extends State<_AppVersionSubtitle> {
-  String _text = '...';
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    try {
-      final info = await PackageInfo.fromPlatform();
-      setState(() => _text = '${info.version} (${info.buildNumber})');
-    } catch (_) {
-      setState(() => _text = '-');
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(_text, style: TextStyle(color: AppTheme.textSecondary));
   }
 }
