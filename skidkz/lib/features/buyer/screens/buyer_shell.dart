@@ -1,5 +1,7 @@
 // lib/features/buyer/screens/buyer_shell.dart
 
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/material.dart';
@@ -9,28 +11,23 @@ import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:skidkz/core/theme/app_theme.dart';
+import 'package:skidkz/core/widgets/app_gradient_background.dart';
 
-/// Скоуп, чтобы дочерние экраны могли открыть Drawer (из SliverAppBar и т.п.)
+/// Скоуп, чтобы дочерние экраны могли открыть drawer
 class BuyerShellScope extends InheritedWidget {
+  final VoidCallback openDrawer;
   const BuyerShellScope({
     super.key,
     required this.openDrawer,
     required super.child,
   });
 
-  final VoidCallback openDrawer;
-
-  static BuyerShellScope of(BuildContext context) {
-    final scope =
-        context.dependOnInheritedWidgetOfExactType<BuyerShellScope>();
-    assert(scope != null, 'BuyerShellScope not found in widget tree');
-    return scope!;
-  }
+  static BuyerShellScope of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<BuyerShellScope>()!;
 
   @override
-  bool updateShouldNotify(covariant BuyerShellScope oldWidget) {
-    return oldWidget.openDrawer != openDrawer;
-  }
+  bool updateShouldNotify(covariant BuyerShellScope oldWidget) =>
+      openDrawer != oldWidget.openDrawer;
 }
 
 class BuyerRootShell extends StatefulWidget {
@@ -196,42 +193,50 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
     final location = GoRouterState.of(context).uri.toString();
     final currentIndex = _locationToIndex(location);
 
-    return WillPopScope(
-      onWillPop: _onWillPop,
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) {
+        if (didPop) return;
+        // PopScope не умеет await — запускаем асинхронную логику отдельно.
+        unawaited(_onWillPop());
+      },
       child: BuyerShellScope(
         openDrawer: _openDrawer,
-        child: Scaffold(
-          key: _scaffoldKey,
-          drawer: BuyerDrawer(
-            city: _city,
-            onCityTap: _detectCity, // обновление по нажатию
-          ),
+        child: AppGradientBackground(
+          child: Scaffold(
+            backgroundColor: Colors.transparent,
+            key: _scaffoldKey,
+            drawer: BuyerDrawer(
+              city: _city,
+              onCityTap: _detectCity, // обновление по нажатию
+            ),
 
-          // ✅ закреплённый верх + контент вкладки
-          body: Column(
-            children: [
-              _BuyerTopBar(
-                onMenu: _openDrawer,
-                city: _city,
-                onCityTap: _detectCity, // обновление по нажатию
-              ),
-              Expanded(child: widget.child),
-            ],
-          ),
+            // ✅ закреплённый верх + контент вкладки
+            body: Column(
+              children: [
+                _BuyerTopBar(
+                  onMenu: _openDrawer,
+                  city: _city,
+                  onCityTap: _detectCity, // обновление по нажатию
+                ),
+                Expanded(child: widget.child),
+              ],
+            ),
 
-          bottomNavigationBar: BottomNavigationBar(
-            currentIndex: currentIndex,
-            onTap: (i) => _goTab(context, i),
-            type: BottomNavigationBarType.fixed,
-            selectedItemColor: AppTheme.primary,
-            unselectedItemColor: AppTheme.textDisabled,
-            items: const [
-              BottomNavigationBarItem(icon: Icon(Icons.store), label: 'Магазин'),
-              BottomNavigationBarItem(icon: Icon(Icons.grid_view), label: 'Каталог'),
-              BottomNavigationBarItem(icon: Icon(Icons.favorite_border), label: 'Избранное'),
-              BottomNavigationBarItem(icon: Icon(Icons.shopping_cart_outlined), label: 'Корзина'),
-              BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'Профиль'),
-            ],
+            bottomNavigationBar: BottomNavigationBar(
+              currentIndex: currentIndex,
+              onTap: (i) => _goTab(context, i),
+              type: BottomNavigationBarType.fixed,
+              selectedItemColor: AppTheme.primary,
+              unselectedItemColor: AppTheme.textDisabled,
+              items: const [
+                BottomNavigationBarItem(icon: Icon(Icons.store), label: 'Магазин'),
+                BottomNavigationBarItem(icon: Icon(Icons.grid_view), label: 'Каталог'),
+                BottomNavigationBarItem(icon: Icon(Icons.favorite_border), label: 'Избранное'),
+                BottomNavigationBarItem(icon: Icon(Icons.shopping_cart_outlined), label: 'Корзина'),
+                BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'Профиль'),
+              ],
+            ),
           ),
         ),
       ),
@@ -321,402 +326,217 @@ class BuyerDrawer extends StatelessWidget {
   final String city;
   final VoidCallback onCityTap;
 
-  Widget _sectionTitle(String text) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: 12,
-          color: AppTheme.textDisabled,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    );
-  }
-
-  void _closeDrawer(BuildContext context) {
-    final rootNav = Navigator.of(context, rootNavigator: true);
-    if (rootNav.canPop()) rootNav.pop();
-  }
-
-  String _subtitle(fb.User u) {
-    final email = (u.email ?? '').trim();
-    final phone = (u.phoneNumber ?? '').trim();
-    if (phone.isNotEmpty && email.isNotEmpty) return '$phone • $email';
-    if (phone.isNotEmpty) return phone;
-    if (email.isNotEmpty) return email;
-    return 'Аккаунт SkidKZ';
-  }
-
-  String _roleLabelFromActiveRole(String? activeRole) {
-    switch ((activeRole ?? 'buyer').toLowerCase()) {
-      case 'admin':
-        return 'Админ';
-      case 'seller':
-        return 'Продавец';
-      case 'wanghong':
-        return 'Ванхун';
-      default:
-        return 'Покупатель';
-    }
-  }
-
-  Stream<String?> _activeRoleStream(String uid) {
-    return FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .snapshots()
-        .map((doc) => doc.data()?['activeRole'] as String?);
-  }
-
-  Stream<String?> _buyerFullNameStream(String uid) {
-    return FirebaseFirestore.instance.collection('users').doc(uid).snapshots().map((doc) {
-      final data = doc.data();
-      if (data == null) return null;
-      final profiles = data['profiles'];
-      if (profiles is! Map) return null;
-      final buyer = profiles['buyer'];
-      if (buyer is! Map) return null;
-      final fullName = buyer['fullName'];
-      if (fullName is String && fullName.trim().isNotEmpty) return fullName.trim();
-      return null;
-    });
-  }
-
-  Future<void> _signOutAndClose(BuildContext context) async {
-    try {
-      await fb.FirebaseAuth.instance.signOut();
-    } catch (_) {}
-    _closeDrawer(context);
-    context.go('/buyer/home');
-  }
-
   @override
   Widget build(BuildContext context) {
-    // подсветка как в bottom nav (белая, мягкая)
-    final splash = Colors.white.withOpacity(0.08);
-    final highlight = Colors.white.withOpacity(0.05);
+    final user = fb.FirebaseAuth.instance.currentUser;
+    final isAuthed = user != null;
 
     return Drawer(
-      backgroundColor: AppTheme.background,
-      child: Theme(
-        data: Theme.of(context).copyWith(
-          splashColor: splash,
-          highlightColor: highlight,
-          dividerColor: AppTheme.divider,
-        ),
-        child: StreamBuilder<fb.User?>(
-          stream: fb.FirebaseAuth.instance.authStateChanges(),
-          builder: (context, snap) {
-            final user = snap.data;
-            final isAuthed = user != null;
+      child: SafeArea(
+        child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+          stream: isAuthed
+              ? FirebaseFirestore.instance.collection('users').doc(user!.uid).snapshots()
+              : null,
+          builder: (context, snapshot) {
+            final data = snapshot.data?.data();
+            final displayName = (data?['displayName'] ?? '').toString().trim();
+            final phone = (data?['phone'] ?? '').toString().trim();
 
-            return SafeArea(
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // HEADER (градиент как ты просил)
-                    Container(
-                      decoration: const BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            Color(0xFF202625),
-                            Color(0xFF1A1F1E),
-                            Color(0xFF121817),
-                          ],
-                          stops: [0.0, 0.55, 1.0],
-                        ),
-                      ),
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+            return ListView(
+              padding: EdgeInsets.zero,
+              children: [
+                // HEADER (градиент как ты просил)
+                Container(
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Color(0xFF202625),
+                        Color(0xFF1A1F1E),
+                        Color(0xFF121817),
+                      ],
+                      stops: [0.0, 0.55, 1.0],
+                    ),
+                  ),
+                  padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
                         children: [
-                          Text(
-                            'SkidKZ',
-                            style: TextStyle(
-                              color: AppTheme.textPrimary,
-                              fontSize: 20,
-                              fontWeight: FontWeight.w900,
+                          Container(
+                            height: 44,
+                            width: 44,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.06),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: Colors.white.withOpacity(0.08)),
+                            ),
+                            child: const Icon(Icons.person_outline, color: Colors.white70),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: InkWell(
+                              onTap: () {
+                                Navigator.of(context).pop(); // закрыть drawer
+                                if (isAuthed) {
+                                  context.go('/buyer/profile');
+                                } else {
+                                  // ВАЖНО: push, чтобы Back возвращал на предыдущий экран,
+                                  // а не сворачивал приложение.
+                                  context.push('/login?next=%2Fbuyer%2Fprofile');
+                                }
+                              },
+                              borderRadius: BorderRadius.circular(14),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 6),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      isAuthed
+                                          ? (displayName.isNotEmpty ? displayName : 'Профиль')
+                                          : 'Войти / Регистрация',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      isAuthed
+                                          ? (phone.isNotEmpty ? phone : 'Заказы, избранное, бонусы')
+                                          : 'Заказы, избранное, бонусы',
+                                      style: const TextStyle(color: Colors.white70),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
                           ),
-                          const SizedBox(height: 12),
-
-                          // карточка аккаунта
+                          const Icon(Icons.chevron_right, color: Colors.white70),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      Row(
+                        children: [
+                          const Text('Гость', style: TextStyle(color: Colors.white60)),
+                          const Spacer(),
                           InkWell(
-                            onTap: () {
-                              _closeDrawer(context);
-                              if (isAuthed) {
-                                context.go('/buyer/profile');
-                              } else {
-                                context.go('/login');
-                              }
-                            },
-                            borderRadius: BorderRadius.circular(14),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                              decoration: BoxDecoration(
-                                color: AppTheme.surface,
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(color: AppTheme.divider),
-                              ),
+                            onTap: onCityTap,
+                            borderRadius: BorderRadius.circular(12),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                               child: Row(
                                 children: [
-                                  Container(
-                                    width: 38,
-                                    height: 38,
-                                    decoration: BoxDecoration(
-                                      color: AppTheme.elevated,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    alignment: Alignment.center,
-                                    child: Icon(
-                                      isAuthed ? Icons.person : Icons.person_outline,
-                                      color: AppTheme.textPrimary,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        if (!isAuthed)
-                                          Text(
-                                            'Войти / Регистрация',
-                                            style: TextStyle(
-                                              color: AppTheme.textPrimary,
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.w900,
-                                            ),
-                                          )
-                                        else
-                                          StreamBuilder<String?>(
-                                            stream: _buyerFullNameStream(user!.uid),
-                                            builder: (context, nameSnap) {
-                                              final name = nameSnap.data;
-                                              final fallback =
-                                                  (user.phoneNumber ?? '').trim().isNotEmpty
-                                                      ? (user.phoneNumber ?? '').trim()
-                                                      : 'Пользователь';
-                                              return Text(
-                                                name ?? fallback,
-                                                style: TextStyle(
-                                                  color: AppTheme.textPrimary,
-                                                  fontSize: 16,
-                                                  fontWeight: FontWeight.w900,
-                                                ),
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                              );
-                                            },
-                                          ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          isAuthed ? _subtitle(user!) : 'Заказы, избранное, бонусы',
-                                          style: TextStyle(
-                                            color: AppTheme.textSecondary,
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  Icon(Icons.chevron_right, color: AppTheme.textSecondary),
+                                  const Icon(Icons.location_on_outlined,
+                                      color: Colors.white70, size: 18),
+                                  const SizedBox(width: 6),
+                                  Text(city, style: const TextStyle(color: Colors.white70)),
                                 ],
                               ),
                             ),
                           ),
-
-                          const SizedBox(height: 10),
-
-                          // роль + город (город только для гостя, чтобы не дублировать)
-                          Row(
-                            children: [
-                              if (!isAuthed)
-                                Text(
-                                  'Гость',
-                                  style: TextStyle(
-                                    color: AppTheme.textSecondary,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                )
-                              else
-                                StreamBuilder<String?>(
-                                  stream: _activeRoleStream(user!.uid),
-                                  builder: (context, roleSnap) {
-                                    final role = _roleLabelFromActiveRole(roleSnap.data);
-                                    return Text(
-                                      role,
-                                      style: TextStyle(
-                                        color: AppTheme.textSecondary,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    );
-                                  },
-                                ),
-                              const Spacer(),
-
-                              if (!isAuthed)
-                                InkWell(
-                                  onTap: onCityTap, // обновить по реальной гео
-                                  borderRadius: BorderRadius.circular(12),
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                                    child: Row(
-                                      children: [
-                                        Icon(Icons.location_on_outlined,
-                                            color: AppTheme.textSecondary, size: 18),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          city,
-                                          style: TextStyle(
-                                            color: AppTheme.textPrimary,
-                                            fontWeight: FontWeight.w800,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-
-                              if (isAuthed) ...[
-                                const SizedBox(width: 8),
-                                TextButton(
-                                  onPressed: () => _signOutAndClose(context),
-                                  style: TextButton.styleFrom(
-                                    foregroundColor: AppTheme.primary,
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                    minimumSize: Size.zero,
-                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                  ),
-                                  child: const Text(
-                                    'Выйти',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                      decoration: TextDecoration.underline,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
                         ],
                       ),
-                    ),
-
-                    _sectionTitle('Аккаунт'),
-                    ListTile(
-                      leading: Icon(Icons.receipt_long_outlined, color: AppTheme.textSecondary),
-                      title: Text('Мои заказы', style: TextStyle(color: AppTheme.textPrimary)),
-                      onTap: () {
-                        _closeDrawer(context);
-                        context.go('/buyer/orders');
-                      },
-                    ),
-                    Divider(height: 1, color: AppTheme.divider),
-
-                    _sectionTitle('Кабинеты'),
-                    ListTile(
-                      leading: Icon(Icons.store_mall_directory_outlined, color: AppTheme.textSecondary),
-                      title: Text('Кабинет магазина', style: TextStyle(color: AppTheme.textPrimary)),
-                      subtitle: Text('Продажи, товары, заказы',
-                          style: TextStyle(color: AppTheme.textSecondary)),
-                      onTap: () {
-                        _closeDrawer(context);
-                        context.go('/cabinet');
-                      },
-                    ),
-                    ListTile(
-                      leading: Icon(Icons.campaign_outlined, color: AppTheme.textSecondary),
-                      title: Text('Кабинет ванхуна', style: TextStyle(color: AppTheme.textPrimary)),
-                      subtitle: Text('Заработать на промокодах',
-                          style: TextStyle(color: AppTheme.textSecondary)),
-                      onTap: () {
-                        _closeDrawer(context);
-                        context.go('/cabinet');
-                      },
-                    ),
-                    Divider(height: 1, color: AppTheme.divider),
-
-                    _sectionTitle('Для бизнеса'),
-                    ListTile(
-                      leading: Icon(Icons.add_business_outlined, color: AppTheme.textSecondary),
-                      title: Text('Открыть магазин', style: TextStyle(color: AppTheme.textPrimary)),
-                      subtitle: Text('Как это работает', style: TextStyle(color: AppTheme.textSecondary)),
-                      onTap: () => context.push('/info/seller'),
-                    ),
-                    ListTile(
-                      leading: Icon(Icons.person_add_alt_1_outlined, color: AppTheme.textSecondary),
-                      title: Text('Подключиться как ванхун',
-                          style: TextStyle(color: AppTheme.textPrimary)),
-                      subtitle: Text('Условия и старт', style: TextStyle(color: AppTheme.textSecondary)),
-                      onTap: () => context.push('/info/wanghong'),
-                    ),
-                    Divider(height: 1, color: AppTheme.divider),
-
-                    _sectionTitle('Сервис'),
-                    ListTile(
-                      leading: Icon(Icons.support_agent_outlined, color: AppTheme.textSecondary),
-                      title: Text('Поддержка', style: TextStyle(color: AppTheme.textPrimary)),
-                      onTap: () => _closeDrawer(context),
-                    ),
-                    Divider(height: 1, color: AppTheme.divider),
-
-                    _sectionTitle('Информация'),
-                    ListTile(
-                      leading: Icon(Icons.verified_outlined, color: AppTheme.textSecondary),
-                      title: Text('Версия приложения', style: TextStyle(color: AppTheme.textPrimary)),
-                      subtitle: const _AppVersionSubtitle(),
-                      onTap: () {},
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
+
+                const SizedBox(height: 10),
+
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  child: Text('Аккаунт', style: TextStyle(color: AppTheme.textDisabled)),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.receipt_long_outlined),
+                  title: const Text('Мои заказы'),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    context.go('/buyer/orders');
+                  },
+                ),
+
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Text('Кабинеты', style: TextStyle(color: AppTheme.textDisabled)),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.storefront_outlined),
+                  title: const Text('Кабинет магазина'),
+                  subtitle: const Text('Продажи, товары, заказы'),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    context.go('/info/seller');
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.campaign_outlined),
+                  title: const Text('Кабинет ванхуна'),
+                  subtitle: const Text('Заработать на промокодах'),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    context.go('/info/wanghong');
+                  },
+                ),
+
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Text('Для бизнеса', style: TextStyle(color: AppTheme.textDisabled)),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.store_mall_directory_outlined),
+                  title: const Text('Открыть магазин'),
+                  subtitle: const Text('Как это работает'),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    context.go('/info/seller');
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.person_add_alt_1_outlined),
+                  title: const Text('Подключиться как ванхун'),
+                  subtitle: const Text('Условия и старт'),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    context.go('/info/wanghong');
+                  },
+                ),
+
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Text('Сервис', style: TextStyle(color: AppTheme.textDisabled)),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.support_agent_outlined),
+                  title: const Text('Поддержка'),
+                  onTap: () {},
+                ),
+                const Divider(height: 1),
+
+                FutureBuilder<PackageInfo>(
+                  future: PackageInfo.fromPlatform(),
+                  builder: (context, snap) {
+                    final version = snap.data?.version ?? '';
+                    final buildNumber = snap.data?.buildNumber ?? '';
+                    final v = (version.isEmpty) ? '' : 'v$version ($buildNumber)';
+
+                    return ListTile(
+                      leading: const Icon(Icons.info_outline),
+                      title: const Text('Версия приложения'),
+                      subtitle: Text(v.isEmpty ? '...' : v),
+                      onTap: () {},
+                    );
+                  },
+                ),
+              ],
             );
           },
         ),
       ),
     );
-  }
-}
-
-class _AppVersionSubtitle extends StatefulWidget {
-  const _AppVersionSubtitle();
-
-  @override
-  State<_AppVersionSubtitle> createState() => _AppVersionSubtitleState();
-}
-
-class _AppVersionSubtitleState extends State<_AppVersionSubtitle> {
-  String _text = '...';
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    try {
-      final info = await PackageInfo.fromPlatform();
-      if (!mounted) return;
-      setState(() => _text = '${info.version} (${info.buildNumber})');
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _text = '-');
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(_text, style: TextStyle(color: AppTheme.textSecondary));
   }
 }
