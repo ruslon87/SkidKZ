@@ -186,7 +186,6 @@ class BuyerDrawer extends StatelessWidget {
           color: AppTheme.textDisabled,
           fontWeight: FontWeight.w700,
         ),
-resdf
       ),
     );
   }
@@ -250,322 +249,313 @@ resdf
 
   @override
   Widget build(BuildContext context) {
-    // “Белая подсветка” при нажатии — без неона
+    // “Белая подсветка” при нажатии — делаем через Theme, без ListTileTheme.splashColor
     final splash = Colors.white.withOpacity(0.06);
     final highlight = Colors.white.withOpacity(0.04);
 
     return Drawer(
       backgroundColor: AppTheme.background,
-      child: Stack(
-        children: [
-          // Основной контент Drawer
-          SafeArea(
-            child: ListTileTheme(
-              data: ListTileThemeData(
-                iconColor: AppTheme.textSecondary,
-                textColor: AppTheme.textPrimary,
-                splashColor: splash,
-                selectedColor: AppTheme.primary,
-                selectedTileColor: AppTheme.primary.withOpacity(0.10),
-              ),
-              child: Theme(
-                data: Theme.of(context).copyWith(
-                  splashColor: splash,
-                  highlightColor: highlight,
-                ),
-                child: SingleChildScrollView(
-                  child: StreamBuilder<fb.User?>(
-                    stream: fb.FirebaseAuth.instance.authStateChanges(),
-                    builder: (context, snap) {
-                      final user = snap.data;
-                      final isAuthed = user != null;
+      child: Theme(
+        data: Theme.of(context).copyWith(
+          splashColor: splash,
+          highlightColor: highlight,
+          dividerColor: AppTheme.divider,
+        ),
+        child: Stack(
+          children: [
+            SafeArea(
+              child: SingleChildScrollView(
+                child: StreamBuilder<fb.User?>(
+                  stream: fb.FirebaseAuth.instance.authStateChanges(),
+                  builder: (context, snap) {
+                    final user = snap.data;
+                    final isAuthed = user != null;
 
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          // HEADER
-                          Container(
-                            color: AppTheme.elevated,
-                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'SkidKZ',
-                                  style: TextStyle(
-                                    color: AppTheme.textPrimary,
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: 0.2,
-                                  ),
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // HEADER
+                        Container(
+                          color: AppTheme.elevated,
+                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'SkidKZ',
+                                style: TextStyle(
+                                  color: AppTheme.textPrimary,
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 0.2,
                                 ),
-                                const SizedBox(height: 12),
+                              ),
+                              const SizedBox(height: 12),
 
-                                // карточка аккаунта
-                                InkWell(
-                                  onTap: () {
-                                    _closeDrawer(context);
-                                    if (isAuthed) {
-                                      context.go('/buyer/profile');
-                                    } else {
-                                      context.push('/login');
-                                    }
-                                  },
-                                  borderRadius: BorderRadius.circular(14),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                                    decoration: BoxDecoration(
-                                      color: AppTheme.surface,
-                                      borderRadius: BorderRadius.circular(14),
-                                      border: Border.all(color: AppTheme.divider),
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Container(
-                                          width: 38,
-                                          height: 38,
-                                          decoration: BoxDecoration(
-                                            color: AppTheme.elevated,
-                                            shape: BoxShape.circle,
-                                          ),
-                                          alignment: Alignment.center,
-                                          child: Icon(
-                                            isAuthed ? Icons.person : Icons.person_outline,
-                                            color: AppTheme.textPrimary,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              if (!isAuthed)
-                                                Text(
-                                                  'Войти / Регистрация',
-                                                  style: TextStyle(
-                                                    color: AppTheme.textPrimary,
-                                                    fontSize: 16,
-                                                    fontWeight: FontWeight.w900,
-                                                  ),
-                                                )
-                                              else
-                                                StreamBuilder<String?>(
-                                                  stream: _buyerFullNameStream(user!.uid),
-                                                  builder: (context, nameSnap) {
-                                                    final name = nameSnap.data;
-                                                    final fallback =
-                                                        (user.phoneNumber ?? '').trim().isNotEmpty
-                                                            ? (user.phoneNumber ?? '').trim()
-                                                            : 'Пользователь';
-                                                    return Text(
-                                                      name ?? fallback,
-                                                      style: TextStyle(
-                                                        color: AppTheme.textPrimary,
-                                                        fontSize: 16,
-                                                        fontWeight: FontWeight.w900,
-                                                      ),
-                                                      maxLines: 1,
-                                                      overflow: TextOverflow.ellipsis,
-                                                    );
-                                                  },
-                                                ),
-                                              const SizedBox(height: 4),
-                                              Text(
-                                                isAuthed ? _subtitle(user!) : 'Заказы, избранное, бонусы',
-                                                style: TextStyle(
-                                                  color: AppTheme.textSecondary,
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        Icon(Icons.chevron_right, color: AppTheme.textSecondary),
-                                      ],
-                                    ),
+                              // карточка аккаунта
+                              InkWell(
+                                onTap: () {
+                                  _closeDrawer(context);
+                                  if (isAuthed) {
+                                    context.go('/buyer/profile');
+                                  } else {
+                                    context.push('/login');
+                                  }
+                                },
+                                borderRadius: BorderRadius.circular(14),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.surface,
+                                    borderRadius: BorderRadius.circular(14),
+                                    border: Border.all(color: AppTheme.divider),
                                   ),
-                                ),
-
-                                const SizedBox(height: 10),
-
-                                // роль + город + выйти
-                                Row(
-                                  children: [
-                                    if (!isAuthed)
-                                      Text(
-                                        'Гость',
-                                        style: TextStyle(
-                                          color: AppTheme.textSecondary,
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w700,
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        width: 38,
+                                        height: 38,
+                                        decoration: BoxDecoration(
+                                          color: AppTheme.elevated,
+                                          shape: BoxShape.circle,
                                         ),
-                                      )
-                                    else
-                                      StreamBuilder<String?>(
-                                        stream: _activeRoleStream(user!.uid),
-                                        builder: (context, roleSnap) {
-                                          final role = _roleLabelFromActiveRole(roleSnap.data);
-                                          return Text(
-                                            role,
-                                            style: TextStyle(
-                                              color: AppTheme.textSecondary,
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w700,
-                                            ),
-                                          );
-                                        },
+                                        alignment: Alignment.center,
+                                        child: Icon(
+                                          isAuthed ? Icons.person : Icons.person_outline,
+                                          color: AppTheme.textPrimary,
+                                        ),
                                       ),
-                                    const Spacer(),
-                                    InkWell(
-                                      onTap: onToggleCity,
-                                      borderRadius: BorderRadius.circular(12),
-                                      child: Padding(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                                        child: Row(
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
-                                            Icon(Icons.location_on_outlined,
-                                                color: AppTheme.textSecondary, size: 18),
-                                            const SizedBox(width: 4),
-                                            Text(
-                                              city,
-                                              style: TextStyle(
-                                                color: AppTheme.textPrimary,
-                                                fontWeight: FontWeight.w800,
+                                            if (!isAuthed)
+                                              Text(
+                                                'Войти / Регистрация',
+                                                style: TextStyle(
+                                                  color: AppTheme.textPrimary,
+                                                  fontSize: 16,
+                                                  fontWeight: FontWeight.w900,
+                                                ),
+                                              )
+                                            else
+                                              StreamBuilder<String?>(
+                                                stream: _buyerFullNameStream(user!.uid),
+                                                builder: (context, nameSnap) {
+                                                  final name = nameSnap.data;
+                                                  final fallback =
+                                                      (user.phoneNumber ?? '').trim().isNotEmpty
+                                                          ? (user.phoneNumber ?? '').trim()
+                                                          : 'Пользователь';
+                                                  return Text(
+                                                    name ?? fallback,
+                                                    style: TextStyle(
+                                                      color: AppTheme.textPrimary,
+                                                      fontSize: 16,
+                                                      fontWeight: FontWeight.w900,
+                                                    ),
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                  );
+                                                },
                                               ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              isAuthed ? _subtitle(user!) : 'Заказы, избранное, бонусы',
+                                              style: TextStyle(
+                                                color: AppTheme.textSecondary,
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
                                             ),
                                           ],
                                         ),
                                       ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    if (isAuthed)
-                                      TextButton(
-                                        onPressed: () => _signOutAndClose(context),
-                                        style: TextButton.styleFrom(
-                                          foregroundColor: AppTheme.primary,
-                                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                          minimumSize: Size.zero,
-                                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                        ),
-                                        child: const Text(
-                                          'Выйти',
+                                      Icon(Icons.chevron_right, color: AppTheme.textSecondary),
+                                    ],
+                                  ),
+                                ),
+                              ),
+
+                              const SizedBox(height: 10),
+
+                              // роль + город + выйти
+                              Row(
+                                children: [
+                                  if (!isAuthed)
+                                    Text(
+                                      'Гость',
+                                      style: TextStyle(
+                                        color: AppTheme.textSecondary,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    )
+                                  else
+                                    StreamBuilder<String?>(
+                                      stream: _activeRoleStream(user!.uid),
+                                      builder: (context, roleSnap) {
+                                        final role = _roleLabelFromActiveRole(roleSnap.data);
+                                        return Text(
+                                          role,
                                           style: TextStyle(
-                                            fontWeight: FontWeight.w800,
-                                            decoration: TextDecoration.underline,
+                                            color: AppTheme.textSecondary,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w700,
                                           ),
+                                        );
+                                      },
+                                    ),
+                                  const Spacer(),
+                                  InkWell(
+                                    onTap: onToggleCity,
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.location_on_outlined,
+                                              color: AppTheme.textSecondary, size: 18),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            city,
+                                            style: TextStyle(
+                                              color: AppTheme.textPrimary,
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  if (isAuthed)
+                                    TextButton(
+                                      onPressed: () => _signOutAndClose(context),
+                                      style: TextButton.styleFrom(
+                                        foregroundColor: AppTheme.primary,
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                        minimumSize: Size.zero,
+                                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                      ),
+                                      child: const Text(
+                                        'Выйти',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                          decoration: TextDecoration.underline,
                                         ),
                                       ),
-                                  ],
-                                ),
-                              ],
-                            ),
+                                    ),
+                                ],
+                              ),
+                            ],
                           ),
+                        ),
 
-                          _sectionTitle('Аккаунт'),
-                          ListTile(
-                            leading: const Icon(Icons.receipt_long_outlined),
-                            title: const Text('Мои заказы'),
-                            onTap: () {
-                              _closeDrawer(context);
-                              if (isAuthed) {
-                                context.go('/buyer/profile');
-                              } else {
-                                context.push('/login');
-                              }
-                            },
-                          ),
-                          Divider(height: 1, color: AppTheme.divider),
+                        _sectionTitle('Аккаунт'),
+                        ListTile(
+                          leading: Icon(Icons.receipt_long_outlined, color: AppTheme.textSecondary),
+                          title: Text('Мои заказы', style: TextStyle(color: AppTheme.textPrimary)),
+                          onTap: () {
+                            _closeDrawer(context);
+                            if (isAuthed) {
+                              context.go('/buyer/profile');
+                            } else {
+                              context.push('/login');
+                            }
+                          },
+                        ),
+                        Divider(height: 1, color: AppTheme.divider),
 
-                          _sectionTitle('Кабинеты'),
-                          ListTile(
-                            leading: const Icon(Icons.store_mall_directory_outlined),
-                            title: const Text('Кабинет магазина'),
-                            subtitle: Text('Продажи, товары, заказы', style: TextStyle(color: AppTheme.textSecondary)),
-                            onTap: () {
-                              _closeDrawer(context);
-                              context.go('/cabinet');
-                            },
-                          ),
-                          ListTile(
-                            leading: const Icon(Icons.campaign_outlined),
-                            title: const Text('Кабинет ванхуна'),
-                            subtitle: Text('Заработать на промокодах', style: TextStyle(color: AppTheme.textSecondary)),
-                            onTap: () {
-                              _closeDrawer(context);
-                              context.go('/cabinet');
-                            },
-                          ),
-                          Divider(height: 1, color: AppTheme.divider),
+                        _sectionTitle('Кабинеты'),
+                        ListTile(
+                          leading: Icon(Icons.store_mall_directory_outlined, color: AppTheme.textSecondary),
+                          title: Text('Кабинет магазина', style: TextStyle(color: AppTheme.textPrimary)),
+                          subtitle: Text('Продажи, товары, заказы', style: TextStyle(color: AppTheme.textSecondary)),
+                          onTap: () {
+                            _closeDrawer(context);
+                            context.go('/cabinet');
+                          },
+                        ),
+                        ListTile(
+                          leading: Icon(Icons.campaign_outlined, color: AppTheme.textSecondary),
+                          title: Text('Кабинет ванхуна', style: TextStyle(color: AppTheme.textPrimary)),
+                          subtitle: Text('Заработать на промокодах', style: TextStyle(color: AppTheme.textSecondary)),
+                          onTap: () {
+                            _closeDrawer(context);
+                            context.go('/cabinet');
+                          },
+                        ),
+                        Divider(height: 1, color: AppTheme.divider),
 
-                          _sectionTitle('Для бизнеса'),
-                          ListTile(
-                            leading: const Icon(Icons.add_business_outlined),
-                            title: const Text('Открыть магазин'),
-                            subtitle: Text('Как это работает', style: TextStyle(color: AppTheme.textSecondary)),
-                            onTap: () => context.push('/info/seller'),
-                          ),
-                          ListTile(
-                            leading: const Icon(Icons.person_add_alt_1_outlined),
-                            title: const Text('Подключиться как ванхун'),
-                            subtitle: Text('Условия и старт', style: TextStyle(color: AppTheme.textSecondary)),
-                            onTap: () => context.push('/info/wanghong'),
-                          ),
-                          Divider(height: 1, color: AppTheme.divider),
+                        _sectionTitle('Для бизнеса'),
+                        ListTile(
+                          leading: Icon(Icons.add_business_outlined, color: AppTheme.textSecondary),
+                          title: Text('Открыть магазин', style: TextStyle(color: AppTheme.textPrimary)),
+                          subtitle: Text('Как это работает', style: TextStyle(color: AppTheme.textSecondary)),
+                          onTap: () => context.push('/info/seller'),
+                        ),
+                        ListTile(
+                          leading: Icon(Icons.person_add_alt_1_outlined, color: AppTheme.textSecondary),
+                          title: Text('Подключиться как ванхун', style: TextStyle(color: AppTheme.textPrimary)),
+                          subtitle: Text('Условия и старт', style: TextStyle(color: AppTheme.textSecondary)),
+                          onTap: () => context.push('/info/wanghong'),
+                        ),
+                        Divider(height: 1, color: AppTheme.divider),
 
-                          _sectionTitle('Сервис'),
-                          ListTile(
-                            leading: const Icon(Icons.support_agent_outlined),
-                            title: const Text('Поддержка'),
-                            onTap: () => _closeDrawer(context),
-                          ),
-                          ListTile(
-                            leading: const Icon(Icons.info_outline),
-                            title: const Text('О приложении'),
-                            onTap: () => _closeDrawer(context),
-                          ),
-                          Divider(height: 1, color: AppTheme.divider),
+                        _sectionTitle('Сервис'),
+                        ListTile(
+                          leading: Icon(Icons.support_agent_outlined, color: AppTheme.textSecondary),
+                          title: Text('Поддержка', style: TextStyle(color: AppTheme.textPrimary)),
+                          onTap: () => _closeDrawer(context),
+                        ),
+                        ListTile(
+                          leading: Icon(Icons.info_outline, color: AppTheme.textSecondary),
+                          title: Text('О приложении', style: TextStyle(color: AppTheme.textPrimary)),
+                          onTap: () => _closeDrawer(context),
+                        ),
+                        Divider(height: 1, color: AppTheme.divider),
 
-                          _sectionTitle('Информация'),
-                          ListTile(
-                            leading: const Icon(Icons.verified_outlined),
-                            title: const Text('Версия приложения'),
-                            subtitle: const _AppVersionSubtitle(),
-                            onTap: () {},
-                          ),
-                        ],
-                      );
-                    },
+                        _sectionTitle('Информация'),
+                        ListTile(
+                          leading: Icon(Icons.verified_outlined, color: AppTheme.textSecondary),
+                          title: Text('Версия приложения', style: TextStyle(color: AppTheme.textPrimary)),
+                          subtitle: const _AppVersionSubtitle(),
+                          onTap: () {},
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ),
+
+            // ✅ ПРАВЫЙ ГРАДИЕНТ
+            Positioned(
+              top: 0,
+              right: 0,
+              bottom: 0,
+              child: IgnorePointer(
+                child: Container(
+                  width: 36,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                      colors: [
+                        Colors.transparent,
+                        Colors.black.withOpacity(0.28),
+                      ],
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-
-          // ✅ ПРАВЫЙ ГРАДИЕНТ как на твоём референсе (слегка “дымка”)
-          Positioned(
-            top: 0,
-            right: 0,
-            bottom: 0,
-            child: IgnorePointer(
-              child: Container(
-                width: 36,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.centerLeft,
-                    end: Alignment.centerRight,
-                    colors: [
-                      Colors.transparent,
-                      Colors.black.withOpacity(0.28),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
