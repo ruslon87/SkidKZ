@@ -35,7 +35,7 @@ class BuyerProfileScreen extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: () => context.go('/login?next=%2Fbuyer%2Fprofile'),
+                onPressed: () => context.push('/login?next=%2Fbuyer%2Fprofile'),
                 child: const Text('Войти / зарегистрироваться'),
               ),
             ),
@@ -55,12 +55,23 @@ class BuyerProfileScreen extends StatelessWidget {
             'Профиль',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           Text('UID: ${user.uid}'),
-          const SizedBox(height: 10),
-          Text('Телефон: ${(user.phoneNumber ?? '').trim()}'),
+          const SizedBox(height: 6),
+          Text('Телефон: ${user.phoneNumber ?? '-'}'),
           const SizedBox(height: 16),
-          const Text('Заглушка. Дальше подключим редактирование профиля.'),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () async {
+                await fb.FirebaseAuth.instance.signOut();
+                if (context.mounted) {
+                  context.go('/buyer/home');
+                }
+              },
+              child: const Text('Выйти'),
+            ),
+          ),
         ],
       ),
     );
