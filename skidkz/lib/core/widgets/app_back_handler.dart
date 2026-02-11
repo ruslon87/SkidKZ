@@ -1,4 +1,4 @@
-// lib/core/widgets/app_back_handler.dart
+// skidkz/lib/core/widgets/app_back_handler.dart
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -30,8 +30,7 @@ class _AppBackHandlerState extends State<AppBackHandler> {
   bool _isBuyerHome(String loc) =>
       loc == '/' || loc == '/buyer' || loc.startsWith('/buyer/home');
 
-  bool _isBuyerArea(String loc) =>
-      loc == '/' || loc.startsWith('/buyer');
+  bool _isBuyerArea(String loc) => loc == '/' || loc.startsWith('/buyer');
 
   Future<bool> _handleBack() async {
     final loc = _location;
@@ -42,25 +41,25 @@ class _AppBackHandlerState extends State<AppBackHandler> {
       return true;
     }
 
-    // 1) Если есть вложенный pop (детальный экран, диалог и т.п.)
+    // 1) Закрыть верхний route (диалог/страница и т.д.)
     if (nav.canPop()) {
       nav.pop();
       return true;
     }
 
-    // 2) Логин без стека
+    // 2) Логин без стека -> назад на магазин
     if (loc.startsWith('/login')) {
       widget.router.go('/buyer/home');
       return true;
     }
 
-    // 3) Buyer, но не home → назад на home
+    // 3) Любая вкладка buyer кроме home -> назад на магазин
     if (_isBuyerArea(loc) && !_isBuyerHome(loc)) {
       widget.router.go('/buyer/home');
       return true;
     }
 
-    // 4) Home → двойной выход
+    // 4) На магазине -> двойной выход
     if (_isBuyerHome(loc)) {
       final now = DateTime.now();
       if (_lastBackPress == null ||
@@ -76,7 +75,6 @@ class _AppBackHandlerState extends State<AppBackHandler> {
               duration: Duration(seconds: 2),
             ),
           );
-
         return true;
       }
 
