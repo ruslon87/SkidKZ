@@ -23,9 +23,10 @@ class SkidKZApp extends ConsumerWidget {
       themeMode: ThemeMode.dark,
       routerConfig: router,
 
-      // ✅ ГЛОБАЛЬНЫЙ перехват Back для всех экранов
+      // ✅ Перехват Back глобально, но роутер берём НЕ из context
       builder: (context, child) {
         return AppBackHandler(
+          router: router,
           child: child ?? const SizedBox.shrink(),
         );
       },
