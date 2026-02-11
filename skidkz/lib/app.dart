@@ -19,11 +19,7 @@ class SkidKZApp extends ConsumerWidget {
       title: 'SkidKZ',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.darkTheme,
-      darkTheme: AppTheme.darkTheme,
-      themeMode: ThemeMode.dark,
       routerConfig: router,
-
-      // ✅ Перехват Back глобально, но роутер берём НЕ из context
       builder: (context, child) {
         return AppBackHandler(
           router: router,
