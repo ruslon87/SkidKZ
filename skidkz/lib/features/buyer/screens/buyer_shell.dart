@@ -8,7 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:skidkz/core/theme/app_theme.dart';
 
-/// Скоуп, чтобы дочерние экраны могли гарантированно открыть Drawer
+/// Скоуп, чтобы дочерние экраны могли открыть Drawer
 class BuyerShellScope extends InheritedWidget {
   const BuyerShellScope({
     super.key,
@@ -82,37 +82,31 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
     }
   }
 
-  void _openDrawer() {
-    _scaffoldKey.currentState?.openDrawer();
-  }
+  void _openDrawer() => _scaffoldKey.currentState?.openDrawer();
 
   Future<bool> _onWillPop() async {
     final location = GoRouterState.of(context).uri.toString();
     final router = GoRouter.of(context);
 
-    // 0) Закрыть overlay (drawer/dialog/bottomsheet)
+    // закрыть overlay
     final rootNav = Navigator.of(context, rootNavigator: true);
     if (rootNav.canPop()) {
       rootNav.pop();
       return false;
     }
 
-    // 1) Pop роутера
     if (router.canPop()) {
       router.pop();
       return false;
     }
 
-    // 2) Если не home — на home
     if (!_isHomeLocation(location)) {
       context.go('/buyer/home');
       return false;
     }
 
-    // 3) На home — двойной Back = выход
     final now = DateTime.now();
     final last = _lastBackPress;
-
     if (last == null || now.difference(last) > const Duration(seconds: 2)) {
       _lastBackPress = now;
       ScaffoldMessenger.of(context)
@@ -145,7 +139,18 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
             city: _city,
             onToggleCity: _toggleCity,
           ),
-          body: widget.child,
+
+          // ✅ ВАЖНО: единый top bar для всех вкладок, чтобы Drawer был всегда доступен
+          body: Column(
+            children: [
+              _BuyerTopBar(
+                onMenu: _openDrawer,
+                city: _city,
+              ),
+              Expanded(child: widget.child),
+            ],
+          ),
+
           bottomNavigationBar: BottomNavigationBar(
             currentIndex: currentIndex,
             onTap: (i) => _goTab(context, i),
@@ -158,6 +163,64 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
               BottomNavigationBarItem(icon: Icon(Icons.favorite_border), label: 'Избранное'),
               BottomNavigationBarItem(icon: Icon(Icons.shopping_cart_outlined), label: 'Корзина'),
               BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'Профиль'),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BuyerTopBar extends StatelessWidget {
+  const _BuyerTopBar({
+    required this.onMenu,
+    required this.city,
+  });
+
+  final VoidCallback onMenu;
+  final String city;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppTheme.elevated,
+      child: SafeArea(
+        bottom: false,
+        child: Container(
+          height: 56,
+          padding: const EdgeInsets.symmetric(horizontal: 6),
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(color: AppTheme.divider, width: 1),
+            ),
+          ),
+          child: Row(
+            children: [
+              IconButton(
+                onPressed: onMenu,
+                icon: Icon(Icons.menu, color: AppTheme.textPrimary),
+                splashRadius: 22,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'SkidKZ',
+                style: TextStyle(
+                  color: AppTheme.textPrimary,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const Spacer(),
+              Icon(Icons.location_on_outlined, color: AppTheme.textSecondary, size: 18),
+              const SizedBox(width: 6),
+              Text(
+                city,
+                style: TextStyle(
+                  color: AppTheme.textSecondary,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(width: 10),
             ],
           ),
         ),
@@ -249,9 +312,9 @@ class BuyerDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // “Белая подсветка” при нажатии — делаем через Theme, без ListTileTheme.splashColor
-    final splash = Colors.white.withOpacity(0.06);
-    final highlight = Colors.white.withOpacity(0.04);
+    // “светлая” подсветка как в bottom nav — через Theme (без ListTileThemeData.splashColor)
+    final splash = Colors.white.withOpacity(0.08);
+    final highlight = Colors.white.withOpacity(0.05);
 
     return Drawer(
       backgroundColor: AppTheme.background,
@@ -287,12 +350,10 @@ class BuyerDrawer extends StatelessWidget {
                                   color: AppTheme.textPrimary,
                                   fontSize: 20,
                                   fontWeight: FontWeight.w900,
-                                  letterSpacing: 0.2,
                                 ),
                               ),
                               const SizedBox(height: 12),
 
-                              // карточка аккаунта
                               InkWell(
                                 onTap: () {
                                   _closeDrawer(context);
@@ -382,7 +443,6 @@ class BuyerDrawer extends StatelessWidget {
 
                               const SizedBox(height: 10),
 
-                              // роль + город + выйти
                               Row(
                                 children: [
                                   if (!isAuthed)
@@ -512,11 +572,6 @@ class BuyerDrawer extends StatelessWidget {
                           title: Text('Поддержка', style: TextStyle(color: AppTheme.textPrimary)),
                           onTap: () => _closeDrawer(context),
                         ),
-                        ListTile(
-                          leading: Icon(Icons.info_outline, color: AppTheme.textSecondary),
-                          title: Text('О приложении', style: TextStyle(color: AppTheme.textPrimary)),
-                          onTap: () => _closeDrawer(context),
-                        ),
                         Divider(height: 1, color: AppTheme.divider),
 
                         _sectionTitle('Информация'),
@@ -533,22 +588,24 @@ class BuyerDrawer extends StatelessWidget {
               ),
             ),
 
-            // ✅ ПРАВЫЙ ГРАДИЕНТ
+            // ✅ “Как на референсе”: мягкая дымка по правому краю Drawer + лёгкая тень
             Positioned(
               top: 0,
               right: 0,
               bottom: 0,
               child: IgnorePointer(
                 child: Container(
-                  width: 36,
+                  width: 70,
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       begin: Alignment.centerLeft,
                       end: Alignment.centerRight,
                       colors: [
                         Colors.transparent,
-                        Colors.black.withOpacity(0.28),
+                        Colors.white.withOpacity(0.04),
+                        Colors.black.withOpacity(0.18),
                       ],
+                      stops: const [0.0, 0.55, 1.0],
                     ),
                   ),
                 ),
@@ -588,9 +645,6 @@ class _AppVersionSubtitleState extends State<_AppVersionSubtitle> {
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      _text,
-      style: TextStyle(color: AppTheme.textSecondary),
-    );
+    return Text(_text, style: TextStyle(color: AppTheme.textSecondary));
   }
 }
