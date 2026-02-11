@@ -5,10 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 class AppBackHandler extends StatefulWidget {
-  const AppBackHandler({
-    super.key,
-    required this.child,
-  });
+  const AppBackHandler({super.key, required this.child});
 
   final Widget child;
 
@@ -19,41 +16,45 @@ class AppBackHandler extends StatefulWidget {
 class _AppBackHandlerState extends State<AppBackHandler> {
   DateTime? _lastBackPress;
 
-  bool _isBuyerHome(String location) {
-    return location == '/' ||
-        location == '/buyer' ||
-        location.startsWith('/buyer/home');
-  }
+  bool _isBuyerHome(String loc) =>
+      loc == '/' || loc == '/buyer' || loc.startsWith('/buyer/home');
 
-  bool _isBuyerArea(String location) {
-    return location == '/' || location.startsWith('/buyer');
-  }
+  bool _isBuyerArea(String loc) => loc == '/' || loc.startsWith('/buyer');
 
-  Future<void> _handleBack() async {
+  Future<bool> _onBackPressed() async {
     final router = GoRouter.of(context);
-    final location = router.routerDelegate.currentConfiguration.fullPath ??
-        router.routeInformationProvider.value.uri.toString();
 
-    // 1) Если есть возможность pop — всегда pop (это “нормальный назад”)
-    if (router.canPop()) {
-      router.pop();
-      return;
+    // Текущий маршрут максимально надёжно берём из routeInformationProvider
+    final loc = router.routeInformationProvider.value.uri.toString();
+
+    // 0) Если открыто что-то поверх (dialog/bottomsheet/menu) — закрыть это
+    final rootNav = Navigator.of(context, rootNavigator: true);
+    if (rootNav.canPop()) {
+      rootNav.pop();
+      return true; // обработали
     }
 
-    // 2) Логин без стека: назад НЕ должен закрывать приложение
-    if (location.startsWith('/login')) {
+    // 1) Если есть история роутера — pop (обычный "назад")
+    if (router.canPop()) {
+      router.pop();
+      return true;
+    }
+
+    // 2) На логине без стека — назад НЕ закрывает приложение
+    if (loc.startsWith('/login')) {
       router.go('/buyer/home');
-      return;
+      return true;
     }
 
     // 3) В buyer-зоне, но не на "Магазин" — назад ведёт на "Магазин"
-    if (_isBuyerArea(location) && !_isBuyerHome(location)) {
+    // (это закрывает твой кейс: профиль/каталог/и т.п. => на главную)
+    if (_isBuyerArea(loc) && !_isBuyerHome(loc)) {
       router.go('/buyer/home');
-      return;
+      return true;
     }
 
-    // 4) На "Магазин" — двойной back для выхода
-    if (_isBuyerHome(location)) {
+    // 4) На "Магазин" — двойной back = выход
+    if (_isBuyerHome(loc)) {
       final now = DateTime.now();
       final last = _lastBackPress;
 
@@ -69,25 +70,24 @@ class _AppBackHandlerState extends State<AppBackHandler> {
               duration: Duration(seconds: 2),
             ),
           );
-        return;
+
+        return true;
       }
 
       SystemNavigator.pop();
-      return;
+      return true;
     }
 
-    // 5) Для остальных “краёв” (если вдруг)
+    // 5) Фолбэк: если вдруг где-то вне buyer-зоны
     SystemNavigator.pop();
+    return true;
   }
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, result) {
-        if (didPop) return;
-        _handleBack();
-      },
+    // BackButtonListener — именно то, что ловит системную кнопку Back глобально.
+    return BackButtonListener(
+      onBackButtonPressed: _onBackPressed,
       child: widget.child,
     );
   }
