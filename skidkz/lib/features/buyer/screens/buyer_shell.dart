@@ -4,6 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:skidkz/core/theme/app_theme.dart';
@@ -42,7 +44,14 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   String _city = 'Алматы';
+  bool _cityLoading = false;
   DateTime? _lastBackPress;
+
+  @override
+  void initState() {
+    super.initState();
+    _initCity();
+  }
 
   int _locationToIndex(String location) {
     if (location.startsWith('/buyer/catalog')) return 1;
@@ -54,12 +63,6 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
 
   bool _isHomeLocation(String location) {
     return location == '/' || location.startsWith('/buyer/home');
-  }
-
-  void _toggleCity() {
-    setState(() {
-      _city = _city == 'Алматы' ? 'Астана' : 'Алматы';
-    });
   }
 
   void _goTab(BuildContext context, int index) {
@@ -83,6 +86,116 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
   }
 
   void _openDrawer() => _scaffoldKey.currentState?.openDrawer();
+
+  Future<void> _initCity() async {
+    // 1) попробуем гео
+    await _refreshCityFromGeo(quiet: true);
+
+    // 2) если гео не дало результата — попробуем из профиля (если авторизован)
+    if (!mounted) return;
+    if (_city.trim().isEmpty || _city == 'Алматы') {
+      final u = fb.FirebaseAuth.instance.currentUser;
+      if (u != null) {
+        final profileCity = await _fetchBuyerProfileCity(u.uid);
+        if (!mounted) return;
+        if (profileCity != null && profileCity.trim().isNotEmpty) {
+          setState(() => _city = profileCity.trim());
+        }
+      }
+    }
+  }
+
+  Future<String?> _fetchBuyerProfileCity(String uid) async {
+    try {
+      final snap = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      final data = snap.data();
+      if (data == null) return null;
+
+      final profiles = data['profiles'];
+      if (profiles is! Map) return null;
+
+      final buyer = profiles['buyer'];
+      if (buyer is! Map) return null;
+
+      final city = buyer['city'];
+      if (city is String && city.trim().isNotEmpty) return city.trim();
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String _normalizeCityName(String? raw) {
+    var s = (raw ?? '').trim();
+    if (s.isEmpty) return '';
+
+    // Частые варианты из геокодинга
+    final low = s.toLowerCase();
+    if (low == 'almaty') return 'Алматы';
+    if (low == 'astana') return 'Астана';
+    if (low == 'nur-sultan' || low == 'nursultan') return 'Астана';
+
+    // Иногда locality пустой, а прилетает adminArea
+    // Оставляем как есть, но с первой буквой
+    s = s.replaceAll(RegExp(r'\s+'), ' ');
+    return s;
+  }
+
+  Future<void> _refreshCityFromGeo({bool quiet = false}) async {
+    if (_cityLoading) return;
+    setState(() => _cityLoading = true);
+
+    try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        if (!quiet && mounted) {
+          ScaffoldMessenger.of(context)
+            ..clearSnackBars()
+            ..showSnackBar(const SnackBar(content: Text('Включите геолокацию на устройстве')));
+        }
+        return;
+      }
+
+      var perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.denied) {
+        perm = await Geolocator.requestPermission();
+      }
+      if (perm == LocationPermission.denied || perm == LocationPermission.deniedForever) {
+        if (!quiet && mounted) {
+          ScaffoldMessenger.of(context)
+            ..clearSnackBars()
+            ..showSnackBar(const SnackBar(content: Text('Нет разрешения на геолокацию')));
+        }
+        return;
+      }
+
+      final pos = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.low,
+        timeLimit: const Duration(seconds: 8),
+      );
+
+      final marks = await placemarkFromCoordinates(pos.latitude, pos.longitude);
+      if (marks.isEmpty) return;
+
+      final p = marks.first;
+
+      // locality — чаще всего город. Если пусто — пробуем subAdministrativeArea/adminArea
+      final rawCity = p.locality?.trim().isNotEmpty == true
+          ? p.locality
+          : (p.subAdministrativeArea?.trim().isNotEmpty == true
+              ? p.subAdministrativeArea
+              : p.administrativeArea);
+
+      final normalized = _normalizeCityName(rawCity);
+      if (normalized.isNotEmpty && mounted) {
+        setState(() => _city = normalized);
+      }
+    } catch (_) {
+      // молча (гео может падать на части устройств/эмуляторов)
+    } finally {
+      if (mounted) setState(() => _cityLoading = false);
+    }
+  }
 
   Future<bool> _onWillPop() async {
     final location = GoRouterState.of(context).uri.toString();
@@ -137,15 +250,18 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
           key: _scaffoldKey,
           drawer: BuyerDrawer(
             city: _city,
-            onToggleCity: _toggleCity,
+            cityLoading: _cityLoading,
+            onRefreshCity: () => _refreshCityFromGeo(quiet: false),
           ),
 
-          // ✅ ВАЖНО: единый top bar для всех вкладок, чтобы Drawer был всегда доступен
+          // единый top bar для всех вкладок
           body: Column(
             children: [
               _BuyerTopBar(
                 onMenu: _openDrawer,
                 city: _city,
+                cityLoading: _cityLoading,
+                onCityTap: () => _refreshCityFromGeo(quiet: false),
               ),
               Expanded(child: widget.child),
             ],
@@ -175,10 +291,14 @@ class _BuyerTopBar extends StatelessWidget {
   const _BuyerTopBar({
     required this.onMenu,
     required this.city,
+    required this.cityLoading,
+    required this.onCityTap,
   });
 
   final VoidCallback onMenu;
   final String city;
+  final bool cityLoading;
+  final VoidCallback onCityTap;
 
   @override
   Widget build(BuildContext context) {
@@ -211,16 +331,27 @@ class _BuyerTopBar extends StatelessWidget {
                 ),
               ),
               const Spacer(),
-              Icon(Icons.location_on_outlined, color: AppTheme.textSecondary, size: 18),
-              const SizedBox(width: 6),
-              Text(
-                city,
-                style: TextStyle(
-                  color: AppTheme.textSecondary,
-                  fontWeight: FontWeight.w700,
+              InkWell(
+                onTap: onCityTap,
+                borderRadius: BorderRadius.circular(12),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  child: Row(
+                    children: [
+                      Icon(Icons.location_on_outlined, color: AppTheme.textSecondary, size: 18),
+                      const SizedBox(width: 6),
+                      Text(
+                        cityLoading ? 'Определяем…' : city,
+                        style: TextStyle(
+                          color: AppTheme.textSecondary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 6),
             ],
           ),
         ),
@@ -233,11 +364,13 @@ class BuyerDrawer extends StatelessWidget {
   const BuyerDrawer({
     super.key,
     required this.city,
-    required this.onToggleCity,
+    required this.cityLoading,
+    required this.onRefreshCity,
   });
 
   final String city;
-  final VoidCallback onToggleCity;
+  final bool cityLoading;
+  final VoidCallback onRefreshCity;
 
   Widget _sectionTitle(String text) {
     return Padding(
@@ -312,7 +445,7 @@ class BuyerDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // “светлая” подсветка как в bottom nav — через Theme (без ListTileThemeData.splashColor)
+    // “белая” подсветка как в bottom nav — через Theme (без ListTileThemeData.splashColor)
     final splash = Colors.white.withOpacity(0.08);
     final highlight = Colors.white.withOpacity(0.05);
 
@@ -443,6 +576,7 @@ class BuyerDrawer extends StatelessWidget {
 
                               const SizedBox(height: 10),
 
+                              // ✅ Важно: город в Drawer показываем ТОЛЬКО гостю (чтобы не было дубля)
                               Row(
                                 children: [
                                   if (!isAuthed)
@@ -470,29 +604,30 @@ class BuyerDrawer extends StatelessWidget {
                                       },
                                     ),
                                   const Spacer(),
-                                  InkWell(
-                                    onTap: onToggleCity,
-                                    borderRadius: BorderRadius.circular(12),
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                                      child: Row(
-                                        children: [
-                                          Icon(Icons.location_on_outlined,
-                                              color: AppTheme.textSecondary, size: 18),
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            city,
-                                            style: TextStyle(
-                                              color: AppTheme.textPrimary,
-                                              fontWeight: FontWeight.w800,
+                                  if (!isAuthed)
+                                    InkWell(
+                                      onTap: onRefreshCity,
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                                        child: Row(
+                                          children: [
+                                            Icon(Icons.location_on_outlined,
+                                                color: AppTheme.textSecondary, size: 18),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              cityLoading ? 'Определяем…' : city,
+                                              style: TextStyle(
+                                                color: AppTheme.textPrimary,
+                                                fontWeight: FontWeight.w800,
+                                              ),
                                             ),
-                                          ),
-                                        ],
+                                          ],
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  if (isAuthed)
+                                  if (isAuthed) ...[
+                                    const SizedBox(width: 8),
                                     TextButton(
                                       onPressed: () => _signOutAndClose(context),
                                       style: TextButton.styleFrom(
@@ -509,6 +644,7 @@ class BuyerDrawer extends StatelessWidget {
                                         ),
                                       ),
                                     ),
+                                  ],
                                 ],
                               ),
                             ],
@@ -532,9 +668,11 @@ class BuyerDrawer extends StatelessWidget {
 
                         _sectionTitle('Кабинеты'),
                         ListTile(
-                          leading: Icon(Icons.store_mall_directory_outlined, color: AppTheme.textSecondary),
+                          leading:
+                              Icon(Icons.store_mall_directory_outlined, color: AppTheme.textSecondary),
                           title: Text('Кабинет магазина', style: TextStyle(color: AppTheme.textPrimary)),
-                          subtitle: Text('Продажи, товары, заказы', style: TextStyle(color: AppTheme.textSecondary)),
+                          subtitle:
+                              Text('Продажи, товары, заказы', style: TextStyle(color: AppTheme.textSecondary)),
                           onTap: () {
                             _closeDrawer(context);
                             context.go('/cabinet');
@@ -543,7 +681,8 @@ class BuyerDrawer extends StatelessWidget {
                         ListTile(
                           leading: Icon(Icons.campaign_outlined, color: AppTheme.textSecondary),
                           title: Text('Кабинет ванхуна', style: TextStyle(color: AppTheme.textPrimary)),
-                          subtitle: Text('Заработать на промокодах', style: TextStyle(color: AppTheme.textSecondary)),
+                          subtitle: Text('Заработать на промокодах',
+                              style: TextStyle(color: AppTheme.textSecondary)),
                           onTap: () {
                             _closeDrawer(context);
                             context.go('/cabinet');
@@ -555,12 +694,14 @@ class BuyerDrawer extends StatelessWidget {
                         ListTile(
                           leading: Icon(Icons.add_business_outlined, color: AppTheme.textSecondary),
                           title: Text('Открыть магазин', style: TextStyle(color: AppTheme.textPrimary)),
-                          subtitle: Text('Как это работает', style: TextStyle(color: AppTheme.textSecondary)),
+                          subtitle:
+                              Text('Как это работает', style: TextStyle(color: AppTheme.textSecondary)),
                           onTap: () => context.push('/info/seller'),
                         ),
                         ListTile(
                           leading: Icon(Icons.person_add_alt_1_outlined, color: AppTheme.textSecondary),
-                          title: Text('Подключиться как ванхун', style: TextStyle(color: AppTheme.textPrimary)),
+                          title:
+                              Text('Подключиться как ванхун', style: TextStyle(color: AppTheme.textPrimary)),
                           subtitle: Text('Условия и старт', style: TextStyle(color: AppTheme.textSecondary)),
                           onTap: () => context.push('/info/wanghong'),
                         ),
@@ -588,7 +729,7 @@ class BuyerDrawer extends StatelessWidget {
               ),
             ),
 
-            // ✅ “Как на референсе”: мягкая дымка по правому краю Drawer + лёгкая тень
+            // ✅ “как на референсе”: мягкая дымка справа (внутри drawer)
             Positioned(
               top: 0,
               right: 0,
