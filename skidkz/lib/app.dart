@@ -20,12 +20,6 @@ class SkidKZApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.darkTheme,
       routerConfig: router,
-      builder: (context, child) {
-        return AppBackHandler(
-          router: router,
-          child: child ?? const SizedBox.shrink(),
-        );
-      },
     );
   }
 }
