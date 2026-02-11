@@ -1,5 +1,3 @@
-// lib/features/buyer/screens/buyer_shell.dart
-
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -63,22 +61,41 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
     return location == '/' || location.startsWith('/buyer/home');
   }
 
-  void _goTab(BuildContext context, int index) {
+  /// Безопасно получаем текущий location без GoRouterState.of(context)
+  String _safeLocation() {
+    final router = GoRouter.maybeOf(context);
+    if (router == null) return '/';
+    return router.routeInformationProvider.value.uri.toString();
+  }
+
+  void _go(String path) {
+    final router = GoRouter.maybeOf(context);
+    if (router == null) return; // если Router нет — просто игнорируем
+    router.go(path);
+  }
+
+  void _push(String path) {
+    final router = GoRouter.maybeOf(context);
+    if (router == null) return;
+    router.push(path);
+  }
+
+  void _goTab(int index) {
     switch (index) {
       case 0:
-        context.go('/buyer/home');
+        _go('/buyer/home');
         break;
       case 1:
-        context.go('/buyer/catalog');
+        _go('/buyer/catalog');
         break;
       case 2:
-        context.go('/buyer/favorites');
+        _go('/buyer/favorites');
         break;
       case 3:
-        context.go('/buyer/cart');
+        _go('/buyer/cart');
         break;
       case 4:
-        context.go('/buyer/profile');
+        _go('/buyer/profile');
         break;
     }
   }
@@ -145,13 +162,21 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
   }
 
   Future<bool> _onWillPop() async {
-    final location = GoRouterState.of(context).uri.toString();
-    final router = GoRouter.of(context);
+    if (!mounted) return false;
+
+    final router = GoRouter.maybeOf(context);
+    final location = _safeLocation();
 
     // 0) Закрыть overlay (drawer/dialog/bottomsheet)
     final rootNav = Navigator.of(context, rootNavigator: true);
     if (rootNav.canPop()) {
       rootNav.pop();
+      return false;
+    }
+
+    // Если Router отсутствует — не крашимся
+    if (router == null) {
+      SystemNavigator.pop();
       return false;
     }
 
@@ -163,7 +188,7 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
 
     // 2) Если не “Магазин” — на “Магазин”
     if (!_isHomeLocation(location)) {
-      context.go('/buyer/home');
+      router.go('/buyer/home');
       return false;
     }
 
@@ -173,6 +198,7 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
 
     if (last == null || now.difference(last) > const Duration(seconds: 2)) {
       _lastBackPress = now;
+      if (!mounted) return false;
       ScaffoldMessenger.of(context)
         ..clearSnackBars()
         ..showSnackBar(
@@ -190,7 +216,7 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
 
   @override
   Widget build(BuildContext context) {
-    final location = GoRouterState.of(context).uri.toString();
+    final location = _safeLocation();
     final currentIndex = _locationToIndex(location);
 
     return PopScope(
@@ -225,7 +251,7 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
 
             bottomNavigationBar: BottomNavigationBar(
               currentIndex: currentIndex,
-              onTap: (i) => _goTab(context, i),
+              onTap: _goTab,
               type: BottomNavigationBarType.fixed,
               selectedItemColor: AppTheme.primary,
               unselectedItemColor: AppTheme.textDisabled,
@@ -326,6 +352,18 @@ class BuyerDrawer extends StatelessWidget {
   final String city;
   final VoidCallback onCityTap;
 
+  void _go(BuildContext context, String path) {
+    final router = GoRouter.maybeOf(context);
+    if (router == null) return;
+    router.go(path);
+  }
+
+  void _push(BuildContext context, String path) {
+    final router = GoRouter.maybeOf(context);
+    if (router == null) return;
+    router.push(path);
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = fb.FirebaseAuth.instance.currentUser;
@@ -335,7 +373,10 @@ class BuyerDrawer extends StatelessWidget {
       child: SafeArea(
         child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
           stream: isAuthed
-              ? FirebaseFirestore.instance.collection('users').doc(user!.uid).snapshots()
+              ? FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(user!.uid)
+                  .snapshots()
               : null,
           builder: (context, snapshot) {
             final data = snapshot.data?.data();
@@ -371,9 +412,11 @@ class BuyerDrawer extends StatelessWidget {
                             decoration: BoxDecoration(
                               color: Colors.white.withOpacity(0.06),
                               borderRadius: BorderRadius.circular(14),
-                              border: Border.all(color: Colors.white.withOpacity(0.08)),
+                              border: Border.all(
+                                  color: Colors.white.withOpacity(0.08)),
                             ),
-                            child: const Icon(Icons.person_outline, color: Colors.white70),
+                            child: const Icon(Icons.person_outline,
+                                color: Colors.white70),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
@@ -381,22 +424,23 @@ class BuyerDrawer extends StatelessWidget {
                               onTap: () {
                                 Navigator.of(context).pop(); // закрыть drawer
                                 if (isAuthed) {
-                                  context.go('/buyer/profile');
+                                  _go(context, '/buyer/profile');
                                 } else {
-                                  // ВАЖНО: push, чтобы Back возвращал на предыдущий экран,
-                                  // а не сворачивал приложение.
-                                  context.push('/login?next=%2Fbuyer%2Fprofile');
+                                  _push(context, '/login?next=%2Fbuyer%2Fprofile');
                                 }
                               },
                               borderRadius: BorderRadius.circular(14),
                               child: Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 6),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 6),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
                                       isAuthed
-                                          ? (displayName.isNotEmpty ? displayName : 'Профиль')
+                                          ? (displayName.isNotEmpty
+                                              ? displayName
+                                              : 'Профиль')
                                           : 'Войти / Регистрация',
                                       style: const TextStyle(
                                         color: Colors.white,
@@ -407,34 +451,42 @@ class BuyerDrawer extends StatelessWidget {
                                     const SizedBox(height: 4),
                                     Text(
                                       isAuthed
-                                          ? (phone.isNotEmpty ? phone : 'Заказы, избранное, бонусы')
+                                          ? (phone.isNotEmpty
+                                              ? phone
+                                              : 'Заказы, избранное, бонусы')
                                           : 'Заказы, избранное, бонусы',
-                                      style: const TextStyle(color: Colors.white70),
+                                      style:
+                                          const TextStyle(color: Colors.white70),
                                     ),
                                   ],
                                 ),
                               ),
                             ),
                           ),
-                          const Icon(Icons.chevron_right, color: Colors.white70),
+                          const Icon(Icons.chevron_right,
+                              color: Colors.white70),
                         ],
                       ),
                       const SizedBox(height: 14),
                       Row(
                         children: [
-                          const Text('Гость', style: TextStyle(color: Colors.white60)),
+                          const Text('Гость',
+                              style: TextStyle(color: Colors.white60)),
                           const Spacer(),
                           InkWell(
                             onTap: onCityTap,
                             borderRadius: BorderRadius.circular(12),
                             child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 6),
                               child: Row(
                                 children: [
                                   const Icon(Icons.location_on_outlined,
                                       color: Colors.white70, size: 18),
                                   const SizedBox(width: 6),
-                                  Text(city, style: const TextStyle(color: Colors.white70)),
+                                  Text(city,
+                                      style: const TextStyle(
+                                          color: Colors.white70)),
                                 ],
                               ),
                             ),
@@ -448,21 +500,25 @@ class BuyerDrawer extends StatelessWidget {
                 const SizedBox(height: 10),
 
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                  child: Text('Аккаунт', style: TextStyle(color: AppTheme.textDisabled)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  child: Text('Аккаунт',
+                      style: TextStyle(color: AppTheme.textDisabled)),
                 ),
                 ListTile(
                   leading: const Icon(Icons.receipt_long_outlined),
                   title: const Text('Мои заказы'),
                   onTap: () {
                     Navigator.of(context).pop();
-                    context.go('/buyer/orders');
+                    _go(context, '/buyer/orders');
                   },
                 ),
 
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  child: Text('Кабинеты', style: TextStyle(color: AppTheme.textDisabled)),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 12),
+                  child: Text('Кабинеты',
+                      style: TextStyle(color: AppTheme.textDisabled)),
                 ),
                 ListTile(
                   leading: const Icon(Icons.storefront_outlined),
@@ -470,7 +526,7 @@ class BuyerDrawer extends StatelessWidget {
                   subtitle: const Text('Продажи, товары, заказы'),
                   onTap: () {
                     Navigator.of(context).pop();
-                    context.go('/info/seller');
+                    _go(context, '/info/seller');
                   },
                 ),
                 ListTile(
@@ -479,13 +535,15 @@ class BuyerDrawer extends StatelessWidget {
                   subtitle: const Text('Заработать на промокодах'),
                   onTap: () {
                     Navigator.of(context).pop();
-                    context.go('/info/wanghong');
+                    _go(context, '/info/wanghong');
                   },
                 ),
 
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  child: Text('Для бизнеса', style: TextStyle(color: AppTheme.textDisabled)),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 12),
+                  child: Text('Для бизнеса',
+                      style: TextStyle(color: AppTheme.textDisabled)),
                 ),
                 ListTile(
                   leading: const Icon(Icons.store_mall_directory_outlined),
@@ -493,7 +551,7 @@ class BuyerDrawer extends StatelessWidget {
                   subtitle: const Text('Как это работает'),
                   onTap: () {
                     Navigator.of(context).pop();
-                    context.go('/info/seller');
+                    _go(context, '/info/seller');
                   },
                 ),
                 ListTile(
@@ -502,13 +560,15 @@ class BuyerDrawer extends StatelessWidget {
                   subtitle: const Text('Условия и старт'),
                   onTap: () {
                     Navigator.of(context).pop();
-                    context.go('/info/wanghong');
+                    _go(context, '/info/wanghong');
                   },
                 ),
 
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  child: Text('Сервис', style: TextStyle(color: AppTheme.textDisabled)),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 12),
+                  child: Text('Сервис',
+                      style: TextStyle(color: AppTheme.textDisabled)),
                 ),
                 ListTile(
                   leading: const Icon(Icons.support_agent_outlined),
@@ -522,7 +582,8 @@ class BuyerDrawer extends StatelessWidget {
                   builder: (context, snap) {
                     final version = snap.data?.version ?? '';
                     final buildNumber = snap.data?.buildNumber ?? '';
-                    final v = (version.isEmpty) ? '' : 'v$version ($buildNumber)';
+                    final v =
+                        (version.isEmpty) ? '' : 'v$version ($buildNumber)';
 
                     return ListTile(
                       leading: const Icon(Icons.info_outline),
