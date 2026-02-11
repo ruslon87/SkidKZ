@@ -4,8 +4,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:geocoding/geocoding.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:skidkz/core/theme/app_theme.dart';
@@ -15,10 +13,12 @@ class BuyerShellScope extends InheritedWidget {
   const BuyerShellScope({
     super.key,
     required this.openDrawer,
+    required this.refreshCurrentTab,
     required super.child,
   });
 
   final VoidCallback openDrawer;
+  final Future<void> Function() refreshCurrentTab;
 
   static BuyerShellScope of(BuildContext context) {
     final scope = context.dependOnInheritedWidgetOfExactType<BuyerShellScope>();
@@ -28,7 +28,8 @@ class BuyerShellScope extends InheritedWidget {
 
   @override
   bool updateShouldNotify(covariant BuyerShellScope oldWidget) {
-    return oldWidget.openDrawer != openDrawer;
+    return oldWidget.openDrawer != openDrawer ||
+        oldWidget.refreshCurrentTab != refreshCurrentTab;
   }
 }
 
@@ -44,25 +45,24 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   String _city = 'Алматы';
-  bool _cityLoading = false;
   DateTime? _lastBackPress;
-
-  @override
-  void initState() {
-    super.initState();
-    _initCity();
-  }
 
   int _locationToIndex(String location) {
     if (location.startsWith('/buyer/catalog')) return 1;
     if (location.startsWith('/buyer/favorites')) return 2;
     if (location.startsWith('/buyer/cart')) return 3;
     if (location.startsWith('/buyer/profile')) return 4;
-    return 0;
+    return 0; // home
   }
 
   bool _isHomeLocation(String location) {
-    return location == '/' || location.startsWith('/buyer/home');
+    return location.startsWith('/buyer/home');
+  }
+
+  void _toggleCity() {
+    setState(() {
+      _city = _city == 'Алматы' ? 'Астана' : 'Алматы';
+    });
   }
 
   void _goTab(BuildContext context, int index) {
@@ -87,154 +87,62 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
 
   void _openDrawer() => _scaffoldKey.currentState?.openDrawer();
 
-  Future<void> _initCity() async {
-    // 1) попробуем гео
-    await _refreshCityFromGeo(quiet: true);
+  Future<void> _refreshCurrentTab() async {
+    // Универсальный хук: вкладки могут подписаться через BuyerRefreshWrapper.
+    BuyerRefreshController.maybeOf(context)?.requestRefresh();
+  }
 
-    // 2) если гео не дало результата — попробуем из профиля (если авторизован)
+  void _snack(String text) {
     if (!mounted) return;
-    if (_city.trim().isEmpty || _city == 'Алматы') {
-      final u = fb.FirebaseAuth.instance.currentUser;
-      if (u != null) {
-        final profileCity = await _fetchBuyerProfileCity(u.uid);
-        if (!mounted) return;
-        if (profileCity != null && profileCity.trim().isNotEmpty) {
-          setState(() => _city = profileCity.trim());
-        }
-      }
-    }
-  }
-
-  Future<String?> _fetchBuyerProfileCity(String uid) async {
-    try {
-      final snap = await FirebaseFirestore.instance.collection('users').doc(uid).get();
-      final data = snap.data();
-      if (data == null) return null;
-
-      final profiles = data['profiles'];
-      if (profiles is! Map) return null;
-
-      final buyer = profiles['buyer'];
-      if (buyer is! Map) return null;
-
-      final city = buyer['city'];
-      if (city is String && city.trim().isNotEmpty) return city.trim();
-      return null;
-    } catch (_) {
-      return null;
-    }
-  }
-
-  String _normalizeCityName(String? raw) {
-    var s = (raw ?? '').trim();
-    if (s.isEmpty) return '';
-
-    // Частые варианты из геокодинга
-    final low = s.toLowerCase();
-    if (low == 'almaty') return 'Алматы';
-    if (low == 'astana') return 'Астана';
-    if (low == 'nur-sultan' || low == 'nursultan') return 'Астана';
-
-    // Иногда locality пустой, а прилетает adminArea
-    // Оставляем как есть, но с первой буквой
-    s = s.replaceAll(RegExp(r'\s+'), ' ');
-    return s;
-  }
-
-  Future<void> _refreshCityFromGeo({bool quiet = false}) async {
-    if (_cityLoading) return;
-    setState(() => _cityLoading = true);
-
-    try {
-      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        if (!quiet && mounted) {
-          ScaffoldMessenger.of(context)
-            ..clearSnackBars()
-            ..showSnackBar(const SnackBar(content: Text('Включите геолокацию на устройстве')));
-        }
-        return;
-      }
-
-      var perm = await Geolocator.checkPermission();
-      if (perm == LocationPermission.denied) {
-        perm = await Geolocator.requestPermission();
-      }
-      if (perm == LocationPermission.denied || perm == LocationPermission.deniedForever) {
-        if (!quiet && mounted) {
-          ScaffoldMessenger.of(context)
-            ..clearSnackBars()
-            ..showSnackBar(const SnackBar(content: Text('Нет разрешения на геолокацию')));
-        }
-        return;
-      }
-
-      final pos = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.low,
-        timeLimit: const Duration(seconds: 8),
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(text),
+          duration: const Duration(seconds: 2),
+        ),
       );
-
-      final marks = await placemarkFromCoordinates(pos.latitude, pos.longitude);
-      if (marks.isEmpty) return;
-
-      final p = marks.first;
-
-      // locality — чаще всего город. Если пусто — пробуем subAdministrativeArea/adminArea
-      final rawCity = p.locality?.trim().isNotEmpty == true
-          ? p.locality
-          : (p.subAdministrativeArea?.trim().isNotEmpty == true
-              ? p.subAdministrativeArea
-              : p.administrativeArea);
-
-      final normalized = _normalizeCityName(rawCity);
-      if (normalized.isNotEmpty && mounted) {
-        setState(() => _city = normalized);
-      }
-    } catch (_) {
-      // молча (гео может падать на части устройств/эмуляторов)
-    } finally {
-      if (mounted) setState(() => _cityLoading = false);
-    }
   }
 
-  Future<bool> _onWillPop() async {
+  void _handleBack() {
     final location = GoRouterState.of(context).uri.toString();
     final router = GoRouter.of(context);
 
-    // закрыть overlay
+    // 0) Закрыть drawer, если открыт
+    if (_scaffoldKey.currentState?.isDrawerOpen ?? false) {
+      Navigator.of(context).pop();
+      return;
+    }
+
+    // 1) Закрыть любые overlay (диалоги/боттомшиты/страницы rootNavigator)
     final rootNav = Navigator.of(context, rootNavigator: true);
     if (rootNav.canPop()) {
       rootNav.pop();
-      return false;
+      return;
     }
 
+    // 2) Если роутер может pop — pop
     if (router.canPop()) {
       router.pop();
-      return false;
+      return;
     }
 
+    // 3) Если не home — на home
     if (!_isHomeLocation(location)) {
       context.go('/buyer/home');
-      return false;
+      return;
     }
 
+    // 4) На home — двойной back
     final now = DateTime.now();
     final last = _lastBackPress;
     if (last == null || now.difference(last) > const Duration(seconds: 2)) {
       _lastBackPress = now;
-      ScaffoldMessenger.of(context)
-        ..clearSnackBars()
-        ..showSnackBar(
-          const SnackBar(
-            content: Text('Нажмите ещё раз, чтобы выйти'),
-            duration: Duration(seconds: 2),
-          ),
-        );
-      return false;
+      _snack('Нажмите ещё раз, чтобы выйти');
+      return;
     }
 
     SystemNavigator.pop();
-    return false;
   }
 
   @override
@@ -242,26 +150,26 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
     final location = GoRouterState.of(context).uri.toString();
     final currentIndex = _locationToIndex(location);
 
-    return WillPopScope(
-      onWillPop: _onWillPop,
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (_) => _handleBack(),
       child: BuyerShellScope(
         openDrawer: _openDrawer,
+        refreshCurrentTab: _refreshCurrentTab,
         child: Scaffold(
           key: _scaffoldKey,
           drawer: BuyerDrawer(
             city: _city,
-            cityLoading: _cityLoading,
-            onRefreshCity: () => _refreshCityFromGeo(quiet: false),
+            onToggleCity: _toggleCity,
           ),
 
-          // единый top bar для всех вкладок
+          // Единый top bar для всех вкладок
           body: Column(
             children: [
               _BuyerTopBar(
                 onMenu: _openDrawer,
                 city: _city,
-                cityLoading: _cityLoading,
-                onCityTap: () => _refreshCityFromGeo(quiet: false),
+                onRefresh: _refreshCurrentTab,
               ),
               Expanded(child: widget.child),
             ],
@@ -291,14 +199,12 @@ class _BuyerTopBar extends StatelessWidget {
   const _BuyerTopBar({
     required this.onMenu,
     required this.city,
-    required this.cityLoading,
-    required this.onCityTap,
+    required this.onRefresh,
   });
 
   final VoidCallback onMenu;
   final String city;
-  final bool cityLoading;
-  final VoidCallback onCityTap;
+  final Future<void> Function() onRefresh;
 
   @override
   Widget build(BuildContext context) {
@@ -331,27 +237,22 @@ class _BuyerTopBar extends StatelessWidget {
                 ),
               ),
               const Spacer(),
-              InkWell(
-                onTap: onCityTap,
-                borderRadius: BorderRadius.circular(12),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  child: Row(
-                    children: [
-                      Icon(Icons.location_on_outlined, color: AppTheme.textSecondary, size: 18),
-                      const SizedBox(width: 6),
-                      Text(
-                        cityLoading ? 'Определяем…' : city,
-                        style: TextStyle(
-                          color: AppTheme.textSecondary,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
+              Icon(Icons.location_on_outlined, color: AppTheme.textSecondary, size: 18),
+              const SizedBox(width: 6),
+              Text(
+                city,
+                style: TextStyle(
+                  color: AppTheme.textSecondary,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 4),
+              IconButton(
+                tooltip: 'Обновить',
+                onPressed: () => onRefresh(),
+                icon: Icon(Icons.refresh, color: AppTheme.textSecondary),
+                splashRadius: 20,
+              ),
             ],
           ),
         ),
@@ -360,17 +261,18 @@ class _BuyerTopBar extends StatelessWidget {
   }
 }
 
+/// ----------------------
+/// Drawer (как у тебя сейчас)
+/// ----------------------
 class BuyerDrawer extends StatelessWidget {
   const BuyerDrawer({
     super.key,
     required this.city,
-    required this.cityLoading,
-    required this.onRefreshCity,
+    required this.onToggleCity,
   });
 
   final String city;
-  final bool cityLoading;
-  final VoidCallback onRefreshCity;
+  final VoidCallback onToggleCity;
 
   Widget _sectionTitle(String text) {
     return Padding(
@@ -445,7 +347,6 @@ class BuyerDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // “белая” подсветка как в bottom nav — через Theme (без ListTileThemeData.splashColor)
     final splash = Colors.white.withOpacity(0.08);
     final highlight = Colors.white.withOpacity(0.05);
 
@@ -470,7 +371,6 @@ class BuyerDrawer extends StatelessWidget {
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        // HEADER
                         Container(
                           color: AppTheme.elevated,
                           padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
@@ -486,7 +386,6 @@ class BuyerDrawer extends StatelessWidget {
                                 ),
                               ),
                               const SizedBox(height: 12),
-
                               InkWell(
                                 onTap: () {
                                   _closeDrawer(context);
@@ -573,10 +472,7 @@ class BuyerDrawer extends StatelessWidget {
                                   ),
                                 ),
                               ),
-
                               const SizedBox(height: 10),
-
-                              // ✅ Важно: город в Drawer показываем ТОЛЬКО гостю (чтобы не было дубля)
                               Row(
                                 children: [
                                   if (!isAuthed)
@@ -604,30 +500,31 @@ class BuyerDrawer extends StatelessWidget {
                                       },
                                     ),
                                   const Spacer(),
-                                  if (!isAuthed)
-                                    InkWell(
-                                      onTap: onRefreshCity,
-                                      borderRadius: BorderRadius.circular(12),
-                                      child: Padding(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                                        child: Row(
-                                          children: [
-                                            Icon(Icons.location_on_outlined,
-                                                color: AppTheme.textSecondary, size: 18),
-                                            const SizedBox(width: 4),
-                                            Text(
-                                              cityLoading ? 'Определяем…' : city,
-                                              style: TextStyle(
-                                                color: AppTheme.textPrimary,
-                                                fontWeight: FontWeight.w800,
-                                              ),
+
+                                  // ✅ город оставляем только тут (в drawer), в topbar уже есть
+                                  InkWell(
+                                    onTap: onToggleCity,
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.location_on_outlined,
+                                              color: AppTheme.textSecondary, size: 18),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            city,
+                                            style: TextStyle(
+                                              color: AppTheme.textPrimary,
+                                              fontWeight: FontWeight.w800,
                                             ),
-                                          ],
-                                        ),
+                                          ),
+                                        ],
                                       ),
                                     ),
-                                  if (isAuthed) ...[
-                                    const SizedBox(width: 8),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  if (isAuthed)
                                     TextButton(
                                       onPressed: () => _signOutAndClose(context),
                                       style: TextButton.styleFrom(
@@ -644,7 +541,6 @@ class BuyerDrawer extends StatelessWidget {
                                         ),
                                       ),
                                     ),
-                                  ],
                                 ],
                               ),
                             ],
@@ -668,11 +564,9 @@ class BuyerDrawer extends StatelessWidget {
 
                         _sectionTitle('Кабинеты'),
                         ListTile(
-                          leading:
-                              Icon(Icons.store_mall_directory_outlined, color: AppTheme.textSecondary),
+                          leading: Icon(Icons.store_mall_directory_outlined, color: AppTheme.textSecondary),
                           title: Text('Кабинет магазина', style: TextStyle(color: AppTheme.textPrimary)),
-                          subtitle:
-                              Text('Продажи, товары, заказы', style: TextStyle(color: AppTheme.textSecondary)),
+                          subtitle: Text('Продажи, товары, заказы', style: TextStyle(color: AppTheme.textSecondary)),
                           onTap: () {
                             _closeDrawer(context);
                             context.go('/cabinet');
@@ -681,8 +575,7 @@ class BuyerDrawer extends StatelessWidget {
                         ListTile(
                           leading: Icon(Icons.campaign_outlined, color: AppTheme.textSecondary),
                           title: Text('Кабинет ванхуна', style: TextStyle(color: AppTheme.textPrimary)),
-                          subtitle: Text('Заработать на промокодах',
-                              style: TextStyle(color: AppTheme.textSecondary)),
+                          subtitle: Text('Заработать на промокодах', style: TextStyle(color: AppTheme.textSecondary)),
                           onTap: () {
                             _closeDrawer(context);
                             context.go('/cabinet');
@@ -694,14 +587,12 @@ class BuyerDrawer extends StatelessWidget {
                         ListTile(
                           leading: Icon(Icons.add_business_outlined, color: AppTheme.textSecondary),
                           title: Text('Открыть магазин', style: TextStyle(color: AppTheme.textPrimary)),
-                          subtitle:
-                              Text('Как это работает', style: TextStyle(color: AppTheme.textSecondary)),
+                          subtitle: Text('Как это работает', style: TextStyle(color: AppTheme.textSecondary)),
                           onTap: () => context.push('/info/seller'),
                         ),
                         ListTile(
                           leading: Icon(Icons.person_add_alt_1_outlined, color: AppTheme.textSecondary),
-                          title:
-                              Text('Подключиться как ванхун', style: TextStyle(color: AppTheme.textPrimary)),
+                          title: Text('Подключиться как ванхун', style: TextStyle(color: AppTheme.textPrimary)),
                           subtitle: Text('Условия и старт', style: TextStyle(color: AppTheme.textSecondary)),
                           onTap: () => context.push('/info/wanghong'),
                         ),
@@ -729,7 +620,7 @@ class BuyerDrawer extends StatelessWidget {
               ),
             ),
 
-            // ✅ “как на референсе”: мягкая дымка справа (внутри drawer)
+            // дымка по правому краю drawer (как у тебя сейчас)
             Positioned(
               top: 0,
               right: 0,
@@ -787,5 +678,63 @@ class _AppVersionSubtitleState extends State<_AppVersionSubtitle> {
   @override
   Widget build(BuildContext context) {
     return Text(_text, style: TextStyle(color: AppTheme.textSecondary));
+  }
+}
+
+/// ------------------------------------------------------
+/// Refresh infra: вкладки могут оборачиваться в wrapper.
+/// ------------------------------------------------------
+class BuyerRefreshController extends InheritedWidget {
+  const BuyerRefreshController({
+    super.key,
+    required this.onRefreshRequested,
+    required super.child,
+  });
+
+  final VoidCallback onRefreshRequested;
+
+  static BuyerRefreshController? maybeOf(BuildContext context) {
+    return context.dependOnInheritedWidgetOfExactType<BuyerRefreshController>();
+  }
+
+  void requestRefresh() => onRefreshRequested();
+
+  @override
+  bool updateShouldNotify(covariant BuyerRefreshController oldWidget) {
+    return oldWidget.onRefreshRequested != onRefreshRequested;
+  }
+}
+
+class BuyerRefreshWrapper extends StatefulWidget {
+  const BuyerRefreshWrapper({
+    super.key,
+    required this.onRefresh,
+    required this.child,
+  });
+
+  final Future<void> Function() onRefresh;
+  final Widget child;
+
+  @override
+  State<BuyerRefreshWrapper> createState() => _BuyerRefreshWrapperState();
+}
+
+class _BuyerRefreshWrapperState extends State<BuyerRefreshWrapper> {
+  final GlobalKey<RefreshIndicatorState> _key = GlobalKey<RefreshIndicatorState>();
+
+  void _requestRefresh() {
+    _key.currentState?.show();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return BuyerRefreshController(
+      onRefreshRequested: _requestRefresh,
+      child: RefreshIndicator(
+        key: _key,
+        onRefresh: widget.onRefresh,
+        child: widget.child,
+      ),
+    );
   }
 }
