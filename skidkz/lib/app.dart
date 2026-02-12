@@ -21,10 +21,9 @@ class SkidKZApp extends ConsumerWidget {
       theme: AppTheme.darkTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.dark,
-
       routerConfig: router,
 
-      // Глобальный перехват Android Back (без GoRouter.of(context))
+      // ВАЖНО: никакого GoRouter.of(context) тут быть не должно
       builder: (context, child) {
         return AppBackHandler(
           router: router,
