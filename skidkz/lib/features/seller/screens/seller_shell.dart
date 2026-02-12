@@ -1,3 +1,5 @@
+// lib/features/seller/screens/seller_shell.dart
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -6,16 +8,44 @@ class SellerShell extends StatelessWidget {
 
   const SellerShell({super.key, required this.child});
 
+  String _safeLocation(BuildContext context) {
+    final router = GoRouter.maybeOf(context);
+    if (router == null) return '/';
+    return router.routeInformationProvider.value.uri.toString();
+  }
+
+  int _calculateSelectedIndex(BuildContext context) {
+    final location = _safeLocation(context);
+    if (location.startsWith('/seller/products')) return 0;
+    if (location.startsWith('/seller/orders')) return 1;
+    return 0;
+  }
+
+  void _go(BuildContext context, String path) {
+    final router = GoRouter.maybeOf(context);
+    if (router == null) return;
+    router.go(path);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: child,
       bottomNavigationBar: NavigationBar(
         selectedIndex: _calculateSelectedIndex(context),
-        onDestinationSelected: (index) => _onItemTapped(index, context),
+        onDestinationSelected: (index) {
+          switch (index) {
+            case 0:
+              _go(context, '/seller/products');
+              break;
+            case 1:
+              _go(context, '/seller/orders');
+              break;
+          }
+        },
         backgroundColor: Colors.white,
         elevation: 0,
-        indicatorColor: Colors.orange.shade100,
+        indicatorColor: Colors.orangeAccent.withOpacity(0.12),
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.inventory_2_outlined),
@@ -30,23 +60,5 @@ class SellerShell extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  static int _calculateSelectedIndex(BuildContext context) {
-    final String location = GoRouterState.of(context).uri.toString();
-    if (location.startsWith('/seller/products')) return 0;
-    if (location.startsWith('/seller/orders')) return 1;
-    return 0;
-  }
-
-  void _onItemTapped(int index, BuildContext context) {
-    switch (index) {
-      case 0:
-        context.go('/seller/products');
-        break;
-      case 1:
-        context.go('/seller/orders');
-        break;
-    }
   }
 }
