@@ -1,116 +1,92 @@
-// skidkz/lib/core/widgets/app_back_handler.dart
+// lib/core/widgets/app_back_handler.dart
 
 import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 class AppBackHandler extends StatefulWidget {
+  final Widget child;
+  final GoRouter router;
+
   const AppBackHandler({
     super.key,
-    required this.router,
     required this.child,
+    required this.router,
   });
-
-  final GoRouter router;
-  final Widget child;
 
   @override
   State<AppBackHandler> createState() => _AppBackHandlerState();
 }
 
 class _AppBackHandlerState extends State<AppBackHandler> {
-  DateTime? _lastBackPress;
+  DateTime? _lastBackPressed;
 
-  Uri get _uri => widget.router.routeInformationProvider.value.uri;
-
-  NavigatorState? get _nav =>
-      widget.router.routerDelegate.navigatorKey.currentState;
-
-  bool _isBuyerHome(String path) =>
-      path == '/' || path == '/buyer' || path.startsWith('/buyer/home');
-
-  bool _isExitHome(String path) =>
-      _isBuyerHome(path) ||
-      path.startsWith('/seller/products') ||
-      path.startsWith('/wanghong/home') ||
-      path.startsWith('/admin/moderation');
-
-  String? _homeForPath(String path) {
-    if (path == '/' || path.startsWith('/buyer')) return '/buyer/home';
-    if (path.startsWith('/seller')) return '/seller/products';
-    if (path.startsWith('/wanghong')) return '/wanghong/home';
-    if (path.startsWith('/admin')) return '/admin/moderation';
-    return null;
+  bool _isMainRoute(String location) {
+    return location == '/buyer/home' ||
+        location == '/seller/products' ||
+        location == '/wanghong/home' ||
+        location == '/admin/moderation';
   }
 
-  void _showExitHint() {
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    messenger
-      ?..clearSnackBars()
-      ..showSnackBar(
+  Future<bool> _handleBack() async {
+    final nav = widget.router.routerDelegate.navigatorKey.currentState;
+    final location = widget.router.routeInformationProvider.value.location;
+
+    if (nav == null) return false;
+
+    // 1. Если есть что pop — попаем
+    if (nav.canPop()) {
+      nav.pop();
+      return false;
+    }
+
+    // 2. Если не на главной — возвращаем на главную раздела
+    if (!_isMainRoute(location)) {
+      if (location.startsWith('/buyer')) {
+        widget.router.go('/buyer/home');
+      } else if (location.startsWith('/seller')) {
+        widget.router.go('/seller/products');
+      } else if (location.startsWith('/wanghong')) {
+        widget.router.go('/wanghong/home');
+      } else if (location.startsWith('/admin')) {
+        widget.router.go('/admin/moderation');
+      } else {
+        widget.router.go('/buyer/home');
+      }
+      return false;
+    }
+
+    // 3. На главной — двойное нажатие
+    final now = DateTime.now();
+
+    if (_lastBackPressed == null ||
+        now.difference(_lastBackPressed!) > const Duration(seconds: 2)) {
+      _lastBackPressed = now;
+
+      ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Нажмите ещё раз, чтобы выйти'),
+          content: Text('Нажмите ещё раз для выхода'),
           duration: Duration(seconds: 2),
         ),
       );
-  }
 
-  Future<void> _handleBack() async {
-    final nav = _nav;
-    final path = _uri.path;
-
-    // Router ещё не привязан: ничего не делаем, чтобы не закрыть приложение случайно.
-    if (nav == null) return;
-
-    // 1) Сначала закрываем верхний маршрут: drawer/dialog/bottom-sheet/вложенный экран.
-    if (nav.canPop()) {
-      nav.pop();
-      return;
+      return false;
     }
 
-    // 2) Экраны входа/инфо/онбординга — возвращаем на витрину.
-    if (path.startsWith('/login') ||
-        path.startsWith('/role-select') ||
-        path.startsWith('/onboarding') ||
-        path.startsWith('/info')) {
-      widget.router.go('/buyer/home');
-      return;
-    }
-
-    // 3) На внутренних экранах раздела — назад на "главную" раздела.
-    final sectionHome = _homeForPath(path);
-    if (sectionHome != null && path != sectionHome) {
-      widget.router.go(sectionHome);
-      return;
-    }
-
-    // 4) На главных разделов — двойное нажатие для выхода.
-    if (_isExitHome(path)) {
-      final now = DateTime.now();
-      if (_lastBackPress == null ||
-          now.difference(_lastBackPress!) > const Duration(seconds: 2)) {
-        _lastBackPress = now;
-        _showExitHint();
-        return;
-      }
-
-      SystemNavigator.pop();
-      return;
-    }
-
-    // 5) Фолбэк: вернуться на витрину, а не сворачивать приложение.
-    widget.router.go('/buyer/home');
+    // Второе нажатие — выходим
+    SystemNavigator.pop();
+    return true;
   }
 
   @override
   Widget build(BuildContext context) {
     return PopScope(
       canPop: false,
-      onPopInvokedWithResult: (didPop, result) {
-        if (didPop) return;
-        unawaited(_handleBack());
+      onPopInvoked: (didPop) {
+        if (!didPop) {
+          _handleBack();
+        }
       },
       child: widget.child,
     );
