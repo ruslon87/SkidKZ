@@ -8,7 +8,12 @@ import 'package:skidkz/core/theme/app_theme.dart';
 import 'package:skidkz/core/widgets/app_gradient_background.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  const LoginScreen({
+    super.key,
+    this.nextPath,
+  });
+
+  final String? nextPath;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -48,7 +53,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   String? _next() {
-    final next = GoRouterState.of(context).uri.queryParameters['next'];
+    final next = widget.nextPath;
     if (next == null) return null;
     final t = next.trim();
     return t.isEmpty ? null : t;
