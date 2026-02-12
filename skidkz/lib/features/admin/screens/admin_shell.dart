@@ -11,7 +11,7 @@ class AdminShell extends StatelessWidget {
   String _safeLocation(BuildContext context) {
     final router = GoRouter.maybeOf(context);
     if (router == null) return '/';
-    return router.routeInformationProvider.value.uri.toString();
+    return router.routeInformationProvider.value.uri.path; // ← важно
   }
 
   int _calculateSelectedIndex(BuildContext context) {
@@ -30,8 +30,6 @@ class AdminShell extends StatelessWidget {
 
   void _handleBack(BuildContext context) {
     final router = GoRouter.maybeOf(context);
-
-    // Если Router внезапно недоступен — не падаем.
     if (router == null) return;
 
     if (router.canPop()) {
