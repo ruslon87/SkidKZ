@@ -9,6 +9,13 @@ class SkidDrawer extends StatelessWidget {
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
 
+    // Берём router ДО закрытия drawer
+    final router = GoRouter.of(context);
+
+    void closeDrawer() {
+      Navigator.of(context).pop();
+    }
+
     return Drawer(
       child: SafeArea(
         child: Column(
@@ -26,8 +33,8 @@ class SkidDrawer extends StatelessWidget {
               leading: const Icon(Icons.storefront_outlined),
               title: const Text('Витрина'),
               onTap: () {
-                Navigator.pop(context);
-                context.go('/buyer/home');
+                closeDrawer();
+                router.go('/buyer/home');
               },
             ),
 
@@ -38,8 +45,8 @@ class SkidDrawer extends StatelessWidget {
               title: const Text('Кабинет сотрудника'),
               subtitle: Text(user == null ? 'Войти' : 'Открыть'),
               onTap: () {
-                Navigator.pop(context);
-                context.go('/cabinet');
+                closeDrawer();
+                router.go('/cabinet');
               },
             ),
 
