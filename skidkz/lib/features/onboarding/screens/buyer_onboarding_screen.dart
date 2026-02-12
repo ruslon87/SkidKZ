@@ -4,11 +4,16 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 class BuyerOnboardingScreen extends StatelessWidget {
-  const BuyerOnboardingScreen({super.key});
+  const BuyerOnboardingScreen({
+    super.key,
+    this.nextPath,
+  });
+
+  final String? nextPath;
 
   @override
   Widget build(BuildContext context) {
-    final next = GoRouterState.of(context).uri.queryParameters['next'];
+    final next = nextPath?.trim();
 
     return Scaffold(
       appBar: AppBar(title: const Text('Онбординг покупателя')),
@@ -29,7 +34,7 @@ class BuyerOnboardingScreen extends StatelessWidget {
               child: ElevatedButton(
                 onPressed: () {
                   // Заглушка: на реальном онбординге тут будет сохранение профиля.
-                  if (next != null && next.trim().isNotEmpty) {
+                  if (next != null && next.isNotEmpty) {
                     context.go(next);
                   } else {
                     context.go('/buyer/home');

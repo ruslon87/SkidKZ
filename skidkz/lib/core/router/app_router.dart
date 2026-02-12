@@ -142,7 +142,9 @@ final routerProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(
         path: '/login',
-        builder: (context, state) => const LoginScreen(),
+        builder: (context, state) => LoginScreen(
+          nextPath: state.uri.queryParameters['next'],
+        ),
       ),
 
       GoRoute(
@@ -162,7 +164,9 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       GoRoute(
         path: '/onboarding/buyer',
-        builder: (context, state) => const BuyerOnboardingScreen(),
+        builder: (context, state) => BuyerOnboardingScreen(
+          nextPath: state.uri.queryParameters['next'],
+        ),
       ),
 
       ShellRoute(
