@@ -61,24 +61,27 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
     return location == '/' || location.startsWith('/buyer/home');
   }
 
-  /// Безопасно получаем текущий location без GoRouterState.of(context)
+  // ---- Safe router helpers (без крашей) ----
+  GoRouter? get _router => GoRouter.maybeOf(context);
+
   String _safeLocation() {
-    final router = GoRouter.maybeOf(context);
-    if (router == null) return '/';
-    return router.routeInformationProvider.value.uri.toString();
+    final r = _router;
+    if (r == null) return '/';
+    return r.routeInformationProvider.value.uri.toString();
   }
 
   void _go(String path) {
-    final router = GoRouter.maybeOf(context);
-    if (router == null) return; // если Router нет — просто игнорируем
-    router.go(path);
+    final r = _router;
+    if (r == null) return;
+    r.go(path);
   }
 
   void _push(String path) {
-    final router = GoRouter.maybeOf(context);
-    if (router == null) return;
-    router.push(path);
+    final r = _router;
+    if (r == null) return;
+    r.push(path);
   }
+  // -----------------------------------------
 
   void _goTab(int index) {
     switch (index) {
@@ -104,7 +107,6 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
 
   Future<void> _detectCity() async {
     try {
-      // 1) сервис
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
         if (!mounted) return;
@@ -112,7 +114,6 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
         return;
       }
 
-      // 2) разрешения
       var permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
@@ -133,12 +134,10 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
       if (!mounted) return;
       setState(() => _city = 'Определяем...');
 
-      // 3) позиция
       final position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
       );
 
-      // 4) геокодинг
       final placemarks = await placemarkFromCoordinates(
         position.latitude,
         position.longitude,
@@ -164,8 +163,8 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
   Future<bool> _onWillPop() async {
     if (!mounted) return false;
 
-    final router = GoRouter.maybeOf(context);
     final location = _safeLocation();
+    final router = _router;
 
     // 0) Закрыть overlay (drawer/dialog/bottomsheet)
     final rootNav = Navigator.of(context, rootNavigator: true);
@@ -174,13 +173,13 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
       return false;
     }
 
-    // Если Router отсутствует — не крашимся
+    // Router может быть временно недоступен в некоторых lifecycle-моментах
     if (router == null) {
       SystemNavigator.pop();
       return false;
     }
 
-    // 1) Если есть что pop в роутере — pop (важно для под-страниц)
+    // 1) Если есть что pop в роутере — pop
     if (router.canPop()) {
       router.pop();
       return false;
@@ -199,6 +198,7 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
     if (last == null || now.difference(last) > const Duration(seconds: 2)) {
       _lastBackPress = now;
       if (!mounted) return false;
+
       ScaffoldMessenger.of(context)
         ..clearSnackBars()
         ..showSnackBar(
@@ -223,7 +223,6 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
       canPop: false,
       onPopInvoked: (didPop) {
         if (didPop) return;
-        // PopScope не умеет await — запускаем асинхронную логику отдельно.
         unawaited(_onWillPop());
       },
       child: BuyerShellScope(
@@ -234,21 +233,18 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
             key: _scaffoldKey,
             drawer: BuyerDrawer(
               city: _city,
-              onCityTap: _detectCity, // обновление по нажатию
+              onCityTap: _detectCity,
             ),
-
-            // ✅ закреплённый верх + контент вкладки
             body: Column(
               children: [
                 _BuyerTopBar(
                   onMenu: _openDrawer,
                   city: _city,
-                  onCityTap: _detectCity, // обновление по нажатию
+                  onCityTap: _detectCity,
                 ),
                 Expanded(child: widget.child),
               ],
             ),
-
             bottomNavigationBar: BottomNavigationBar(
               currentIndex: currentIndex,
               onTap: _goTab,
@@ -353,15 +349,15 @@ class BuyerDrawer extends StatelessWidget {
   final VoidCallback onCityTap;
 
   void _go(BuildContext context, String path) {
-    final router = GoRouter.maybeOf(context);
-    if (router == null) return;
-    router.go(path);
+    final r = GoRouter.maybeOf(context);
+    if (r == null) return;
+    r.go(path);
   }
 
   void _push(BuildContext context, String path) {
-    final router = GoRouter.maybeOf(context);
-    if (router == null) return;
-    router.push(path);
+    final r = GoRouter.maybeOf(context);
+    if (r == null) return;
+    r.push(path);
   }
 
   @override
@@ -373,10 +369,7 @@ class BuyerDrawer extends StatelessWidget {
       child: SafeArea(
         child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
           stream: isAuthed
-              ? FirebaseFirestore.instance
-                  .collection('users')
-                  .doc(user!.uid)
-                  .snapshots()
+              ? FirebaseFirestore.instance.collection('users').doc(user!.uid).snapshots()
               : null,
           builder: (context, snapshot) {
             final data = snapshot.data?.data();
@@ -386,7 +379,6 @@ class BuyerDrawer extends StatelessWidget {
             return ListView(
               padding: EdgeInsets.zero,
               children: [
-                // HEADER (градиент как ты просил)
                 Container(
                   decoration: const BoxDecoration(
                     gradient: LinearGradient(
@@ -412,17 +404,15 @@ class BuyerDrawer extends StatelessWidget {
                             decoration: BoxDecoration(
                               color: Colors.white.withOpacity(0.06),
                               borderRadius: BorderRadius.circular(14),
-                              border: Border.all(
-                                  color: Colors.white.withOpacity(0.08)),
+                              border: Border.all(color: Colors.white.withOpacity(0.08)),
                             ),
-                            child: const Icon(Icons.person_outline,
-                                color: Colors.white70),
+                            child: const Icon(Icons.person_outline, color: Colors.white70),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
                             child: InkWell(
                               onTap: () {
-                                Navigator.of(context).pop(); // закрыть drawer
+                                Navigator.of(context).pop();
                                 if (isAuthed) {
                                   _go(context, '/buyer/profile');
                                 } else {
@@ -431,16 +421,13 @@ class BuyerDrawer extends StatelessWidget {
                               },
                               borderRadius: BorderRadius.circular(14),
                               child: Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 6),
+                                padding: const EdgeInsets.symmetric(vertical: 6),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
                                       isAuthed
-                                          ? (displayName.isNotEmpty
-                                              ? displayName
-                                              : 'Профиль')
+                                          ? (displayName.isNotEmpty ? displayName : 'Профиль')
                                           : 'Войти / Регистрация',
                                       style: const TextStyle(
                                         color: Colors.white,
@@ -451,42 +438,34 @@ class BuyerDrawer extends StatelessWidget {
                                     const SizedBox(height: 4),
                                     Text(
                                       isAuthed
-                                          ? (phone.isNotEmpty
-                                              ? phone
-                                              : 'Заказы, избранное, бонусы')
+                                          ? (phone.isNotEmpty ? phone : 'Заказы, избранное, бонусы')
                                           : 'Заказы, избранное, бонусы',
-                                      style:
-                                          const TextStyle(color: Colors.white70),
+                                      style: const TextStyle(color: Colors.white70),
                                     ),
                                   ],
                                 ),
                               ),
                             ),
                           ),
-                          const Icon(Icons.chevron_right,
-                              color: Colors.white70),
+                          const Icon(Icons.chevron_right, color: Colors.white70),
                         ],
                       ),
                       const SizedBox(height: 14),
                       Row(
                         children: [
-                          const Text('Гость',
-                              style: TextStyle(color: Colors.white60)),
+                          const Text('Гость', style: TextStyle(color: Colors.white60)),
                           const Spacer(),
                           InkWell(
                             onTap: onCityTap,
                             borderRadius: BorderRadius.circular(12),
                             child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 6),
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                               child: Row(
                                 children: [
                                   const Icon(Icons.location_on_outlined,
                                       color: Colors.white70, size: 18),
                                   const SizedBox(width: 6),
-                                  Text(city,
-                                      style: const TextStyle(
-                                          color: Colors.white70)),
+                                  Text(city, style: const TextStyle(color: Colors.white70)),
                                 ],
                               ),
                             ),
@@ -500,10 +479,8 @@ class BuyerDrawer extends StatelessWidget {
                 const SizedBox(height: 10),
 
                 Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                  child: Text('Аккаунт',
-                      style: TextStyle(color: AppTheme.textDisabled)),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  child: Text('Аккаунт', style: TextStyle(color: AppTheme.textDisabled)),
                 ),
                 ListTile(
                   leading: const Icon(Icons.receipt_long_outlined),
@@ -515,10 +492,8 @@ class BuyerDrawer extends StatelessWidget {
                 ),
 
                 Padding(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 12),
-                  child: Text('Кабинеты',
-                      style: TextStyle(color: AppTheme.textDisabled)),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Text('Кабинеты', style: TextStyle(color: AppTheme.textDisabled)),
                 ),
                 ListTile(
                   leading: const Icon(Icons.storefront_outlined),
@@ -540,10 +515,8 @@ class BuyerDrawer extends StatelessWidget {
                 ),
 
                 Padding(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 12),
-                  child: Text('Для бизнеса',
-                      style: TextStyle(color: AppTheme.textDisabled)),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Text('Для бизнеса', style: TextStyle(color: AppTheme.textDisabled)),
                 ),
                 ListTile(
                   leading: const Icon(Icons.store_mall_directory_outlined),
@@ -565,10 +538,8 @@ class BuyerDrawer extends StatelessWidget {
                 ),
 
                 Padding(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 12),
-                  child: Text('Сервис',
-                      style: TextStyle(color: AppTheme.textDisabled)),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Text('Сервис', style: TextStyle(color: AppTheme.textDisabled)),
                 ),
                 ListTile(
                   leading: const Icon(Icons.support_agent_outlined),
@@ -582,8 +553,7 @@ class BuyerDrawer extends StatelessWidget {
                   builder: (context, snap) {
                     final version = snap.data?.version ?? '';
                     final buildNumber = snap.data?.buildNumber ?? '';
-                    final v =
-                        (version.isEmpty) ? '' : 'v$version ($buildNumber)';
+                    final v = (version.isEmpty) ? '' : 'v$version ($buildNumber)';
 
                     return ListTile(
                       leading: const Icon(Icons.info_outline),
