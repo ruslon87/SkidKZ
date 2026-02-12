@@ -1,9 +1,6 @@
-import 'dart:async';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
@@ -40,8 +37,6 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   String _city = 'Определяем...';
-  DateTime? _lastBackPress;
-
   @override
   void initState() {
     super.initState();
@@ -54,11 +49,6 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
     if (location.startsWith('/buyer/cart')) return 3;
     if (location.startsWith('/buyer/profile')) return 4;
     return 0; // home
-  }
-
-  bool _isHomeLocation(String location) {
-    // “Магазин”
-    return location == '/' || location.startsWith('/buyer/home');
   }
 
   void _goTab(GoRouter router, int index) {
@@ -151,95 +141,47 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
     }
   }
 
-  Future<bool> _onWillPop(GoRouter router, String location) async {
-    // 0) Закрыть overlay (drawer/dialog/bottomsheet)
-    final rootNav = Navigator.of(context, rootNavigator: true);
-    if (rootNav.canPop()) {
-      rootNav.pop();
-      return false;
-    }
-
-    // 1) Если есть что pop в роутере — pop
-    if (router.canPop()) {
-      router.pop();
-      return false;
-    }
-
-    // 2) Если не “Магазин” — на “Магазин”
-    if (!_isHomeLocation(location)) {
-      router.go('/buyer/home');
-      return false;
-    }
-
-    // 3) На “Магазин” — двойной Back = выход
-    final now = DateTime.now();
-    final last = _lastBackPress;
-
-    if (last == null || now.difference(last) > const Duration(seconds: 2)) {
-      _lastBackPress = now;
-      ScaffoldMessenger.of(context)
-        ..clearSnackBars()
-        ..showSnackBar(
-          const SnackBar(
-            content: Text('Нажмите ещё раз, чтобы выйти'),
-            duration: Duration(seconds: 2),
-          ),
-        );
-      return false;
-    }
-
-    SystemNavigator.pop();
-    return false;
-  }
-
   @override
   Widget build(BuildContext context) {
     final GoRouter router = GoRouter.of(context);
     final String location = router.routeInformationProvider.value.uri.toString();
     final currentIndex = _locationToIndex(location);
 
-    return PopScope(
-      canPop: false,
-      onPopInvoked: (didPop) {
-        if (didPop) return;
-        unawaited(_onWillPop(router, location));
-      },
-      child: BuyerShellScope(
-        openDrawer: _openDrawer,
-        child: AppGradientBackground(
-          child: Scaffold(
-            backgroundColor: Colors.transparent,
-            key: _scaffoldKey,
-            drawer: BuyerDrawer(
-              router: router,          // ✅ навигация без drawer-context
-              closeDrawer: _closeDrawer,
-              city: _city,
-              onCityTap: _detectCity,
-            ),
-            body: Column(
-              children: [
-                _BuyerTopBar(
-                  onMenu: _openDrawer,
-                  city: _city,
-                  onCityTap: _detectCity,
-                ),
-                Expanded(child: widget.child),
-              ],
-            ),
-            bottomNavigationBar: BottomNavigationBar(
-              currentIndex: currentIndex,
-              onTap: (i) => _goTab(router, i),
-              type: BottomNavigationBarType.fixed,
-              selectedItemColor: AppTheme.primary,
-              unselectedItemColor: AppTheme.textDisabled,
-              items: const [
-                BottomNavigationBarItem(icon: Icon(Icons.store), label: 'Магазин'),
-                BottomNavigationBarItem(icon: Icon(Icons.grid_view), label: 'Каталог'),
-                BottomNavigationBarItem(icon: Icon(Icons.favorite_border), label: 'Избранное'),
-                BottomNavigationBarItem(icon: Icon(Icons.shopping_cart_outlined), label: 'Корзина'),
-                BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'Профиль'),
-              ],
-            ),
+    return BuyerShellScope(
+      openDrawer: _openDrawer,
+      child: AppGradientBackground(
+        child: Scaffold(
+          backgroundColor: Colors.transparent,
+          key: _scaffoldKey,
+          drawer: BuyerDrawer(
+            router: router,          // ✅ навигация без drawer-context
+            closeDrawer: _closeDrawer,
+            city: _city,
+            onCityTap: _detectCity,
+          ),
+          body: Column(
+            children: [
+              _BuyerTopBar(
+                onMenu: _openDrawer,
+                city: _city,
+                onCityTap: _detectCity,
+              ),
+              Expanded(child: widget.child),
+            ],
+          ),
+          bottomNavigationBar: BottomNavigationBar(
+            currentIndex: currentIndex,
+            onTap: (i) => _goTab(router, i),
+            type: BottomNavigationBarType.fixed,
+            selectedItemColor: AppTheme.primary,
+            unselectedItemColor: AppTheme.textDisabled,
+            items: const [
+              BottomNavigationBarItem(icon: Icon(Icons.store), label: 'Магазин'),
+              BottomNavigationBarItem(icon: Icon(Icons.grid_view), label: 'Каталог'),
+              BottomNavigationBarItem(icon: Icon(Icons.favorite_border), label: 'Избранное'),
+              BottomNavigationBarItem(icon: Icon(Icons.shopping_cart_outlined), label: 'Корзина'),
+              BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'Профиль'),
+            ],
           ),
         ),
       ),

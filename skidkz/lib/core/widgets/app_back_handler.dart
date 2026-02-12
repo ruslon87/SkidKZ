@@ -23,70 +23,85 @@ class AppBackHandler extends StatefulWidget {
 class _AppBackHandlerState extends State<AppBackHandler> {
   DateTime? _lastBackPress;
 
-  String get _location =>
-      widget.router.routeInformationProvider.value.uri.toString();
+  Uri get _uri => widget.router.routeInformationProvider.value.uri;
 
   NavigatorState? get _nav =>
       widget.router.routerDelegate.navigatorKey.currentState;
 
-  bool _isBuyerHome(String loc) =>
-      loc == '/' || loc == '/buyer' || loc.startsWith('/buyer/home');
+  bool _isBuyerHome(String path) =>
+      path == '/' || path == '/buyer' || path.startsWith('/buyer/home');
 
-  bool _isBuyerArea(String loc) => loc == '/' || loc.startsWith('/buyer');
+  bool _isExitHome(String path) =>
+      _isBuyerHome(path) ||
+      path.startsWith('/seller/products') ||
+      path.startsWith('/wanghong/home') ||
+      path.startsWith('/admin/moderation');
 
-  Future<bool> _handleBack() async {
-    final loc = _location;
+  String? _homeForPath(String path) {
+    if (path == '/' || path.startsWith('/buyer')) return '/buyer/home';
+    if (path.startsWith('/seller')) return '/seller/products';
+    if (path.startsWith('/wanghong')) return '/wanghong/home';
+    if (path.startsWith('/admin')) return '/admin/moderation';
+    return null;
+  }
+
+  void _showExitHint() {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    messenger
+      ?..clearSnackBars()
+      ..showSnackBar(
+        const SnackBar(
+          content: Text('Нажмите ещё раз, чтобы выйти'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+  }
+
+  Future<void> _handleBack() async {
     final nav = _nav;
+    final path = _uri.path;
 
-    if (nav == null) {
-      SystemNavigator.pop();
-      return true;
-    }
+    // Router ещё не привязан: ничего не делаем, чтобы не закрыть приложение случайно.
+    if (nav == null) return;
 
-    // 1) Закрыть верхний route (диалог/страница и т.д.)
+    // 1) Сначала закрываем верхний маршрут: drawer/dialog/bottom-sheet/вложенный экран.
     if (nav.canPop()) {
       nav.pop();
-      return true;
+      return;
     }
 
-    // 2) Логин без стека -> назад на магазин
-    if (loc.startsWith('/login')) {
+    // 2) Экраны входа/инфо/онбординга — возвращаем на витрину.
+    if (path.startsWith('/login') ||
+        path.startsWith('/role-select') ||
+        path.startsWith('/onboarding') ||
+        path.startsWith('/info')) {
       widget.router.go('/buyer/home');
-      return true;
+      return;
     }
 
-    // 3) Любая вкладка buyer кроме home -> назад на магазин
-    if (_isBuyerArea(loc) && !_isBuyerHome(loc)) {
-      widget.router.go('/buyer/home');
-      return true;
+    // 3) На внутренних экранах раздела — назад на "главную" раздела.
+    final sectionHome = _homeForPath(path);
+    if (sectionHome != null && path != sectionHome) {
+      widget.router.go(sectionHome);
+      return;
     }
 
-    // 4) На магазине -> двойной выход
-    if (_isBuyerHome(loc)) {
+    // 4) На главных разделов — двойное нажатие для выхода.
+    if (_isExitHome(path)) {
       final now = DateTime.now();
       if (_lastBackPress == null ||
           now.difference(_lastBackPress!) > const Duration(seconds: 2)) {
         _lastBackPress = now;
-
-        final messenger = ScaffoldMessenger.maybeOf(context);
-        messenger
-          ?..clearSnackBars()
-          ..showSnackBar(
-            const SnackBar(
-              content: Text('Нажмите ещё раз, чтобы выйти'),
-              duration: Duration(seconds: 2),
-            ),
-          );
-        return true;
+        _showExitHint();
+        return;
       }
 
       SystemNavigator.pop();
-      return true;
+      return;
     }
 
-    // 5) Фолбэк
-    SystemNavigator.pop();
-    return true;
+    // 5) Фолбэк: вернуться на витрину, а не сворачивать приложение.
+    widget.router.go('/buyer/home');
   }
 
   @override
