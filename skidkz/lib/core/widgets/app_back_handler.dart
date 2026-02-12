@@ -25,26 +25,11 @@ class _AppBackHandlerState extends State<AppBackHandler> {
   bool _busy = false;
 
   Uri get _uri => widget.router.routeInformationProvider.value.uri;
+  NavigatorState? get _nav => widget.router.routerDelegate.navigatorKey.currentState;
 
-  NavigatorState? get _nav =>
-      widget.router.routerDelegate.navigatorKey.currentState;
+  bool _isBuyerHome(String path) => path == '/' || path == '/buyer' || path == '/buyer/home';
 
-  bool _isBuyerHome(String path) =>
-      path == '/' || path == '/buyer' || path == '/buyer/home';
-
-  bool _isExitHome(String path) =>
-      _isBuyerHome(path) ||
-      path == '/seller/products' ||
-      path == '/wanghong/home' ||
-      path == '/admin/moderation';
-
-  String? _homeForPath(String path) {
-    if (path == '/' || path.startsWith('/buyer')) return '/buyer/home';
-    if (path.startsWith('/seller')) return '/seller/products';
-    if (path.startsWith('/wanghong')) return '/wanghong/home';
-    if (path.startsWith('/admin')) return '/admin/moderation';
-    return null;
-  }
+  String _pathOnly() => _uri.path;
 
   void _showExitHint() {
     final messenger = ScaffoldMessenger.maybeOf(context);
@@ -64,15 +49,15 @@ class _AppBackHandlerState extends State<AppBackHandler> {
 
     try {
       final nav = _nav;
-      final path = _uri.path;
+      final path = _pathOnly();
 
-      // 1) Если есть что pop (drawer/dialog/bottomsheet/вложенный экран) — попаем.
+      // 1) Если есть что pop (drawer/dialog/bottomsheet/вложенный экран) — попаем
       if (nav != null && nav.canPop()) {
         nav.pop();
         return;
       }
 
-      // 2) Экраны входа/инфо/онбординга — возвращаем на витрину.
+      // 2) Логин/инфо/онбординг — назад на витрину
       if (path.startsWith('/login') ||
           path.startsWith('/role-select') ||
           path.startsWith('/onboarding') ||
@@ -81,15 +66,44 @@ class _AppBackHandlerState extends State<AppBackHandler> {
         return;
       }
 
-      // 3) Внутри раздела — назад на “главную” раздела.
-      final sectionHome = _homeForPath(path);
-      if (sectionHome != null && path != sectionHome) {
-        widget.router.go(sectionHome);
+      // 3) Внутри buyer — на /buyer/home
+      if (path.startsWith('/buyer') && !_isBuyerHome(path)) {
+        widget.router.go('/buyer/home');
         return;
       }
 
-      // 4) На главных — двойное нажатие для выхода.
-      if (_isExitHome(path)) {
+      // 4) Внутри seller — на /seller/products, а если уже там — на role-select
+      if (path.startsWith('/seller')) {
+        if (path != '/seller/products') {
+          widget.router.go('/seller/products');
+        } else {
+          widget.router.go('/role-select');
+        }
+        return;
+      }
+
+      // 5) Внутри wanghong — на /wanghong/home, а если уже там — на role-select
+      if (path.startsWith('/wanghong')) {
+        if (path != '/wanghong/home') {
+          widget.router.go('/wanghong/home');
+        } else {
+          widget.router.go('/role-select');
+        }
+        return;
+      }
+
+      // 6) Внутри admin — на /admin/moderation, а если уже там — на role-select
+      if (path.startsWith('/admin')) {
+        if (path != '/admin/moderation') {
+          widget.router.go('/admin/moderation');
+        } else {
+          widget.router.go('/role-select');
+        }
+        return;
+      }
+
+      // 7) ДВОЙНОЙ ВЫХОД — ТОЛЬКО НА BUYER HOME
+      if (_isBuyerHome(path)) {
         final now = DateTime.now();
         if (_lastBackPress == null ||
             now.difference(_lastBackPress!) > const Duration(seconds: 2)) {
@@ -97,15 +111,13 @@ class _AppBackHandlerState extends State<AppBackHandler> {
           _showExitHint();
           return;
         }
-
         SystemNavigator.pop();
         return;
       }
 
-      // 5) Фолбэк: на витрину.
+      // 8) Фолбэк
       widget.router.go('/buyer/home');
     } finally {
-      // небольшая задержка, чтобы не словить двойной вызов от разных механизмов back
       await Future<void>.delayed(const Duration(milliseconds: 60));
       _busy = false;
     }
@@ -113,12 +125,10 @@ class _AppBackHandlerState extends State<AppBackHandler> {
 
   @override
   Widget build(BuildContext context) {
-    // BackButtonListener перехватывает системный Back на уровне Router,
-    // то, чего PopScope не делает когда pop'ать нечего.
     return BackButtonListener(
       onBackButtonPressed: () async {
         unawaited(_handleBack());
-        return true; // ВАЖНО: говорим системе "мы обработали back"
+        return true; // важно: система не должна сворачивать сама
       },
       child: PopScope(
         canPop: false,
