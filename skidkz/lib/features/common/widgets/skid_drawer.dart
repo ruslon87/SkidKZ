@@ -1,3 +1,5 @@
+// lib/features/common/widgets/skid_drawer.dart
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -9,11 +11,16 @@ class SkidDrawer extends StatelessWidget {
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
 
-    // Берём router ДО закрытия drawer
-    final router = GoRouter.of(context);
+    // router может быть временно недоступен (особенно на старте/перестройке дерева)
+    final router = GoRouter.maybeOf(context);
 
     void closeDrawer() {
       Navigator.of(context).pop();
+    }
+
+    void go(String path) {
+      closeDrawer();
+      router?.go(path);
     }
 
     return Drawer(
@@ -28,30 +35,19 @@ class SkidDrawer extends StatelessWidget {
               subtitle: Text('Меню'),
             ),
             const Divider(height: 1),
-
             ListTile(
               leading: const Icon(Icons.storefront_outlined),
               title: const Text('Витрина'),
-              onTap: () {
-                closeDrawer();
-                router.go('/buyer/home');
-              },
+              onTap: () => go('/buyer/home'),
             ),
-
             const Divider(height: 1),
-
             ListTile(
               leading: const Icon(Icons.badge_outlined),
               title: const Text('Кабинет сотрудника'),
               subtitle: Text(user == null ? 'Войти' : 'Открыть'),
-              onTap: () {
-                closeDrawer();
-                router.go('/cabinet');
-              },
+              onTap: () => go('/cabinet'),
             ),
-
             const Spacer(),
-
             Padding(
               padding: const EdgeInsets.all(16),
               child: Text(
