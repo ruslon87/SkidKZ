@@ -1,3 +1,5 @@
+// lib/features/buyer/screens/buyer_shell.dart
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/material.dart';
@@ -37,17 +39,18 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   String _city = 'Определяем...';
+
   @override
   void initState() {
     super.initState();
     _detectCity(); // при запуске
   }
 
-  int _locationToIndex(String location) {
-    if (location.startsWith('/buyer/catalog')) return 1;
-    if (location.startsWith('/buyer/favorites')) return 2;
-    if (location.startsWith('/buyer/cart')) return 3;
-    if (location.startsWith('/buyer/profile')) return 4;
+  int _locationToIndex(String path) {
+    if (path.startsWith('/buyer/catalog')) return 1;
+    if (path.startsWith('/buyer/favorites')) return 2;
+    if (path.startsWith('/buyer/cart')) return 3;
+    if (path.startsWith('/buyer/profile')) return 4;
     return 0; // home
   }
 
@@ -74,17 +77,15 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
   void _openDrawer() => _scaffoldKey.currentState?.openDrawer();
 
   void _closeDrawer() {
-    // Закрываем drawer без использования context из Drawer (важно!)
     final state = _scaffoldKey.currentState;
     if (state == null) return;
     if (state.isDrawerOpen) {
-      Navigator.of(state.context).pop(); // pop именно от Scaffold контекста
+      Navigator.of(state.context).pop();
     }
   }
 
   Future<void> _detectCity() async {
     try {
-      // 1) сервис
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
         if (!mounted) return;
@@ -92,7 +93,6 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
         return;
       }
 
-      // 2) разрешения
       var permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
@@ -113,12 +113,10 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
       if (!mounted) return;
       setState(() => _city = 'Определяем...');
 
-      // 3) позиция
       final position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
       );
 
-      // 4) геокодинг
       final placemarks = await placemarkFromCoordinates(
         position.latitude,
         position.longitude,
@@ -143,9 +141,11 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
 
   @override
   Widget build(BuildContext context) {
-    final GoRouter router = GoRouter.of(context);
-    final String location = router.routeInformationProvider.value.uri.toString();
-    final currentIndex = _locationToIndex(location);
+    final GoRouter? router = GoRouter.maybeOf(context);
+
+    // router может быть временно недоступен на первом кадре/при перестройке дерева.
+    final String path = router?.routeInformationProvider.value.uri.path ?? '/buyer/home';
+    final currentIndex = _locationToIndex(path);
 
     return BuyerShellScope(
       openDrawer: _openDrawer,
@@ -154,7 +154,7 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
           backgroundColor: Colors.transparent,
           key: _scaffoldKey,
           drawer: BuyerDrawer(
-            router: router,          // ✅ навигация без drawer-context
+            router: router, // nullable
             closeDrawer: _closeDrawer,
             city: _city,
             onCityTap: _detectCity,
@@ -171,7 +171,10 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
           ),
           bottomNavigationBar: BottomNavigationBar(
             currentIndex: currentIndex,
-            onTap: (i) => _goTab(router, i),
+            onTap: (i) {
+              if (router == null) return; // пока router не готов — не падаем
+              _goTab(router, i);
+            },
             type: BottomNavigationBarType.fixed,
             selectedItemColor: AppTheme.primary,
             unselectedItemColor: AppTheme.textDisabled,
@@ -270,7 +273,7 @@ class BuyerDrawer extends StatelessWidget {
     required this.onCityTap,
   });
 
-  final GoRouter router;
+  final GoRouter? router; // nullable
   final VoidCallback closeDrawer;
   final String city;
   final VoidCallback onCityTap;
@@ -291,10 +294,19 @@ class BuyerDrawer extends StatelessWidget {
             final displayName = (data?['displayName'] ?? '').toString().trim();
             final phone = (data?['phone'] ?? '').toString().trim();
 
+            void go(String path) {
+              closeDrawer();
+              router?.go(path);
+            }
+
+            void push(String path) {
+              closeDrawer();
+              router?.push(path);
+            }
+
             return ListView(
               padding: EdgeInsets.zero,
               children: [
-                // HEADER (градиент как ты просил)
                 Container(
                   decoration: const BoxDecoration(
                     gradient: LinearGradient(
@@ -328,11 +340,14 @@ class BuyerDrawer extends StatelessWidget {
                           Expanded(
                             child: InkWell(
                               onTap: () {
-                                closeDrawer();
+                                if (router == null) {
+                                  closeDrawer();
+                                  return;
+                                }
                                 if (isAuthed) {
-                                  router.go('/buyer/profile');
+                                  go('/buyer/profile');
                                 } else {
-                                  router.push('/login?next=%2Fbuyer%2Fprofile');
+                                  push('/login?next=%2Fbuyer%2Fprofile');
                                 }
                               },
                               borderRadius: BorderRadius.circular(14),
@@ -402,8 +417,11 @@ class BuyerDrawer extends StatelessWidget {
                   leading: const Icon(Icons.receipt_long_outlined),
                   title: const Text('Мои заказы'),
                   onTap: () {
-                    closeDrawer();
-                    router.go('/buyer/orders');
+                    if (router == null) {
+                      closeDrawer();
+                      return;
+                    }
+                    go('/buyer/orders');
                   },
                 ),
 
@@ -416,8 +434,11 @@ class BuyerDrawer extends StatelessWidget {
                   title: const Text('Кабинет магазина'),
                   subtitle: const Text('Продажи, товары, заказы'),
                   onTap: () {
-                    closeDrawer();
-                    router.go('/info/seller');
+                    if (router == null) {
+                      closeDrawer();
+                      return;
+                    }
+                    go('/info/seller');
                   },
                 ),
                 ListTile(
@@ -425,31 +446,11 @@ class BuyerDrawer extends StatelessWidget {
                   title: const Text('Кабинет ванхуна'),
                   subtitle: const Text('Заработать на промокодах'),
                   onTap: () {
-                    closeDrawer();
-                    router.go('/info/wanghong');
-                  },
-                ),
-
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  child: Text('Для бизнеса', style: TextStyle(color: AppTheme.textDisabled)),
-                ),
-                ListTile(
-                  leading: const Icon(Icons.store_mall_directory_outlined),
-                  title: const Text('Открыть магазин'),
-                  subtitle: const Text('Как это работает'),
-                  onTap: () {
-                    closeDrawer();
-                    router.go('/info/seller');
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.person_add_alt_1_outlined),
-                  title: const Text('Подключиться как ванхун'),
-                  subtitle: const Text('Условия и старт'),
-                  onTap: () {
-                    closeDrawer();
-                    router.go('/info/wanghong');
+                    if (router == null) {
+                      closeDrawer();
+                      return;
+                    }
+                    go('/info/wanghong');
                   },
                 ),
 
