@@ -24,6 +24,8 @@ import 'package:skidkz/features/seller/screens/seller_orders_screen.dart';
 
 import 'package:skidkz/features/wanghong/screens/wanghong_shell.dart';
 import 'package:skidkz/features/wanghong/screens/wanghong_home_screen.dart';
+import 'package:skidkz/features/wanghong/screens/wanghong_deals_screen.dart';
+import 'package:skidkz/features/wanghong/screens/wanghong_wallet_screen.dart';
 
 import 'package:skidkz/features/admin/screens/admin_shell.dart';
 import 'package:skidkz/features/admin/screens/moderation_screen.dart';
@@ -169,6 +171,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         ),
       ),
 
+      // Buyer Shell Routes
       ShellRoute(
         builder: (context, state, child) => BuyerRootShell(child: child),
         routes: [
@@ -199,6 +202,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         ],
       ),
 
+      // Seller Shell Routes
       ShellRoute(
         builder: (context, state, child) => SellerShell(child: child),
         routes: [
@@ -217,6 +221,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         ],
       ),
 
+      // Wanghong Shell Routes
       ShellRoute(
         builder: (context, state, child) => WanghongShell(child: child),
         routes: [
@@ -224,9 +229,18 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: '/wanghong/home',
             builder: (context, state) => const WanghongHomeScreen(),
           ),
+          GoRoute(
+            path: '/wanghong/deals',
+            builder: (context, state) => const WanghongDealsScreen(),
+          ),
+          GoRoute(
+            path: '/wanghong/wallet',
+            builder: (context, state) => const WanghongWalletScreen(),
+          ),
         ],
       ),
 
+      // Admin Shell Routes
       ShellRoute(
         builder: (context, state, child) => AdminShell(child: child),
         routes: [
