@@ -28,65 +28,45 @@ class AdminShell extends StatelessWidget {
     router.go(path);
   }
 
-  void _handleBack(BuildContext context) {
-    final router = GoRouter.maybeOf(context);
-    if (router == null) return;
-
-    if (router.canPop()) {
-      router.pop();
-      return;
-    }
-
-    // На корневых страницах админки — уходим на выбор роли
-    router.go('/role-select');
-  }
-
   @override
   Widget build(BuildContext context) {
-    return PopScope(
-      canPop: false,
-      onPopInvoked: (didPop) {
-        if (didPop) return;
-        _handleBack(context);
-      },
-      child: Scaffold(
-        body: child,
-        bottomNavigationBar: NavigationBar(
-          selectedIndex: _calculateSelectedIndex(context),
-          onDestinationSelected: (index) {
-            switch (index) {
-              case 0:
-                _go(context, '/admin/moderation');
-                break;
-              case 1:
-                _go(context, '/admin/users');
-                break;
-              case 2:
-                _go(context, '/admin/finance');
-                break;
-            }
-          },
-          backgroundColor: Colors.white,
-          elevation: 0,
-          indicatorColor: Colors.redAccent.withOpacity(0.12),
-          destinations: const [
-            NavigationDestination(
-              icon: Icon(Icons.gavel_outlined),
-              selectedIcon: Icon(Icons.gavel, color: Colors.red),
-              label: 'Модерация',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.people_outline),
-              selectedIcon: Icon(Icons.people, color: Colors.red),
-              label: 'Пользователи',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.payments_outlined),
-              selectedIcon: Icon(Icons.payments, color: Colors.red),
-              label: 'Финансы',
-            ),
-          ],
-        ),
+    return Scaffold(
+      body: child,
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _calculateSelectedIndex(context),
+        onDestinationSelected: (index) {
+          switch (index) {
+            case 0:
+              _go(context, '/admin/moderation');
+              break;
+            case 1:
+              _go(context, '/admin/users');
+              break;
+            case 2:
+              _go(context, '/admin/finance');
+              break;
+          }
+        },
+        backgroundColor: Colors.white,
+        elevation: 0,
+        indicatorColor: Colors.redAccent.withOpacity(0.12),
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.gavel_outlined),
+            selectedIcon: Icon(Icons.gavel, color: Colors.red),
+            label: 'Модерация',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.people_outline),
+            selectedIcon: Icon(Icons.people, color: Colors.red),
+            label: 'Пользователи',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.payments_outlined),
+            selectedIcon: Icon(Icons.payments, color: Colors.red),
+            label: 'Финансы',
+          ),
+        ],
       ),
     );
   }
