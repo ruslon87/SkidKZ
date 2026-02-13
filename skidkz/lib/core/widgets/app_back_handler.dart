@@ -20,8 +20,13 @@ class AppBackHandler extends StatefulWidget {
 
 class _AppBackHandlerState extends State<AppBackHandler>
     with WidgetsBindingObserver {
-  static const String _mainRoute = '/buyer/home';
   static const Duration _doubleBackTimeout = Duration(seconds: 2);
+
+  static const String _buyerMain = '/buyer/home';
+  static const String _sellerMain = '/seller/products';
+  static const String _adminMain = '/admin/moderation';
+  static const String _wanghongMain = '/wanghong/home';
+  static const String _roleSelect = '/role-select';
 
   DateTime? _lastBackPress;
   bool _busy = false;
@@ -33,9 +38,6 @@ class _AppBackHandlerState extends State<AppBackHandler>
     final uri = widget.router.routeInformationProvider.value.uri;
     return uri.path.isEmpty ? '/' : uri.path;
   }
-
-  bool _isMainScreen(String path) =>
-      path == '/' || path == '/buyer' || path == _mainRoute;
 
   @override
   void initState() {
@@ -67,6 +69,21 @@ class _AppBackHandlerState extends State<AppBackHandler>
       );
   }
 
+  String? _mainRouteForPath(String path) {
+    if (path == '/' || path.startsWith('/buyer')) return _buyerMain;
+    if (path.startsWith('/seller')) return _sellerMain;
+    if (path.startsWith('/admin')) return _adminMain;
+    if (path.startsWith('/wanghong')) return _wanghongMain;
+    return null;
+  }
+
+  bool _isMainOfRole(String path, String mainRoute) {
+    if (mainRoute == _buyerMain) {
+      return path == '/' || path == '/buyer' || path == _buyerMain;
+    }
+    return path == mainRoute;
+  }
+
   Future<void> _handleBack() async {
     if (_busy) return;
     _busy = true;
@@ -79,12 +96,21 @@ class _AppBackHandlerState extends State<AppBackHandler>
       }
 
       final path = _path;
-      if (!_isMainScreen(path)) {
+      final mainRoute = _mainRouteForPath(path);
+
+      if (mainRoute != null && !_isMainOfRole(path, mainRoute)) {
         _lastBackPress = null;
-        widget.router.go(_mainRoute);
+        widget.router.go(mainRoute);
         return;
       }
 
+      // Для seller/admin/wanghong: back на корневой вкладке ведет к выбору роли.
+      if (mainRoute != null && mainRoute != _buyerMain) {
+        widget.router.go(_roleSelect);
+        return;
+      }
+
+      // Для buyer/home и role-select: двойной back для выхода.
       final now = DateTime.now();
       if (_lastBackPress == null ||
           now.difference(_lastBackPress!) > _doubleBackTimeout) {
