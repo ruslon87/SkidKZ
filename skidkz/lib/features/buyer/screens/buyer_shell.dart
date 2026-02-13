@@ -303,6 +303,8 @@ class BuyerDrawer extends StatelessWidget {
     final isAuthed = user != null;
 
     return Drawer(
+      backgroundColor: const Color(0xFF0C1117),
+      surfaceTintColor: Colors.transparent,
       child: SafeArea(
         child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
           stream: isAuthed
@@ -313,24 +315,76 @@ class BuyerDrawer extends StatelessWidget {
             final displayName = (data?['displayName'] ?? '').toString().trim();
             final phone = (data?['phone'] ?? '').toString().trim();
 
-            return ListView(
-              padding: EdgeInsets.zero,
-              children: [
-                Container(
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        Color(0xFF202625),
-                        Color(0xFF1A1F1E),
-                        Color(0xFF121817),
-                      ],
-                      stops: [0.0, 0.55, 1.0],
+            return Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Color(0xFF141B23),
+                    Color(0xFF101721),
+                    Color(0xFF0A0F16),
+                  ],
+                  stops: [0.0, 0.58, 1.0],
+                ),
+              ),
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: RadialGradient(
+                            center: const Alignment(-0.65, -0.92),
+                            radius: 1.05,
+                            colors: [
+                              const Color(0xFF62D6C6).withValues(alpha: 0.16),
+                              const Color(0xFF0A0F16).withValues(alpha: 0.0),
+                            ],
+                          ),
+                        ),
+                      ),
                     ),
                   ),
-                  padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
-                  child: Column(
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: RadialGradient(
+                            center: const Alignment(0.92, 0.22),
+                            radius: 1.25,
+                            colors: [
+                              const Color(0xFF7EE1D4).withValues(alpha: 0.08),
+                              const Color(0xFF0A0F16).withValues(alpha: 0.0),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  ListView(
+                    padding: EdgeInsets.zero,
+                    children: [
+                      Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              const Color(0xFF283340).withValues(alpha: 0.76),
+                              const Color(0xFF1A2430).withValues(alpha: 0.58),
+                              const Color(0xFF101721).withValues(alpha: 0.42),
+                            ],
+                            stops: const [0.0, 0.52, 1.0],
+                          ),
+                          border: Border(
+                            bottom: BorderSide(
+                              color: Colors.white.withValues(alpha: 0.08),
+                            ),
+                          ),
+                        ),
+                        padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
+                        child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
@@ -412,62 +466,65 @@ class BuyerDrawer extends StatelessWidget {
                   ),
                 ),
 
-                const SizedBox(height: 10),
+                      const SizedBox(height: 10),
 
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                  child: Text('Аккаунт', style: TextStyle(color: AppTheme.textDisabled)),
-                ),
-                ListTile(
-                  leading: const Icon(Icons.receipt_long_outlined),
-                  title: const Text('Мои заказы'),
-                  onTap: () => _safeGo(context, '/buyer/orders'),
-                ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                        child: Text('Аккаунт', style: TextStyle(color: AppTheme.textDisabled)),
+                      ),
+                      ListTile(
+                        leading: const Icon(Icons.receipt_long_outlined),
+                        title: const Text('Мои заказы'),
+                        onTap: () => _safeGo(context, '/buyer/orders'),
+                      ),
 
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  child: Text('Кабинеты', style: TextStyle(color: AppTheme.textDisabled)),
-                ),
-                ListTile(
-                  leading: const Icon(Icons.storefront_outlined),
-                  title: const Text('Кабинет магазина'),
-                  subtitle: const Text('Продажи, товары, заказы'),
-                  onTap: () => _safeGo(context, '/info/seller'),
-                ),
-                ListTile(
-                  leading: const Icon(Icons.campaign_outlined),
-                  title: const Text('Кабинет ванхуна'),
-                  subtitle: const Text('Заработать на промокодах'),
-                  onTap: () => _safeGo(context, '/info/wanghong'),
-                ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        child: Text('Кабинеты', style: TextStyle(color: AppTheme.textDisabled)),
+                      ),
+                      ListTile(
+                        leading: const Icon(Icons.storefront_outlined),
+                        title: const Text('Кабинет магазина'),
+                        subtitle: const Text('Продажи, товары, заказы'),
+                        onTap: () => _safeGo(context, '/info/seller'),
+                      ),
+                      ListTile(
+                        leading: const Icon(Icons.campaign_outlined),
+                        title: const Text('Кабинет ванхуна'),
+                        subtitle: const Text('Заработать на промокодах'),
+                        onTap: () => _safeGo(context, '/info/wanghong'),
+                      ),
 
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  child: Text('Сервис', style: TextStyle(color: AppTheme.textDisabled)),
-                ),
-                ListTile(
-                  leading: const Icon(Icons.support_agent_outlined),
-                  title: const Text('Поддержка'),
-                  onTap: () {},
-                ),
-                const Divider(height: 1),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        child: Text('Сервис', style: TextStyle(color: AppTheme.textDisabled)),
+                      ),
+                      ListTile(
+                        leading: const Icon(Icons.support_agent_outlined),
+                        title: const Text('Поддержка'),
+                        onTap: () {},
+                      ),
+                      Divider(height: 1, color: Colors.white.withValues(alpha: 0.08)),
 
-                FutureBuilder<PackageInfo>(
-                  future: PackageInfo.fromPlatform(),
-                  builder: (context, snap) {
-                    final version = snap.data?.version ?? '';
-                    final buildNumber = snap.data?.buildNumber ?? '';
-                    final v = (version.isEmpty) ? '' : 'v$version ($buildNumber)';
+                      FutureBuilder<PackageInfo>(
+                        future: PackageInfo.fromPlatform(),
+                        builder: (context, snap) {
+                          final version = snap.data?.version ?? '';
+                          final buildNumber = snap.data?.buildNumber ?? '';
+                          final v = (version.isEmpty) ? '' : 'v$version ($buildNumber)';
 
-                    return ListTile(
-                      leading: const Icon(Icons.info_outline),
-                      title: const Text('Версия приложения'),
-                      subtitle: Text(v.isEmpty ? '...' : v),
-                      onTap: () {},
-                    );
-                  },
-                ),
-              ],
+                          return ListTile(
+                            leading: const Icon(Icons.info_outline),
+                            title: const Text('Версия приложения'),
+                            subtitle: Text(v.isEmpty ? '...' : v),
+                            onTap: () {},
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             );
           },
         ),
