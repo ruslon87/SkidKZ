@@ -46,6 +46,12 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
     _detectCity(); // при запуске
   }
 
+  String _safeLocation(BuildContext context) {
+    final router = GoRouter.maybeOf(context);
+    if (router == null) return '/buyer/home';
+    return router.routeInformationProvider.value.uri.path;
+  }
+
   int _locationToIndex(String path) {
     if (path.startsWith('/buyer/catalog')) return 1;
     if (path.startsWith('/buyer/favorites')) return 2;
@@ -54,7 +60,10 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
     return 0; // home
   }
 
-  void _goTab(GoRouter router, int index) {
+  void _goTab(BuildContext context, int index) {
+    final router = GoRouter.maybeOf(context);
+    if (router == null) return;
+    
     switch (index) {
       case 0:
         router.go('/buyer/home');
@@ -141,10 +150,7 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
 
   @override
   Widget build(BuildContext context) {
-    final GoRouter? router = GoRouter.maybeOf(context);
-
-    // router может быть временно недоступен на первом кадре/при перестройке дерева.
-    final String path = router?.routeInformationProvider.value.uri.path ?? '/buyer/home';
+    final path = _safeLocation(context);
     final currentIndex = _locationToIndex(path);
 
     return BuyerShellScope(
@@ -154,7 +160,6 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
           backgroundColor: Colors.transparent,
           key: _scaffoldKey,
           drawer: BuyerDrawer(
-            router: router, // nullable
             closeDrawer: _closeDrawer,
             city: _city,
             onCityTap: _detectCity,
@@ -171,10 +176,7 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
           ),
           bottomNavigationBar: BottomNavigationBar(
             currentIndex: currentIndex,
-            onTap: (i) {
-              if (router == null) return; // пока router не готов — не падаем
-              _goTab(router, i);
-            },
+            onTap: (i) => _goTab(context, i),
             type: BottomNavigationBarType.fixed,
             selectedItemColor: AppTheme.primary,
             unselectedItemColor: AppTheme.textDisabled,
@@ -229,17 +231,19 @@ class _BuyerTopBar extends StatelessWidget {
                 'SkidKZ',
                 style: TextStyle(
                   color: AppTheme.textPrimary,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0.5,
                 ),
               ),
               const Spacer(),
               InkWell(
                 onTap: onCityTap,
                 borderRadius: BorderRadius.circular(12),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(Icons.location_on_outlined,
                           color: AppTheme.textSecondary, size: 18),
@@ -248,14 +252,15 @@ class _BuyerTopBar extends StatelessWidget {
                         city,
                         style: TextStyle(
                           color: AppTheme.textSecondary,
-                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ],
                   ),
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 6),
             ],
           ),
         ),
@@ -267,16 +272,30 @@ class _BuyerTopBar extends StatelessWidget {
 class BuyerDrawer extends StatelessWidget {
   const BuyerDrawer({
     super.key,
-    required this.router,
     required this.closeDrawer,
     required this.city,
     required this.onCityTap,
   });
 
-  final GoRouter? router; // nullable
   final VoidCallback closeDrawer;
   final String city;
   final VoidCallback onCityTap;
+
+  void _safeGo(BuildContext context, String path) {
+    closeDrawer();
+    final router = GoRouter.maybeOf(context);
+    if (router != null) {
+      router.go(path);
+    }
+  }
+
+  void _safePush(BuildContext context, String path) {
+    closeDrawer();
+    final router = GoRouter.maybeOf(context);
+    if (router != null) {
+      router.push(path);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -293,16 +312,6 @@ class BuyerDrawer extends StatelessWidget {
             final data = snapshot.data?.data();
             final displayName = (data?['displayName'] ?? '').toString().trim();
             final phone = (data?['phone'] ?? '').toString().trim();
-
-            void go(String path) {
-              closeDrawer();
-              router?.go(path);
-            }
-
-            void push(String path) {
-              closeDrawer();
-              router?.push(path);
-            }
 
             return ListView(
               padding: EdgeInsets.zero,
@@ -340,14 +349,10 @@ class BuyerDrawer extends StatelessWidget {
                           Expanded(
                             child: InkWell(
                               onTap: () {
-                                if (router == null) {
-                                  closeDrawer();
-                                  return;
-                                }
                                 if (isAuthed) {
-                                  go('/buyer/profile');
+                                  _safeGo(context, '/buyer/profile');
                                 } else {
-                                  push('/login?next=%2Fbuyer%2Fprofile');
+                                  _safePush(context, '/login?next=%2Fbuyer%2Fprofile');
                                 }
                               },
                               borderRadius: BorderRadius.circular(14),
@@ -416,13 +421,7 @@ class BuyerDrawer extends StatelessWidget {
                 ListTile(
                   leading: const Icon(Icons.receipt_long_outlined),
                   title: const Text('Мои заказы'),
-                  onTap: () {
-                    if (router == null) {
-                      closeDrawer();
-                      return;
-                    }
-                    go('/buyer/orders');
-                  },
+                  onTap: () => _safeGo(context, '/buyer/orders'),
                 ),
 
                 Padding(
@@ -433,25 +432,13 @@ class BuyerDrawer extends StatelessWidget {
                   leading: const Icon(Icons.storefront_outlined),
                   title: const Text('Кабинет магазина'),
                   subtitle: const Text('Продажи, товары, заказы'),
-                  onTap: () {
-                    if (router == null) {
-                      closeDrawer();
-                      return;
-                    }
-                    go('/info/seller');
-                  },
+                  onTap: () => _safeGo(context, '/info/seller'),
                 ),
                 ListTile(
                   leading: const Icon(Icons.campaign_outlined),
                   title: const Text('Кабинет ванхуна'),
                   subtitle: const Text('Заработать на промокодах'),
-                  onTap: () {
-                    if (router == null) {
-                      closeDrawer();
-                      return;
-                    }
-                    go('/info/wanghong');
-                  },
+                  onTap: () => _safeGo(context, '/info/wanghong'),
                 ),
 
                 Padding(
