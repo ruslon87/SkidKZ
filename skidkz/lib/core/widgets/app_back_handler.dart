@@ -1,6 +1,5 @@
-// skidkz/lib/core/widgets/app_back_handler.dart
-
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -19,17 +18,42 @@ class AppBackHandler extends StatefulWidget {
   State<AppBackHandler> createState() => _AppBackHandlerState();
 }
 
-class _AppBackHandlerState extends State<AppBackHandler> {
+class _AppBackHandlerState extends State<AppBackHandler>
+    with WidgetsBindingObserver {
+  static const String _mainRoute = '/buyer/home';
+  static const Duration _doubleBackTimeout = Duration(seconds: 2);
+
   DateTime? _lastBackPress;
   bool _busy = false;
 
   NavigatorState? get _nav =>
       widget.router.routerDelegate.navigatorKey.currentState;
 
-  Uri get _uri => widget.router.routeInformationProvider.value.uri;
+  String get _path {
+    final uri = widget.router.routeInformationProvider.value.uri;
+    return uri.path.isEmpty ? '/' : uri.path;
+  }
 
-  bool _isBuyerHome(String path) =>
-      path == '/' || path == '/buyer' || path == '/buyer/home';
+  bool _isMainScreen(String path) =>
+      path == '/' || path == '/buyer' || path == _mainRoute;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  Future<bool> didPopRoute() async {
+    await _handleBack();
+    return true;
+  }
 
   void _showExitHint() {
     final messenger = ScaffoldMessenger.maybeOf(context);
@@ -38,7 +62,7 @@ class _AppBackHandlerState extends State<AppBackHandler> {
       ..showSnackBar(
         const SnackBar(
           content: Text('Нажмите ещё раз, чтобы выйти'),
-          duration: Duration(seconds: 2),
+          duration: _doubleBackTimeout,
         ),
       );
   }
@@ -46,57 +70,43 @@ class _AppBackHandlerState extends State<AppBackHandler> {
   Future<void> _handleBack() async {
     if (_busy) return;
     _busy = true;
+
     try {
       final nav = _nav;
-      final path = _uri.path;
+      if (nav != null) {
+        final popped = await nav.maybePop();
+        if (popped) return;
+      }
 
-      // 1) pop (drawer/dialog/etc)
-      if (nav != null && nav.canPop()) {
-        nav.pop();
+      final path = _path;
+      if (!_isMainScreen(path)) {
+        _lastBackPress = null;
+        widget.router.go(_mainRoute);
         return;
       }
 
-      // 2) ДВОЙНОЙ ВЫХОД только на buyer/home
-      if (_isBuyerHome(path)) {
-        final now = DateTime.now();
-        if (_lastBackPress == null ||
-            now.difference(_lastBackPress!) > const Duration(seconds: 2)) {
-          _lastBackPress = now;
-          _showExitHint();
-          return;
-        }
-        SystemNavigator.pop();
+      final now = DateTime.now();
+      if (_lastBackPress == null ||
+          now.difference(_lastBackPress!) > _doubleBackTimeout) {
+        _lastBackPress = now;
+        _showExitHint();
         return;
       }
 
-      // 3) Внутри buyer — назад на home
-      if (path.startsWith('/buyer')) {
-        widget.router.go('/buyer/home');
-        return;
-      }
-
-      // 4) В других ролях — на role-select (как у тебя в админке задумано)
-      if (path.startsWith('/seller') ||
-          path.startsWith('/admin') ||
-          path.startsWith('/wanghong')) {
-        widget.router.go('/role-select');
-        return;
-      }
-
-      // 5) Фолбэк
-      widget.router.go('/buyer/home');
+      await SystemNavigator.pop();
     } finally {
-      await Future<void>.delayed(const Duration(milliseconds: 60));
+      await Future<void>.delayed(const Duration(milliseconds: 100));
       _busy = false;
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return BackButtonListener(
-      onBackButtonPressed: () async {
+    return PopScope<void>(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
         unawaited(_handleBack());
-        return true; // мы обработали back
       },
       child: widget.child,
     );
