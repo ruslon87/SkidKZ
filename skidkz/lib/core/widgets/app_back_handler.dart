@@ -28,8 +28,10 @@ class _AppBackHandlerState extends State<AppBackHandler> {
 
   Uri get _uri => widget.router.routeInformationProvider.value.uri;
 
-  bool _isBuyerHome(String path) =>
-      path == '/' || path == '/buyer' || path == '/buyer/home';
+  static const String _mainRoute = '/buyer/home';
+
+  bool _isMainScreen(String path) =>
+      path == '/' || path == '/buyer' || path == _mainRoute;
 
   void _showExitHint() {
     final messenger = ScaffoldMessenger.maybeOf(context);
@@ -56,8 +58,8 @@ class _AppBackHandlerState extends State<AppBackHandler> {
         return;
       }
 
-      // 2) ДВОЙНОЙ ВЫХОД только на buyer/home
-      if (_isBuyerHome(path)) {
+      // 2) На главном экране — двойной back для выхода
+      if (_isMainScreen(path)) {
         final now = DateTime.now();
         if (_lastBackPress == null ||
             now.difference(_lastBackPress!) > const Duration(seconds: 2)) {
@@ -69,22 +71,8 @@ class _AppBackHandlerState extends State<AppBackHandler> {
         return;
       }
 
-      // 3) Внутри buyer — назад на home
-      if (path.startsWith('/buyer')) {
-        widget.router.go('/buyer/home');
-        return;
-      }
-
-      // 4) В других ролях — на role-select (как у тебя в админке задумано)
-      if (path.startsWith('/seller') ||
-          path.startsWith('/admin') ||
-          path.startsWith('/wanghong')) {
-        widget.router.go('/role-select');
-        return;
-      }
-
-      // 5) Фолбэк
-      widget.router.go('/buyer/home');
+      // 3) На любом другом экране сначала возвращаем на главный.
+      widget.router.go(_mainRoute);
     } finally {
       await Future<void>.delayed(const Duration(milliseconds: 60));
       _busy = false;
@@ -93,10 +81,11 @@ class _AppBackHandlerState extends State<AppBackHandler> {
 
   @override
   Widget build(BuildContext context) {
-    return BackButtonListener(
-      onBackButtonPressed: () async {
+    return PopScope<void>(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
         unawaited(_handleBack());
-        return true; // мы обработали back
       },
       child: widget.child,
     );
