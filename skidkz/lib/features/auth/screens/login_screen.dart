@@ -1,5 +1,4 @@
 // lib/features/auth/screens/login_screen.dart
-
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -28,7 +27,9 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _codeSent = false;
 
   bool _loadingSend = false;
-  bool _loadingConfirm = false;
+  bool _loadingVerify = false;
+
+  String? _error;
 
   @override
   void dispose() {
@@ -38,224 +39,153 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void _toast(String msg) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..clearSnackBars()
-      ..showSnackBar(SnackBar(content: Text(msg)));
-  }
-
-  String _normalizePhone(String raw) {
-    var s = raw.trim();
-    s = s.replaceAll(RegExp(r'[\s\-\(\)]'), '');
-    if (!s.startsWith('+')) s = '+$s';
-    return s;
-  }
-
-  String? _next() {
-    final next = widget.nextPath;
-    if (next == null) return null;
-    final t = next.trim();
-    return t.isEmpty ? null : t;
-  }
-
-  void _goAfterLogin() {
-    final next = _next();
-    if (next != null) {
-      context.go(next);
-    } else {
-      context.go('/cabinet');
-    }
-  }
-
   Future<void> _sendCode() async {
-    if (_loadingSend || _loadingConfirm) return;
+    setState(() {
+      _loadingSend = true;
+      _error = null;
+    });
 
-    final phone = _normalizePhone(_phoneController.text);
-    if (phone.length < 8) {
-      _toast('Введите номер телефона');
-      return;
-    }
-
-    setState(() => _loadingSend = true);
-
-    await fb.FirebaseAuth.instance.verifyPhoneNumber(
-      phoneNumber: phone,
-      timeout: const Duration(seconds: 60),
-      verificationCompleted: (cred) async {
-        try {
-          await fb.FirebaseAuth.instance.signInWithCredential(cred);
-          if (!mounted) return;
-          _goAfterLogin();
-        } catch (e) {
-          if (!mounted) return;
-          _toast('Не удалось войти: $e');
-        } finally {
-          if (!mounted) return;
-          setState(() => _loadingSend = false);
-        }
-      },
-      verificationFailed: (e) {
-        if (!mounted) return;
-        setState(() => _loadingSend = false);
-        _toast('Ошибка: ${e.message ?? e.code}');
-      },
-      codeSent: (verificationId, resendToken) {
-        if (!mounted) return;
-        setState(() {
-          _loadingSend = false;
-          _verificationId = verificationId;
-          _codeSent = true;
-        });
-        Future.delayed(const Duration(milliseconds: 300), () {
-          if (!mounted) return;
-          _smsFocus.requestFocus();
-        });
-      },
-      codeAutoRetrievalTimeout: (verificationId) {
-        _verificationId = verificationId;
-      },
-    );
-  }
-
-  Future<void> _confirmCode() async {
-    if (_loadingSend || _loadingConfirm) return;
-
-    final code = _smsController.text.trim();
-    if (code.length < 4) {
-      _toast('Введите код из SMS');
-      return;
-    }
-
-    final verId = _verificationId;
-    if (verId == null) {
-      _toast('Сначала запросите код');
-      return;
-    }
-
-    setState(() => _loadingConfirm = true);
+    final auth = fb.FirebaseAuth.instance;
 
     try {
-      final cred = fb.PhoneAuthProvider.credential(
-        verificationId: verId,
-        smsCode: code,
+      await auth.verifyPhoneNumber(
+        phoneNumber: _phoneController.text.trim(),
+        verificationCompleted: (credential) async {
+          try {
+            await auth.signInWithCredential(credential);
+            if (!mounted) return;
+            context.go(widget.nextPath ?? '/cabinet');
+          } catch (e) {
+            if (!mounted) return;
+            setState(() => _error = e.toString());
+          }
+        },
+        verificationFailed: (e) {
+          if (!mounted) return;
+          setState(() => _error = e.message ?? e.toString());
+        },
+        codeSent: (verificationId, resendToken) {
+          if (!mounted) return;
+          setState(() {
+            _verificationId = verificationId;
+            _codeSent = true;
+          });
+          _smsFocus.requestFocus();
+        },
+        codeAutoRetrievalTimeout: (verificationId) {
+          _verificationId = verificationId;
+        },
       );
-      await fb.FirebaseAuth.instance.signInWithCredential(cred);
-
-      if (!mounted) return;
-      _goAfterLogin();
-    } on fb.FirebaseAuthException catch (e) {
-      if (!mounted) return;
-      _toast(e.message ?? 'Ошибка входа');
     } catch (e) {
-      if (!mounted) return;
-      _toast('Ошибка: $e');
+      setState(() => _error = e.toString());
     } finally {
-      if (!mounted) return;
-      setState(() => _loadingConfirm = false);
+      if (mounted) setState(() => _loadingSend = false);
     }
   }
 
-  void _back() {
-    if (_loadingSend || _loadingConfirm) return;
+  Future<void> _verifyCode() async {
+    if (_verificationId == null) return;
 
-    // Если мы уже на шаге ввода SMS — возвращаемся на ввод номера.
-    if (_codeSent) {
-      setState(() {
-        _codeSent = false;
-        _smsController.clear();
-        _verificationId = null;
-      });
-      return;
-    }
+    setState(() {
+      _loadingVerify = true;
+      _error = null;
+    });
 
-    // Если этот экран был открыт через push — обычный pop.
-    // Если открыт через go/redirect и стека нет — уходим на buyer/home.
-    if (context.canPop()) {
-      context.pop();
-    } else {
-      context.go('/buyer/home');
+    final auth = fb.FirebaseAuth.instance;
+
+    try {
+      final credential = fb.PhoneAuthProvider.credential(
+        verificationId: _verificationId!,
+        smsCode: _smsController.text.trim(),
+      );
+
+      await auth.signInWithCredential(credential);
+      if (!mounted) return;
+      context.go(widget.nextPath ?? '/cabinet');
+    } catch (e) {
+      setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _loadingVerify = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final busy = _loadingSend || _loadingConfirm;
-
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, result) {
-        if (didPop) return;
-        _back();
-      },
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () => FocusScope.of(context).unfocus(),
-        child: AppGradientBackground(
-          child: Scaffold(
-            backgroundColor: Colors.transparent,
-            appBar: AppBar(
-              title: const Text('Вход по номеру'),
-              leading: IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: _back,
-              ),
-            ),
-            body: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (!_codeSent) ...[
-                    const Text('Номер телефона'),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: _phoneController,
-                      enabled: !busy,
-                      keyboardType: TextInputType.phone,
-                      decoration: const InputDecoration(
-                        hintText: '+7 700 000 00 00',
-                      ),
+    return AppGradientBackground(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: SafeArea(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const SizedBox(height: 20),
+                    Text(
+                      'Вход',
+                      style: Theme.of(context).textTheme.titleLarge,
+                      textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: busy ? null : _sendCode,
+                    const Text(
+                      'Введите номер телефона — пришлём SMS-код',
+                      style: TextStyle(color: AppColors.textMuted),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 18),
+
+                    TextField(
+                      controller: _phoneController,
+                      keyboardType: TextInputType.phone,
+                      decoration: const InputDecoration(
+                        labelText: 'Телефон',
+                        hintText: '+7 777 777 77 77',
+                      ),
+                    ),
+
+                    if (_codeSent) ...[
+                      const SizedBox(height: 12),
+                      TextField(
+                        focusNode: _smsFocus,
+                        controller: _smsController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'SMS-код',
+                          hintText: '123456',
+                        ),
+                      ),
+                    ],
+
+                    if (_error != null) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        _error!,
+                        style: const TextStyle(color: AppColors.danger),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+
+                    const SizedBox(height: 18),
+
+                    if (!_codeSent)
+                      ElevatedButton(
+                        onPressed: _loadingSend ? null : _sendCode,
                         child: _loadingSend
                             ? const SizedBox(
                                 height: 18,
                                 width: 18,
                                 child: CircularProgressIndicator(strokeWidth: 2),
                               )
-                            : const Text('Получить код'),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      _loadingSend
-                          ? 'Отправляем SMS…'
-                          : 'Отправим SMS и перейдём к вводу кода.',
-                      style: TextStyle(color: AppTheme.textSecondary),
-                    ),
-                  ] else ...[
-                    const Text('Введите код из SMS'),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _smsController,
-                      focusNode: _smsFocus,
-                      enabled: !busy,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        hintText: 'Код из SMS',
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: busy ? null : _confirmCode,
-                        child: _loadingConfirm
+                            : const Text('Отправить код'),
+                      )
+                    else
+                      ElevatedButton(
+                        onPressed: _loadingVerify ? null : _verifyCode,
+                        child: _loadingVerify
                             ? const SizedBox(
                                 height: 18,
                                 width: 18,
@@ -263,17 +193,15 @@ class _LoginScreenState extends State<LoginScreen> {
                               )
                             : const Text('Подтвердить'),
                       ),
+
+                    const SizedBox(height: 10),
+                    const Text(
+                      'Нажимая “Продолжить”, вы соглашаетесь с условиями сервиса.',
+                      style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+                      textAlign: TextAlign.center,
                     ),
-                    if (_loadingConfirm)
-                      const Padding(
-                        padding: EdgeInsets.only(top: 8),
-                        child: Text(
-                          'Проверяем код и входим…',
-                          style: TextStyle(color: AppTheme.textSecondary),
-                        ),
-                      ),
                   ],
-                ],
+                ),
               ),
             ),
           ),
