@@ -1,6 +1,7 @@
 // lib/features/buyer/screens/buyer_shell.dart
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+
 import 'package:skidkz/core/widgets/app_scaffold.dart';
 import 'package:skidkz/core/widgets/app_top_bar.dart';
 import 'package:skidkz/core/widgets/app_drawer.dart';
@@ -9,6 +10,7 @@ import 'package:skidkz/core/widgets/app_bottom_nav.dart';
 /// Скоуп, чтобы дочерние экраны могли открыть drawer
 class BuyerShellScope extends InheritedWidget {
   final VoidCallback openDrawer;
+
   const BuyerShellScope({
     super.key,
     required this.openDrawer,
@@ -22,38 +24,47 @@ class BuyerShellScope extends InheritedWidget {
   bool updateShouldNotify(BuyerShellScope oldWidget) => false;
 }
 
-class BuyerShell extends StatefulWidget {
+/// ВАЖНО: имя класса должно совпадать с router: BuyerRootShell(child: child)
+class BuyerRootShell extends StatefulWidget {
   final Widget child;
 
-  const BuyerShell({super.key, required this.child});
+  const BuyerRootShell({super.key, required this.child});
 
   @override
-  State<BuyerShell> createState() => _BuyerShellState();
+  State<BuyerRootShell> createState() => _BuyerRootShellState();
 }
 
-class _BuyerShellState extends State<BuyerShell> {
+class _BuyerRootShellState extends State<BuyerRootShell> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   void _openDrawer() => _scaffoldKey.currentState?.openDrawer();
 
   int _calcIndexFromLocation(String location) {
-    // Подстрой под свои реальные маршруты buyer
     if (location.startsWith('/buyer/home')) return 0;
-    if (location.startsWith('/buyer/orders')) return 1;
-    if (location.startsWith('/buyer/profile')) return 2;
+    if (location.startsWith('/buyer/catalog')) return 1;
+    if (location.startsWith('/buyer/favorites')) return 2;
+    if (location.startsWith('/buyer/cart')) return 3;
+    if (location.startsWith('/buyer/profile')) return 4;
+
+    // orders не в bottom nav (обычно через drawer), но если хочешь — можно добавить вкладку
     return 0;
   }
 
   void _goByIndex(int i) {
-    // Подстрой под свои реальные маршруты buyer
     switch (i) {
       case 0:
         context.go('/buyer/home');
         break;
       case 1:
-        context.go('/buyer/orders');
+        context.go('/buyer/catalog');
         break;
       case 2:
+        context.go('/buyer/favorites');
+        break;
+      case 3:
+        context.go('/buyer/cart');
+        break;
+      case 4:
         context.go('/buyer/profile');
         break;
       default:
@@ -71,9 +82,24 @@ class _BuyerShellState extends State<BuyerShell> {
       headerSubtitle: 'Покупатель',
       items: [
         AppDrawerItem(
-          icon: Icons.storefront_outlined,
-          title: 'Витрина',
+          icon: Icons.home_outlined,
+          title: 'Главная',
           onTap: () => context.go('/buyer/home'),
+        ),
+        AppDrawerItem(
+          icon: Icons.grid_view_rounded,
+          title: 'Каталог',
+          onTap: () => context.go('/buyer/catalog'),
+        ),
+        AppDrawerItem(
+          icon: Icons.favorite_border_rounded,
+          title: 'Избранное',
+          onTap: () => context.go('/buyer/favorites'),
+        ),
+        AppDrawerItem(
+          icon: Icons.shopping_cart_outlined,
+          title: 'Корзина',
+          onTap: () => context.go('/buyer/cart'),
         ),
         AppDrawerItem(
           icon: Icons.receipt_long_outlined,
@@ -86,13 +112,6 @@ class _BuyerShellState extends State<BuyerShell> {
           onTap: () => context.go('/buyer/profile'),
         ),
       ],
-      bottomItems: [
-        AppDrawerItem(
-          icon: Icons.info_outline,
-          title: 'О приложении',
-          onTap: () => context.go('/info'),
-        ),
-      ],
     );
 
     final bottomNav = AppBottomNav(
@@ -100,7 +119,9 @@ class _BuyerShellState extends State<BuyerShell> {
       onTap: _goByIndex,
       items: const [
         AppNavItem(icon: Icons.home_rounded, label: 'Главная'),
-        AppNavItem(icon: Icons.receipt_long_rounded, label: 'Заказы'),
+        AppNavItem(icon: Icons.grid_view_rounded, label: 'Каталог'),
+        AppNavItem(icon: Icons.favorite_rounded, label: 'Избранное'),
+        AppNavItem(icon: Icons.shopping_cart_rounded, label: 'Корзина'),
         AppNavItem(icon: Icons.person_rounded, label: 'Профиль'),
       ],
     );
@@ -108,11 +129,10 @@ class _BuyerShellState extends State<BuyerShell> {
     return BuyerShellScope(
       openDrawer: _openDrawer,
       child: AppScaffold(
-        key: _scaffoldKey,
+        scaffoldKey: _scaffoldKey,
         appBar: AppTopBar(
           title: 'SkidKZ',
           onMenu: _openDrawer,
-          actions: const [],
         ),
         drawer: drawer,
         bottomNavigationBar: bottomNav,
