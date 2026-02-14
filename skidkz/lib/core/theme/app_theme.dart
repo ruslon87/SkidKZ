@@ -2,20 +2,27 @@
 import 'package:flutter/material.dart';
 
 class AppColors {
-  static const Color bg = Color(0xFF0B0F14); // основной фон
-  static const Color surface = Color(0xFF101826); // поверхности/карточки
-  static const Color surface2 = Color(0xFF0D1522);
-  static const Color border = Color(0xFF22324A);
+  // Финтеховый графитовый фон
+  static const Color bg = Color(0xFF0B1114);
+  static const Color bg2 = Color(0xFF0E1519);
 
+  // Поверхности
+  static const Color surface = Color(0xFF121B20);
+  static const Color surface2 = Color(0xFF0F171C);
+  static const Color border = Color(0xFF1C2A31);
+
+  // Текст
   static const Color text = Color(0xFFE6EDF6);
   static const Color textMuted = Color(0xFF9FB0C8);
   static const Color textDisabled = Color(0xFF6E7F96);
 
-  static const Color accent = Color(0xFF7C4DFF); // замени на утвержденный
-  static const Color accent2 = Color(0xFF00D1FF);
+  // Изумрудный бренд (не “кислотный”)
+  static const Color accent = Color(0xFF1EDC8A);
+  static const Color accentSoft = Color(0xFF39F0A5);
+  static const Color accentDark = Color(0xFF0FA36B);
 
   static const Color danger = Color(0xFFFF5C5C);
-  static const Color success = Color(0xFF2ED47A);
+  static const Color success = Color(0xFF1EDC8A);
 }
 
 class AppRadii {
@@ -28,14 +35,18 @@ class AppTheme {
   static ThemeData get darkTheme {
     final base = ThemeData.dark(useMaterial3: true);
 
-    final colorScheme = ColorScheme.fromSeed(
-      seedColor: AppColors.accent,
+    final colorScheme = const ColorScheme(
       brightness: Brightness.dark,
-      surface: AppColors.surface,
-      background: AppColors.bg,
       primary: AppColors.accent,
-      secondary: AppColors.accent2,
+      onPrimary: Colors.black,
+      secondary: AppColors.accentSoft,
+      onSecondary: Colors.black,
       error: AppColors.danger,
+      onError: Colors.white,
+      background: AppColors.bg,
+      onBackground: AppColors.text,
+      surface: AppColors.surface,
+      onSurface: AppColors.text,
     );
 
     return base.copyWith(
@@ -44,11 +55,11 @@ class AppTheme {
 
       textTheme: base.textTheme.copyWith(
         titleLarge: base.textTheme.titleLarge?.copyWith(
-          fontWeight: FontWeight.w700,
+          fontWeight: FontWeight.w800,
           color: AppColors.text,
         ),
         titleMedium: base.textTheme.titleMedium?.copyWith(
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.w700,
           color: AppColors.text,
         ),
         bodyMedium: base.textTheme.bodyMedium?.copyWith(
@@ -66,7 +77,6 @@ class AppTheme {
         surfaceTintColor: Colors.transparent,
       ),
 
-      // Flutter 3.41.x: ожидается CardThemeData
       cardTheme: CardThemeData(
         color: AppColors.surface,
         elevation: 0,
@@ -85,13 +95,18 @@ class AppTheme {
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.accent,
-          foregroundColor: Colors.white,
+          foregroundColor: Colors.black,
           elevation: 0,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadii.r16),
           ),
-          textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+          textStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+        ).copyWith(
+          // мягкое "свечение" через shadowColor
+          shadowColor: MaterialStatePropertyAll(
+            AppColors.accent.withOpacity(0.35),
+          ),
         ),
       ),
 
@@ -103,14 +118,14 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadii.r16),
           ),
-          textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+          textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
         ),
       ),
 
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: AppColors.text,
-          textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+          textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
         ),
       ),
 
