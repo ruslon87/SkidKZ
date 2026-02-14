@@ -1,29 +1,64 @@
 // lib/core/widgets/app_gradient_background.dart
 import 'package:flutter/material.dart';
+import 'package:skidkz/core/theme/app_theme.dart';
 
-/// Единый градиентный фон приложения (как в header Drawer).
-/// Используй как обёртку над Scaffold либо над body.
 class AppGradientBackground extends StatelessWidget {
-  const AppGradientBackground({super.key, this.child});
+  final Widget child;
 
-  final Widget? child;
-
-  static const LinearGradient gradient = LinearGradient(
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-    colors: [
-      Color(0xFF202625),
-      Color(0xFF1A1F1E),
-      Color(0xFF121817),
-    ],
-    stops: [0.0, 0.55, 1.0],
-  );
+  const AppGradientBackground({super.key, required this.child});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(gradient: gradient),
-      child: child,
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppColors.bg,
+            AppColors.bg2,
+          ],
+        ),
+      ),
+      child: Stack(
+        children: [
+          // лёгкая виньетка сверху
+          Positioned.fill(
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    center: Alignment.topCenter,
+                    radius: 1.2,
+                    colors: [
+                      Colors.black.withOpacity(0.35),
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          // очень мягкое изумрудное "свечение" в углу (почти незаметно, но богато)
+          Positioned(
+            top: -160,
+            right: -140,
+            child: IgnorePointer(
+              child: Container(
+                height: 320,
+                width: 320,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppColors.accent.withOpacity(0.05),
+                ),
+              ),
+            ),
+          ),
+
+          child,
+        ],
+      ),
     );
   }
 }
