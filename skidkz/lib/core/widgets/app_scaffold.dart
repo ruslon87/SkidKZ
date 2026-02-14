@@ -4,6 +4,8 @@ import 'package:skidkz/core/theme/app_theme.dart';
 import 'package:skidkz/core/widgets/app_gradient_background.dart';
 
 class AppScaffold extends StatelessWidget {
+  final GlobalKey<ScaffoldState>? scaffoldKey;
+
   final PreferredSizeWidget? appBar;
   final Widget body;
   final Widget? drawer;
@@ -16,6 +18,7 @@ class AppScaffold extends StatelessWidget {
   const AppScaffold({
     super.key,
     required this.body,
+    this.scaffoldKey,
     this.appBar,
     this.drawer,
     this.bottomNavigationBar,
@@ -29,6 +32,7 @@ class AppScaffold extends StatelessWidget {
   Widget build(BuildContext context) {
     return AppGradientBackground(
       child: Scaffold(
+        key: scaffoldKey,
         backgroundColor: Colors.transparent,
         extendBody: true,
         extendBodyBehindAppBar: extendBodyBehindAppBar,
@@ -49,7 +53,6 @@ class AppScaffold extends StatelessWidget {
   }
 }
 
-/// Небольшая “панель”/контейнер с единым стилем
 class AppSurface extends StatelessWidget {
   final Widget child;
   final EdgeInsets padding;
