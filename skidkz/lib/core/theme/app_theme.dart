@@ -16,7 +16,7 @@ class AppColors {
   static const Color textMuted = Color(0xFF9FB0C8);
   static const Color textDisabled = Color(0xFF6E7F96);
 
-  // Изумрудный бренд (не “кислотный”)
+  // Изумрудный бренд
   static const Color accent = Color(0xFF1EDC8A);
   static const Color accentSoft = Color(0xFF39F0A5);
   static const Color accentDark = Color(0xFF0FA36B);
@@ -35,7 +35,7 @@ class AppTheme {
   static ThemeData get darkTheme {
     final base = ThemeData.dark(useMaterial3: true);
 
-    final colorScheme = const ColorScheme(
+    const colorScheme = ColorScheme(
       brightness: Brightness.dark,
       primary: AppColors.accent,
       onPrimary: Colors.black,
@@ -51,7 +51,25 @@ class AppTheme {
 
     return base.copyWith(
       colorScheme: colorScheme,
+
+      // ВАЖНО: чтобы при переходах/подгрузке не было "другого" холста
       scaffoldBackgroundColor: AppColors.bg,
+      canvasColor: AppColors.bg,
+      dialogBackgroundColor: AppColors.surface,
+
+      // ВАЖНО: убираем грязный overlay при тапах (Ink/ripple)
+      splashFactory: NoSplash.splashFactory,
+      splashColor: Colors.transparent,
+      highlightColor: Colors.transparent,
+      hoverColor: Colors.transparent,
+
+      // Переходы более "ровные" (можно оставить по умолчанию, но так стабильнее)
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: FadeUpwardsPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+        },
+      ),
 
       textTheme: base.textTheme.copyWith(
         titleLarge: base.textTheme.titleLarge?.copyWith(
@@ -103,7 +121,7 @@ class AppTheme {
           ),
           textStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
         ).copyWith(
-          // мягкое "свечение" через shadowColor
+          // мягкое свечение
           shadowColor: MaterialStatePropertyAll(
             AppColors.accent.withOpacity(0.35),
           ),
