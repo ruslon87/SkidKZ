@@ -2,15 +2,18 @@
 import 'package:flutter/material.dart';
 
 class AppColors {
-  static const Color bg = Color(0xFF0B0F14);
-  static const Color surface = Color(0xFF101826);
+  static const Color bg = Color(0xFF0B0F14); // основной фон
+  static const Color surface = Color(0xFF101826); // поверхности/карточки
   static const Color surface2 = Color(0xFF0D1522);
   static const Color border = Color(0xFF22324A);
+
   static const Color text = Color(0xFFE6EDF6);
   static const Color textMuted = Color(0xFF9FB0C8);
+  static const Color textDisabled = Color(0xFF6E7F96);
 
   static const Color accent = Color(0xFF7C4DFF); // замени на утвержденный
   static const Color accent2 = Color(0xFF00D1FF);
+
   static const Color danger = Color(0xFFFF5C5C);
   static const Color success = Color(0xFF2ED47A);
 }
@@ -63,7 +66,7 @@ class AppTheme {
         surfaceTintColor: Colors.transparent,
       ),
 
-      // ВАЖНО: CardThemeData (а не CardTheme)
+      // Flutter 3.41.x: ожидается CardThemeData
       cardTheme: CardThemeData(
         color: AppColors.surface,
         elevation: 0,
