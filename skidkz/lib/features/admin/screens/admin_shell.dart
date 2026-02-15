@@ -4,28 +4,10 @@ import 'package:go_router/go_router.dart';
 
 import 'package:skidkz/core/widgets/app_scaffold.dart';
 import 'package:skidkz/core/widgets/app_top_bar.dart';
-import 'package:skidkz/core/widgets/app_drawer.dart';
-import 'package:skidkz/core/widgets/app_bottom_nav.dart';
-
-class AdminShellScope extends InheritedWidget {
-  final VoidCallback openDrawer;
-
-  const AdminShellScope({
-    super.key,
-    required this.openDrawer,
-    required super.child,
-  });
-
-  static AdminShellScope of(BuildContext context) =>
-      context.dependOnInheritedWidgetOfExactType<AdminShellScope>()!;
-
-  @override
-  bool updateShouldNotify(AdminShellScope oldWidget) => false;
-}
+import 'package:skidkz/core/widgets/app_main_drawer.dart';
 
 class AdminShell extends StatefulWidget {
   final Widget child;
-
   const AdminShell({super.key, required this.child});
 
   @override
@@ -34,92 +16,73 @@ class AdminShell extends StatefulWidget {
 
 class _AdminShellState extends State<AdminShell> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-
   void _openDrawer() => _scaffoldKey.currentState?.openDrawer();
 
-  int _calcIndexFromLocation(String location) {
+  String _safeLocation(BuildContext context) {
+    final router = GoRouter.maybeOf(context);
+    if (router == null) return '/';
+    return router.routeInformationProvider.value.uri.path;
+  }
+
+  int _calculateSelectedIndex(BuildContext context) {
+    final location = _safeLocation(context);
     if (location.startsWith('/admin/moderation')) return 0;
     if (location.startsWith('/admin/users')) return 1;
     if (location.startsWith('/admin/finance')) return 2;
     return 0;
   }
 
-  void _goByIndex(int i) {
-    switch (i) {
-      case 0:
-        context.go('/admin/moderation');
-        break;
-      case 1:
-        context.go('/admin/users');
-        break;
-      case 2:
-        context.go('/admin/finance');
-        break;
-      default:
-        context.go('/admin/moderation');
-    }
+  void _go(BuildContext context, String path) {
+    final router = GoRouter.maybeOf(context);
+    if (router == null) return;
+    router.go(path);
   }
 
   @override
   Widget build(BuildContext context) {
-    final location = GoRouterState.of(context).uri.toString();
-    final idx = _calcIndexFromLocation(location);
+    final idx = _calculateSelectedIndex(context);
 
-    final drawer = AppDrawer(
-      headerTitle: 'SkidKZ',
-      headerSubtitle: 'Админ',
-      items: [
-        AppDrawerItem(
-          icon: Icons.gavel_outlined,
-          title: 'Модерация',
-          onTap: () => context.go('/admin/moderation'),
-        ),
-        AppDrawerItem(
-          icon: Icons.people_outline,
-          title: 'Пользователи',
-          onTap: () => context.go('/admin/users'),
-        ),
-        AppDrawerItem(
-          icon: Icons.payments_outlined,
-          title: 'Финансы',
-          onTap: () => context.go('/admin/finance'),
-        ),
-      ],
-      bottomItems: [
-        AppDrawerItem(
-          icon: Icons.switch_account_outlined,
-          title: 'Сменить роль',
-          onTap: () => context.go('/role-select'),
-        ),
-        AppDrawerItem(
-          icon: Icons.home_outlined,
-          title: 'В витрину (покупатель)',
-          onTap: () => context.go('/buyer/home'),
-        ),
-      ],
-    );
-
-    final bottomNav = AppBottomNav(
-      currentIndex: idx,
-      onTap: _goByIndex,
-      items: const [
-        AppNavItem(icon: Icons.gavel_rounded, label: 'Модерация'),
-        AppNavItem(icon: Icons.people_rounded, label: 'Пользователи'),
-        AppNavItem(icon: Icons.payments_rounded, label: 'Финансы'),
-      ],
-    );
-
-    return AdminShellScope(
-      openDrawer: _openDrawer,
-      child: AppScaffold(
-        scaffoldKey: _scaffoldKey,
-        appBar: AppTopBar(
-          title: 'Админ-панель',
-          onMenu: _openDrawer,
-        ),
-        drawer: drawer,
-        bottomNavigationBar: bottomNav,
-        body: widget.child,
+    return AppScaffold(
+      scaffoldKey: _scaffoldKey,
+      appBar: AppTopBar(
+        title: 'Админка',
+        onMenu: _openDrawer,
+      ),
+      drawer: const AppMainDrawer(),
+      body: widget.child,
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: idx,
+        onDestinationSelected: (index) {
+          switch (index) {
+            case 0:
+              _go(context, '/admin/moderation');
+              break;
+            case 1:
+              _go(context, '/admin/users');
+              break;
+            case 2:
+              _go(context, '/admin/finance');
+              break;
+          }
+        },
+        elevation: 0,
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.gavel_outlined),
+            selectedIcon: Icon(Icons.gavel),
+            label: 'Модерация',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.people_outline),
+            selectedIcon: Icon(Icons.people),
+            label: 'Пользователи',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.payments_outlined),
+            selectedIcon: Icon(Icons.payments),
+            label: 'Финансы',
+          ),
+        ],
       ),
     );
   }
