@@ -4,28 +4,10 @@ import 'package:go_router/go_router.dart';
 
 import 'package:skidkz/core/widgets/app_scaffold.dart';
 import 'package:skidkz/core/widgets/app_top_bar.dart';
-import 'package:skidkz/core/widgets/app_drawer.dart';
-import 'package:skidkz/core/widgets/app_bottom_nav.dart';
-
-class SellerShellScope extends InheritedWidget {
-  final VoidCallback openDrawer;
-
-  const SellerShellScope({
-    super.key,
-    required this.openDrawer,
-    required super.child,
-  });
-
-  static SellerShellScope of(BuildContext context) =>
-      context.dependOnInheritedWidgetOfExactType<SellerShellScope>()!;
-
-  @override
-  bool updateShouldNotify(SellerShellScope oldWidget) => false;
-}
+import 'package:skidkz/core/widgets/app_main_drawer.dart';
 
 class SellerShell extends StatefulWidget {
   final Widget child;
-
   const SellerShell({super.key, required this.child});
 
   @override
@@ -34,99 +16,64 @@ class SellerShell extends StatefulWidget {
 
 class _SellerShellState extends State<SellerShell> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-
   void _openDrawer() => _scaffoldKey.currentState?.openDrawer();
 
-  int _calcIndexFromLocation(String location) {
-    if (location.startsWith('/seller/products')) return 0; // включая /add
+  String _safeLocation(BuildContext context) {
+    final router = GoRouter.maybeOf(context);
+    if (router == null) return '/';
+    return router.routeInformationProvider.value.uri.path;
+  }
+
+  int _calculateSelectedIndex(BuildContext context) {
+    final location = _safeLocation(context);
+    if (location.startsWith('/seller/products')) return 0;
     if (location.startsWith('/seller/orders')) return 1;
     return 0;
   }
 
-  void _goByIndex(int i) {
-    switch (i) {
-      case 0:
-        context.go('/seller/products');
-        break;
-      case 1:
-        context.go('/seller/orders');
-        break;
-      default:
-        context.go('/seller/products');
-    }
+  void _go(BuildContext context, String path) {
+    final router = GoRouter.maybeOf(context);
+    if (router == null) return;
+    router.go(path);
   }
 
   @override
   Widget build(BuildContext context) {
-    final location = GoRouterState.of(context).uri.toString();
-    final idx = _calcIndexFromLocation(location);
+    final idx = _calculateSelectedIndex(context);
 
-    final drawer = AppDrawer(
-      headerTitle: 'SkidKZ',
-      headerSubtitle: 'Продавец',
-      items: [
-        AppDrawerItem(
-          icon: Icons.inventory_2_outlined,
-          title: 'Товары',
-          onTap: () => context.go('/seller/products'),
-        ),
-        AppDrawerItem(
-          icon: Icons.add_box_outlined,
-          title: 'Добавить товар',
-          onTap: () => context.go('/seller/products/add'),
-        ),
-        AppDrawerItem(
-          icon: Icons.list_alt_outlined,
-          title: 'Заказы',
-          onTap: () => context.go('/seller/orders'),
-        ),
-      ],
-      bottomItems: [
-        AppDrawerItem(
-          icon: Icons.info_outline,
-          title: 'Инфо для продавца',
-          onTap: () => context.go('/info/seller'),
-        ),
-        AppDrawerItem(
-          icon: Icons.switch_account_outlined,
-          title: 'Сменить роль',
-          onTap: () => context.go('/role-select'),
-        ),
-        AppDrawerItem(
-          icon: Icons.home_outlined,
-          title: 'В витрину (покупатель)',
-          onTap: () => context.go('/buyer/home'),
-        ),
-      ],
-    );
-
-    final bottomNav = AppBottomNav(
-      currentIndex: idx,
-      onTap: _goByIndex,
-      items: const [
-        AppNavItem(icon: Icons.inventory_2_rounded, label: 'Товары'),
-        AppNavItem(icon: Icons.list_alt_rounded, label: 'Заказы'),
-      ],
-    );
-
-    return SellerShellScope(
-      openDrawer: _openDrawer,
-      child: AppScaffold(
-        scaffoldKey: _scaffoldKey,
-        appBar: AppTopBar(
-          title: 'Панель продавца',
-          onMenu: _openDrawer,
-          actions: [
-            IconButton(
-              tooltip: 'Добавить',
-              onPressed: () => context.go('/seller/products/add'),
-              icon: const Icon(Icons.add_rounded),
-            ),
-          ],
-        ),
-        drawer: drawer,
-        bottomNavigationBar: bottomNav,
-        body: widget.child,
+    return AppScaffold(
+      scaffoldKey: _scaffoldKey,
+      appBar: AppTopBar(
+        title: 'Магазин',
+        onMenu: _openDrawer,
+      ),
+      drawer: const AppMainDrawer(),
+      body: widget.child,
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: idx,
+        onDestinationSelected: (index) {
+          switch (index) {
+            case 0:
+              _go(context, '/seller/products');
+              break;
+            case 1:
+              _go(context, '/seller/orders');
+              break;
+          }
+        },
+        elevation: 0,
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.inventory_2_outlined),
+            selectedIcon: Icon(Icons.inventory_2),
+            label: 'Товары',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.list_alt),
+            selectedIcon: Icon(Icons.list_alt),
+            label: 'Заказы',
+          ),
+        ],
       ),
     );
   }
