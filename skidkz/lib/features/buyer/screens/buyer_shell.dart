@@ -4,10 +4,9 @@ import 'package:go_router/go_router.dart';
 
 import 'package:skidkz/core/widgets/app_scaffold.dart';
 import 'package:skidkz/core/widgets/app_top_bar.dart';
-import 'package:skidkz/core/widgets/app_drawer.dart';
 import 'package:skidkz/core/widgets/app_bottom_nav.dart';
+import 'package:skidkz/core/widgets/app_main_drawer.dart';
 
-/// Скоуп, чтобы дочерние экраны могли открыть drawer
 class BuyerShellScope extends InheritedWidget {
   final VoidCallback openDrawer;
 
@@ -24,7 +23,6 @@ class BuyerShellScope extends InheritedWidget {
   bool updateShouldNotify(BuyerShellScope oldWidget) => false;
 }
 
-/// ВАЖНО: имя класса должно совпадать с router: BuyerRootShell(child: child)
 class BuyerRootShell extends StatefulWidget {
   final Widget child;
 
@@ -45,8 +43,6 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
     if (location.startsWith('/buyer/favorites')) return 2;
     if (location.startsWith('/buyer/cart')) return 3;
     if (location.startsWith('/buyer/profile')) return 4;
-
-    // orders не в bottom nav (обычно через drawer), но если хочешь — можно добавить вкладку
     return 0;
   }
 
@@ -77,43 +73,6 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
     final location = GoRouterState.of(context).uri.toString();
     final idx = _calcIndexFromLocation(location);
 
-    final drawer = AppDrawer(
-      headerTitle: 'SkidKZ',
-      headerSubtitle: 'Покупатель',
-      items: [
-        AppDrawerItem(
-          icon: Icons.home_outlined,
-          title: 'Главная',
-          onTap: () => context.go('/buyer/home'),
-        ),
-        AppDrawerItem(
-          icon: Icons.grid_view_rounded,
-          title: 'Каталог',
-          onTap: () => context.go('/buyer/catalog'),
-        ),
-        AppDrawerItem(
-          icon: Icons.favorite_border_rounded,
-          title: 'Избранное',
-          onTap: () => context.go('/buyer/favorites'),
-        ),
-        AppDrawerItem(
-          icon: Icons.shopping_cart_outlined,
-          title: 'Корзина',
-          onTap: () => context.go('/buyer/cart'),
-        ),
-        AppDrawerItem(
-          icon: Icons.receipt_long_outlined,
-          title: 'Заказы',
-          onTap: () => context.go('/buyer/orders'),
-        ),
-        AppDrawerItem(
-          icon: Icons.person_outline,
-          title: 'Профиль',
-          onTap: () => context.go('/buyer/profile'),
-        ),
-      ],
-    );
-
     final bottomNav = AppBottomNav(
       currentIndex: idx,
       onTap: _goByIndex,
@@ -134,7 +93,7 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
           title: 'SkidKZ',
           onMenu: _openDrawer,
         ),
-        drawer: drawer,
+        drawer: const AppMainDrawer(),
         bottomNavigationBar: bottomNav,
         body: widget.child,
       ),
