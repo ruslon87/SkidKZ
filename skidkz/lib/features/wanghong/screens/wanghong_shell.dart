@@ -46,18 +46,18 @@ class _WanghongShellState extends State<WanghongShell> {
 
     if (scaffold?.isDrawerOpen ?? false) {
       Navigator.of(context).pop();
-      return false;
+      return true;
     }
 
     final nav = Navigator.of(context);
     if (nav.canPop()) {
       nav.pop();
-      return false;
+      return true;
     }
 
     if (currentIndex != 0) {
       _go(context, '/wanghong/home');
-      return false;
+      return true;
     }
 
     final now = DateTime.now();
@@ -73,19 +73,19 @@ class _WanghongShellState extends State<WanghongShell> {
             duration: Duration(seconds: 2),
           ),
         );
-      return false;
+      return true;
     }
 
     SystemNavigator.pop();
-    return false;
+    return true;
   }
 
   @override
   Widget build(BuildContext context) {
     final idx = _calculateSelectedIndex(context);
 
-    return WillPopScope(
-      onWillPop: () => _handleBack(idx),
+    return BackButtonListener(
+      onBackButtonPressed: () => _handleBack(idx),
       child: AppScaffold(
         scaffoldKey: _scaffoldKey,
         appBar: AppTopBar(

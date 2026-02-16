@@ -75,18 +75,18 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
 
     if (scaffold?.isDrawerOpen ?? false) {
       Navigator.of(context).pop();
-      return false;
+      return true;
     }
 
     final nav = Navigator.of(context);
     if (nav.canPop()) {
       nav.pop();
-      return false;
+      return true;
     }
 
     if (currentIndex != 0) {
       _goByIndex(0);
-      return false;
+      return true;
     }
 
     final now = DateTime.now();
@@ -102,11 +102,11 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
             duration: Duration(seconds: 2),
           ),
         );
-      return false;
+      return true;
     }
 
     SystemNavigator.pop();
-    return false;
+    return true;
   }
 
   @override
@@ -126,8 +126,8 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
       ],
     );
 
-    return WillPopScope(
-      onWillPop: () => _handleBack(idx),
+    return BackButtonListener(
+      onBackButtonPressed: () => _handleBack(idx),
       child: BuyerShellScope(
         openDrawer: _openDrawer,
         child: AppScaffold(
