@@ -89,28 +89,28 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
 
   bool _isRootRouteForTab(String path, int index) => path == _rootPathForIndex(index);
 
-  Future<bool> _handleBack(int currentIndex, String currentPath) async {
+  Future<void> _handleBack(int currentIndex, String currentPath) async {
     final scaffold = _scaffoldKey.currentState;
 
     if (scaffold?.isDrawerOpen ?? false) {
       Navigator.of(context).pop();
-      return true;
+      return;
     }
 
     final nav = Navigator.of(context);
     if (nav.canPop()) {
       nav.pop();
-      return true;
+      return;
     }
 
     if (!_isRootRouteForTab(currentPath, currentIndex)) {
       _goByIndex(currentIndex);
-      return true;
+      return;
     }
 
     if (currentIndex != 0) {
       _goByIndex(0);
-      return true;
+      return;
     }
 
     final now = DateTime.now();
@@ -126,11 +126,10 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
             duration: Duration(seconds: 2),
           ),
         );
-      return true;
+      return;
     }
 
     SystemNavigator.pop();
-    return true;
   }
 
   @override
@@ -150,8 +149,12 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
       ],
     );
 
-    return BackButtonListener(
-      onBackButtonPressed: () => _handleBack(idx, location),
+    return PopScope<void>(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        _handleBack(idx, location);
+      },
       child: BuyerShellScope(
         openDrawer: _openDrawer,
         child: AppScaffold(

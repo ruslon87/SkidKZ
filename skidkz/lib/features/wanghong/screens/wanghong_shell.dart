@@ -56,28 +56,28 @@ class _WanghongShellState extends State<WanghongShell> {
 
   bool _isRootRouteForTab(String path, int index) => path == _rootPathForIndex(index);
 
-  Future<bool> _handleBack(int currentIndex, String currentPath) async {
+  Future<void> _handleBack(int currentIndex, String currentPath) async {
     final scaffold = _scaffoldKey.currentState;
 
     if (scaffold?.isDrawerOpen ?? false) {
       Navigator.of(context).pop();
-      return true;
+      return;
     }
 
     final nav = Navigator.of(context);
     if (nav.canPop()) {
       nav.pop();
-      return true;
+      return;
     }
 
     if (!_isRootRouteForTab(currentPath, currentIndex)) {
       _go(context, _rootPathForIndex(currentIndex));
-      return true;
+      return;
     }
 
     if (currentIndex != 0) {
       _go(context, '/wanghong/home');
-      return true;
+      return;
     }
 
     final now = DateTime.now();
@@ -93,11 +93,10 @@ class _WanghongShellState extends State<WanghongShell> {
             duration: Duration(seconds: 2),
           ),
         );
-      return true;
+      return;
     }
 
     SystemNavigator.pop();
-    return true;
   }
 
   @override
@@ -105,8 +104,12 @@ class _WanghongShellState extends State<WanghongShell> {
     final location = _safeLocation(context);
     final idx = _calculateSelectedIndex(context);
 
-    return BackButtonListener(
-      onBackButtonPressed: () => _handleBack(idx, location),
+    return PopScope<void>(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        _handleBack(idx, location);
+      },
       child: AppScaffold(
         scaffoldKey: _scaffoldKey,
         appBar: AppTopBar(

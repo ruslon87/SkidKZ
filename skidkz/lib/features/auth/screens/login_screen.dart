@@ -1,4 +1,5 @@
 // lib/features/auth/screens/login_screen.dart
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -31,6 +32,35 @@ class _LoginScreenState extends State<LoginScreen> {
 
   String? _error;
 
+  Future<void> _routeAfterAuth(fb.User user) async {
+    final db = FirebaseFirestore.instance;
+    final snap = await db.collection('users').doc(user.uid).get();
+
+    if (!mounted) return;
+
+    if (!snap.exists) {
+      context.go('/onboarding/buyer?next=%2Fbuyer%2Fhome');
+      return;
+    }
+
+    final data = snap.data() ?? <String, dynamic>{};
+    final profiles = (data['profiles'] is Map<String, dynamic>)
+        ? (data['profiles'] as Map<String, dynamic>)
+        : <String, dynamic>{};
+    final buyer = (profiles['buyer'] is Map<String, dynamic>)
+        ? (profiles['buyer'] as Map<String, dynamic>)
+        : <String, dynamic>{};
+
+    final completed = (buyer['completed'] as bool?) ?? false;
+
+    if (!completed) {
+      context.go('/onboarding/buyer?next=%2Fbuyer%2Fhome');
+      return;
+    }
+
+    context.go(widget.nextPath ?? '/buyer/home');
+  }
+
   @override
   void dispose() {
     _phoneController.dispose();
@@ -54,7 +84,7 @@ class _LoginScreenState extends State<LoginScreen> {
           try {
             await auth.signInWithCredential(credential);
             if (!mounted) return;
-            context.go(widget.nextPath ?? '/cabinet');
+            await _routeAfterAuth(auth.currentUser!);
           } catch (e) {
             if (!mounted) return;
             setState(() => _error = e.toString());
@@ -101,7 +131,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       await auth.signInWithCredential(credential);
       if (!mounted) return;
-      context.go(widget.nextPath ?? '/cabinet');
+      await _routeAfterAuth(auth.currentUser!);
     } catch (e) {
       setState(() => _error = e.toString());
     } finally {
