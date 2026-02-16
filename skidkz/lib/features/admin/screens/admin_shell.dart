@@ -41,23 +41,43 @@ class _AdminShellState extends State<AdminShell> {
     router.go(path);
   }
 
-  Future<void> _handleBack(int currentIndex) async {
+  String _rootPathForIndex(int index) {
+    switch (index) {
+      case 0:
+        return '/admin/moderation';
+      case 1:
+        return '/admin/users';
+      case 2:
+        return '/admin/finance';
+      default:
+        return '/admin/moderation';
+    }
+  }
+
+  bool _isRootRouteForTab(String path, int index) => path == _rootPathForIndex(index);
+
+  Future<bool> _handleBack(int currentIndex, String currentPath) async {
     final scaffold = _scaffoldKey.currentState;
 
     if (scaffold?.isDrawerOpen ?? false) {
       Navigator.of(context).pop();
-      return;
+      return true;
     }
 
     final nav = Navigator.of(context);
     if (nav.canPop()) {
       nav.pop();
-      return;
+      return true;
+    }
+
+    if (!_isRootRouteForTab(currentPath, currentIndex)) {
+      _go(context, _rootPathForIndex(currentIndex));
+      return true;
     }
 
     if (currentIndex != 0) {
       _go(context, '/admin/moderation');
-      return;
+      return true;
     }
 
     final now = DateTime.now();
@@ -69,26 +89,24 @@ class _AdminShellState extends State<AdminShell> {
         ?..clearSnackBars()
         ..showSnackBar(
           const SnackBar(
-            content: Text('Нажмите ещё раз, чтобы выйти'),
+            content: Text('Нажмите ещё раз, чтоы выйти'),
             duration: Duration(seconds: 2),
           ),
         );
-      return;
+      return true;
     }
 
     SystemNavigator.pop();
+    return true;
   }
 
   @override
   Widget build(BuildContext context) {
+    final location = _safeLocation(context);
     final idx = _calculateSelectedIndex(context);
 
-    return PopScope<void>(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, _) {
-        if (didPop) return;
-        _handleBack(idx);
-      },
+    return BackButtonListener(
+      onBackButtonPressed: () => _handleBack(idx, location),
       child: AppScaffold(
         scaffoldKey: _scaffoldKey,
         appBar: AppTopBar(
