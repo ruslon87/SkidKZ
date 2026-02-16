@@ -70,23 +70,47 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
     }
   }
 
-  Future<void> _handleBack(int currentIndex) async {
+  String _rootPathForIndex(int index) {
+    switch (index) {
+      case 0:
+        return '/buyer/home';
+      case 1:
+        return '/buyer/catalog';
+      case 2:
+        return '/buyer/favorites';
+      case 3:
+        return '/buyer/cart';
+      case 4:
+        return '/buyer/profile';
+      default:
+        return '/buyer/home';
+    }
+  }
+
+  bool _isRootRouteForTab(String path, int index) => path == _rootPathForIndex(index);
+
+  Future<bool> _handleBack(int currentIndex, String currentPath) async {
     final scaffold = _scaffoldKey.currentState;
 
     if (scaffold?.isDrawerOpen ?? false) {
       Navigator.of(context).pop();
-      return;
+      return true;
     }
 
     final nav = Navigator.of(context);
     if (nav.canPop()) {
       nav.pop();
-      return;
+      return true;
+    }
+
+    if (!_isRootRouteForTab(currentPath, currentIndex)) {
+      _goByIndex(currentIndex);
+      return true;
     }
 
     if (currentIndex != 0) {
       _goByIndex(0);
-      return;
+      return true;
     }
 
     final now = DateTime.now();
@@ -102,15 +126,16 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
             duration: Duration(seconds: 2),
           ),
         );
-      return;
+      return true;
     }
 
     SystemNavigator.pop();
+    return true;
   }
 
   @override
   Widget build(BuildContext context) {
-    final location = GoRouterState.of(context).uri.toString();
+    final location = GoRouterState.of(context).uri.path;
     final idx = _calcIndexFromLocation(location);
 
     final bottomNav = AppBottomNav(
@@ -125,12 +150,8 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
       ],
     );
 
-    return PopScope<void>(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, _) {
-        if (didPop) return;
-        _handleBack(idx);
-      },
+    return BackButtonListener(
+      onBackButtonPressed: () => _handleBack(idx, location),
       child: BuyerShellScope(
         openDrawer: _openDrawer,
         child: AppScaffold(
