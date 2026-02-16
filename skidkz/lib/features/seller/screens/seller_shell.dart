@@ -1,5 +1,6 @@
 // lib/features/seller/screens/seller_shell.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:skidkz/core/widgets/app_scaffold.dart';
@@ -16,6 +17,8 @@ class SellerShell extends StatefulWidget {
 
 class _SellerShellState extends State<SellerShell> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  DateTime? _lastBackPress;
+
   void _openDrawer() => _scaffoldKey.currentState?.openDrawer();
 
   String _safeLocation(BuildContext context) {
@@ -37,43 +40,85 @@ class _SellerShellState extends State<SellerShell> {
     router.go(path);
   }
 
+  Future<bool> _handleBack(int currentIndex) async {
+    final scaffold = _scaffoldKey.currentState;
+
+    if (scaffold?.isDrawerOpen ?? false) {
+      Navigator.of(context).pop();
+      return false;
+    }
+
+    final nav = Navigator.of(context);
+    if (nav.canPop()) {
+      nav.pop();
+      return false;
+    }
+
+    if (currentIndex != 0) {
+      _go(context, '/seller/products');
+      return false;
+    }
+
+    final now = DateTime.now();
+    if (_lastBackPress == null ||
+        now.difference(_lastBackPress!) > const Duration(seconds: 2)) {
+      _lastBackPress = now;
+      final messenger = ScaffoldMessenger.maybeOf(context);
+      messenger
+        ?..clearSnackBars()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Нажмите ещё раз, чтобы выйти'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      return false;
+    }
+
+    SystemNavigator.pop();
+    return false;
+  }
+
   @override
   Widget build(BuildContext context) {
     final idx = _calculateSelectedIndex(context);
 
-    return AppScaffold(
-      scaffoldKey: _scaffoldKey,
-      appBar: AppTopBar(
-        title: 'Магазин',
-        onMenu: _openDrawer,
-      ),
-      drawer: const AppMainDrawer(),
-      body: widget.child,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: idx,
-        onDestinationSelected: (index) {
-          switch (index) {
-            case 0:
-              _go(context, '/seller/products');
-              break;
-            case 1:
-              _go(context, '/seller/orders');
-              break;
-          }
-        },
-        elevation: 0,
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.inventory_2_outlined),
-            selectedIcon: Icon(Icons.inventory_2),
-            label: 'Товары',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.list_alt),
-            selectedIcon: Icon(Icons.list_alt),
-            label: 'Заказы',
-          ),
-        ],
+    return WillPopScope(
+      onWillPop: () => _handleBack(idx),
+      child: AppScaffold(
+        scaffoldKey: _scaffoldKey,
+        appBar: AppTopBar(
+          title: 'Магазин',
+          onMenu: _openDrawer,
+        ),
+        drawer: const AppMainDrawer(),
+        body: widget.child,
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: idx,
+          onDestinationSelected: (index) {
+            switch (index) {
+              case 0:
+                _go(context, '/seller/products');
+                break;
+              case 1:
+                _go(context, '/seller/orders');
+                break;
+            }
+          },
+          elevation: 0,
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.inventory_2_outlined),
+              selectedIcon: Icon(Icons.inventory_2),
+              label: 'Товары',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.list_alt),
+              selectedIcon: Icon(Icons.list_alt),
+              label: 'Заказы',
+            ),
+          ],
+        ),
       ),
     );
   }

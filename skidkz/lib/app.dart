@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
-import 'core/widgets/app_back_handler.dart';
 import 'core/location/location_controller.dart';
 
 class SkidKZApp extends ConsumerStatefulWidget {
@@ -29,14 +28,11 @@ class _SkidKZAppState extends ConsumerState<SkidKZApp> {
   Widget build(BuildContext context) {
     final GoRouter router = ref.watch(routerProvider);
 
-    return AppBackHandler(
-      router: router,
-      child: MaterialApp.router(
-        title: 'SkidKZ',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.darkTheme,
-        routerConfig: router,
-      ),
+    return MaterialApp.router(
+      title: 'SkidKZ',
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.darkTheme,
+      routerConfig: router,
     );
   }
 }

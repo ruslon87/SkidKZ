@@ -1,5 +1,6 @@
 // lib/features/wanghong/screens/wanghong_shell.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:skidkz/core/widgets/app_scaffold.dart';
@@ -16,6 +17,8 @@ class WanghongShell extends StatefulWidget {
 
 class _WanghongShellState extends State<WanghongShell> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  DateTime? _lastBackPress;
+
   void _openDrawer() => _scaffoldKey.currentState?.openDrawer();
 
   String _safeLocation(BuildContext context) {
@@ -38,51 +41,93 @@ class _WanghongShellState extends State<WanghongShell> {
     router.go(path);
   }
 
+  Future<bool> _handleBack(int currentIndex) async {
+    final scaffold = _scaffoldKey.currentState;
+
+    if (scaffold?.isDrawerOpen ?? false) {
+      Navigator.of(context).pop();
+      return false;
+    }
+
+    final nav = Navigator.of(context);
+    if (nav.canPop()) {
+      nav.pop();
+      return false;
+    }
+
+    if (currentIndex != 0) {
+      _go(context, '/wanghong/home');
+      return false;
+    }
+
+    final now = DateTime.now();
+    if (_lastBackPress == null ||
+        now.difference(_lastBackPress!) > const Duration(seconds: 2)) {
+      _lastBackPress = now;
+      final messenger = ScaffoldMessenger.maybeOf(context);
+      messenger
+        ?..clearSnackBars()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Нажмите ещё раз, чтобы выйти'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      return false;
+    }
+
+    SystemNavigator.pop();
+    return false;
+  }
+
   @override
   Widget build(BuildContext context) {
     final idx = _calculateSelectedIndex(context);
 
-    return AppScaffold(
-      scaffoldKey: _scaffoldKey,
-      appBar: AppTopBar(
-        title: 'Ванхун',
-        onMenu: _openDrawer,
-      ),
-      drawer: const AppMainDrawer(),
-      body: widget.child,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: idx,
-        onDestinationSelected: (index) {
-          switch (index) {
-            case 0:
-              _go(context, '/wanghong/home');
-              break;
-            case 1:
-              _go(context, '/wanghong/deals');
-              break;
-            case 2:
-              _go(context, '/wanghong/wallet');
-              break;
-          }
-        },
-        elevation: 0,
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.dashboard_outlined),
-            selectedIcon: Icon(Icons.dashboard),
-            label: 'Главная',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.local_offer_outlined),
-            selectedIcon: Icon(Icons.local_offer),
-            label: 'Сделки',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.account_balance_wallet_outlined),
-            selectedIcon: Icon(Icons.account_balance_wallet),
-            label: 'Кошелёк',
-          ),
-        ],
+    return WillPopScope(
+      onWillPop: () => _handleBack(idx),
+      child: AppScaffold(
+        scaffoldKey: _scaffoldKey,
+        appBar: AppTopBar(
+          title: 'Ванхун',
+          onMenu: _openDrawer,
+        ),
+        drawer: const AppMainDrawer(),
+        body: widget.child,
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: idx,
+          onDestinationSelected: (index) {
+            switch (index) {
+              case 0:
+                _go(context, '/wanghong/home');
+                break;
+              case 1:
+                _go(context, '/wanghong/deals');
+                break;
+              case 2:
+                _go(context, '/wanghong/wallet');
+                break;
+            }
+          },
+          elevation: 0,
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.dashboard_outlined),
+              selectedIcon: Icon(Icons.dashboard),
+              label: 'Главная',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.local_offer_outlined),
+              selectedIcon: Icon(Icons.local_offer),
+              label: 'Сделки',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.account_balance_wallet_outlined),
+              selectedIcon: Icon(Icons.account_balance_wallet),
+              label: 'Кошелёк',
+            ),
+          ],
+        ),
       ),
     );
   }

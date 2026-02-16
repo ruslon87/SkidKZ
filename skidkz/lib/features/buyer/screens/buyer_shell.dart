@@ -1,5 +1,6 @@
 // lib/features/buyer/screens/buyer_shell.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:skidkz/core/widgets/app_scaffold.dart';
@@ -34,6 +35,7 @@ class BuyerRootShell extends StatefulWidget {
 
 class _BuyerRootShellState extends State<BuyerRootShell> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  DateTime? _lastBackPress;
 
   void _openDrawer() => _scaffoldKey.currentState?.openDrawer();
 
@@ -68,6 +70,45 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
     }
   }
 
+  Future<bool> _handleBack(int currentIndex) async {
+    final scaffold = _scaffoldKey.currentState;
+
+    if (scaffold?.isDrawerOpen ?? false) {
+      Navigator.of(context).pop();
+      return false;
+    }
+
+    final nav = Navigator.of(context);
+    if (nav.canPop()) {
+      nav.pop();
+      return false;
+    }
+
+    if (currentIndex != 0) {
+      _goByIndex(0);
+      return false;
+    }
+
+    final now = DateTime.now();
+    if (_lastBackPress == null ||
+        now.difference(_lastBackPress!) > const Duration(seconds: 2)) {
+      _lastBackPress = now;
+      final messenger = ScaffoldMessenger.maybeOf(context);
+      messenger
+        ?..clearSnackBars()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Нажмите ещё раз, чтобы выйти'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      return false;
+    }
+
+    SystemNavigator.pop();
+    return false;
+  }
+
   @override
   Widget build(BuildContext context) {
     final location = GoRouterState.of(context).uri.toString();
@@ -85,17 +126,20 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
       ],
     );
 
-    return BuyerShellScope(
-      openDrawer: _openDrawer,
-      child: AppScaffold(
-        scaffoldKey: _scaffoldKey,
-        appBar: AppTopBar(
-          title: 'SkidKZ',
-          onMenu: _openDrawer,
+    return WillPopScope(
+      onWillPop: () => _handleBack(idx),
+      child: BuyerShellScope(
+        openDrawer: _openDrawer,
+        child: AppScaffold(
+          scaffoldKey: _scaffoldKey,
+          appBar: AppTopBar(
+            title: 'SkidKZ',
+            onMenu: _openDrawer,
+          ),
+          drawer: const AppMainDrawer(),
+          bottomNavigationBar: bottomNav,
+          body: widget.child,
         ),
-        drawer: const AppMainDrawer(),
-        bottomNavigationBar: bottomNav,
-        body: widget.child,
       ),
     );
   }
