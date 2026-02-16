@@ -70,7 +70,26 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
     }
   }
 
-  Future<bool> _handleBack(int currentIndex) async {
+  String _rootPathForIndex(int index) {
+    switch (index) {
+      case 0:
+        return '/buyer/home';
+      case 1:
+        return '/buyer/catalog';
+      case 2:
+        return '/buyer/favorites';
+      case 3:
+        return '/buyer/cart';
+      case 4:
+        return '/buyer/profile';
+      default:
+        return '/buyer/home';
+    }
+  }
+
+  bool _isRootRouteForTab(String path, int index) => path == _rootPathForIndex(index);
+
+  Future<bool> _handleBack(int currentIndex, String currentPath) async {
     final scaffold = _scaffoldKey.currentState;
 
     if (scaffold?.isDrawerOpen ?? false) {
@@ -81,6 +100,11 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
     final nav = Navigator.of(context);
     if (nav.canPop()) {
       nav.pop();
+      return true;
+    }
+
+    if (!_isRootRouteForTab(currentPath, currentIndex)) {
+      _goByIndex(currentIndex);
       return true;
     }
 
@@ -111,7 +135,7 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
 
   @override
   Widget build(BuildContext context) {
-    final location = GoRouterState.of(context).uri.toString();
+    final location = GoRouterState.of(context).uri.path;
     final idx = _calcIndexFromLocation(location);
 
     final bottomNav = AppBottomNav(
@@ -127,7 +151,7 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
     );
 
     return BackButtonListener(
-      onBackButtonPressed: () => _handleBack(idx),
+      onBackButtonPressed: () => _handleBack(idx, location),
       child: BuyerShellScope(
         openDrawer: _openDrawer,
         child: AppScaffold(

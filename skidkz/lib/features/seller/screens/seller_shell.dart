@@ -40,7 +40,20 @@ class _SellerShellState extends State<SellerShell> {
     router.go(path);
   }
 
-  Future<bool> _handleBack(int currentIndex) async {
+  String _rootPathForIndex(int index) {
+    switch (index) {
+      case 0:
+        return '/seller/products';
+      case 1:
+        return '/seller/orders';
+      default:
+        return '/seller/products';
+    }
+  }
+
+  bool _isRootRouteForTab(String path, int index) => path == _rootPathForIndex(index);
+
+  Future<bool> _handleBack(int currentIndex, String currentPath) async {
     final scaffold = _scaffoldKey.currentState;
 
     if (scaffold?.isDrawerOpen ?? false) {
@@ -51,6 +64,11 @@ class _SellerShellState extends State<SellerShell> {
     final nav = Navigator.of(context);
     if (nav.canPop()) {
       nav.pop();
+      return true;
+    }
+
+    if (!_isRootRouteForTab(currentPath, currentIndex)) {
+      _go(context, _rootPathForIndex(currentIndex));
       return true;
     }
 
@@ -81,10 +99,11 @@ class _SellerShellState extends State<SellerShell> {
 
   @override
   Widget build(BuildContext context) {
+    final location = _safeLocation(context);
     final idx = _calculateSelectedIndex(context);
 
     return BackButtonListener(
-      onBackButtonPressed: () => _handleBack(idx),
+      onBackButtonPressed: () => _handleBack(idx, location),
       child: AppScaffold(
         scaffoldKey: _scaffoldKey,
         appBar: AppTopBar(
