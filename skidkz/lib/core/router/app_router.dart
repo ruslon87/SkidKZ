@@ -53,27 +53,8 @@ final currentUserDocProvider = FutureProvider<UserModel?>((ref) async {
   if (fbUser == null) return null;
 
   final db = ref.watch(firestoreProvider);
-  final refDoc = db.collection('users').doc(fbUser.uid);
-  final snap = await refDoc.get();
-
-  if (!snap.exists) {
-    await refDoc.set({
-      'uid': fbUser.uid,
-      'phone': fbUser.phoneNumber ?? '',
-      'roles': ['buyer'],
-      'activeRole': 'buyer',
-      'createdAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-      'profiles': {
-        'buyer': {'completed': false, 'city': 'Алматы'},
-        'seller': {'completed': false},
-        'wanghong': {'completed': false},
-      },
-    });
-
-    final created = await refDoc.get();
-    return UserModel.fromFirestore(created.id, created.data() ?? {});
-  }
+  final snap = await db.collection('users').doc(fbUser.uid).get();
+  if (!snap.exists) return null;
 
   return UserModel.fromFirestore(snap.id, snap.data() ?? {});
 });
