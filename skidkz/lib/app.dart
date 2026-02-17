@@ -16,11 +16,12 @@ class SkidKZApp extends ConsumerStatefulWidget {
 }
 
 class _SkidKZAppState extends ConsumerState<SkidKZApp> {
+  final GlobalKey<ScaffoldMessengerState> _messengerKey =
+      GlobalKey<ScaffoldMessengerState>();
+
   @override
   void initState() {
     super.initState();
-
-    // Инициализация геолокации (вариант B)
     Future.microtask(() {
       ref.read(locationControllerProvider.notifier).init();
     });
@@ -30,14 +31,21 @@ class _SkidKZAppState extends ConsumerState<SkidKZApp> {
   Widget build(BuildContext context) {
     final GoRouter router = ref.watch(routerProvider);
 
-    return AppBackHandler(
-      router: router,
-      child: MaterialApp.router(
-        title: 'SkidKZ',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.darkTheme,
-        routerConfig: router,
-      ),
+    return MaterialApp.router(
+      title: 'SkidKZ',
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.darkTheme,
+      routerConfig: router,
+      scaffoldMessengerKey: _messengerKey,
+
+      // ВАЖНО: AppBackHandler теперь внутри дерева Router
+      builder: (context, child) {
+        return AppBackHandler(
+          router: router,
+          messengerKey: _messengerKey,
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
     );
   }
 }
