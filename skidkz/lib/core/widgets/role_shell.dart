@@ -1,69 +1,26 @@
+// lib/features/auth/screens/role_selection_screen.dart
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:skidkz/core/theme/app_theme.dart';
+import 'package:skidkz/core/widgets/app_gradient_background.dart';
 
-class RoleShell extends StatefulWidget {
-  final Widget child;
-  final int selectedIndex;
-  final ValueChanged<int> onDestinationSelected;
-  final List<NavigationDestination> destinations;
-  final int mainTabIndex;
-
-  const RoleShell({
-    super.key,
-    required this.child,
-    required this.selectedIndex,
-    required this.onDestinationSelected,
-    required this.destinations,
-    this.mainTabIndex = 0,
-  });
-
-  @override
-  State<RoleShell> createState() => _RoleShellState();
-}
-
-class _RoleShellState extends State<RoleShell> {
-  DateTime? _lastBackPressTime;
+class RoleSelectionScreen extends StatelessWidget {
+  const RoleSelectionScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, result) async {
-        if (didPop) return;
-
-        // 1. If we are on a different tab than Main, switch to Main
-        if (widget.selectedIndex != widget.mainTabIndex) {
-          widget.onDestinationSelected(widget.mainTabIndex);
-          return;
-        }
-
-        // 2. If we are on Main tab, handle double press to exit
-        final now = DateTime.now();
-        if (_lastBackPressTime == null || 
-            now.difference(_lastBackPressTime!) > const Duration(seconds: 2)) {
-          _lastBackPressTime = now;
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Нажмите ещё раз для выхода'),
-              duration: Duration(seconds: 2),
-            ),
-          );
-          return;
-        }
-
-        // 3. Exit app
-        SystemNavigator.pop();
-      },
+    // Заглушка: никаких PopScope/двойных выходов.
+    return AppGradientBackground(
       child: Scaffold(
-        body: widget.child,
-        bottomNavigationBar: NavigationBar(
-          selectedIndex: widget.selectedIndex,
-          onDestinationSelected: widget.onDestinationSelected,
-          backgroundColor: Colors.white,
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(
+          title: const Text('Выбор роли'),
+          backgroundColor: Colors.transparent,
           elevation: 0,
-          indicatorColor: AppTheme.secondary,
-          destinations: widget.destinations,
+        ),
+        body: const Center(
+          child: Text(
+            'Временно отключено.\nРоли подключим позже поэтапно.',
+            textAlign: TextAlign.center,
+          ),
         ),
       ),
     );
