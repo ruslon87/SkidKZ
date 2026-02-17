@@ -1,4 +1,5 @@
 // lib/core/router/app_router.dart
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/material.dart';
@@ -38,6 +39,9 @@ import 'package:skidkz/features/info/screens/wanghong_info_screen.dart';
 
 import 'package:skidkz/features/onboarding/screens/buyer_onboarding_screen.dart';
 
+
+// ================= PROVIDERS =================
+
 final firebaseAuthProvider =
     Provider<fb.FirebaseAuth>((ref) => fb.FirebaseAuth.instance);
 
@@ -53,8 +57,27 @@ final currentUserDocProvider = FutureProvider<UserModel?>((ref) async {
   if (fbUser == null) return null;
 
   final db = ref.watch(firestoreProvider);
-  final snap = await db.collection('users').doc(fbUser.uid).get();
-  if (!snap.exists) return null;
+  final refDoc = db.collection('users').doc(fbUser.uid);
+  final snap = await refDoc.get();
+
+  if (!snap.exists) {
+    await refDoc.set({
+      'uid': fbUser.uid,
+      'phone': fbUser.phoneNumber ?? '',
+      'roles': ['buyer'],
+      'activeRole': 'buyer',
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+      'profiles': {
+        'buyer': {'completed': false},
+        'seller': {'completed': false},
+        'wanghong': {'completed': false},
+      },
+    });
+
+    final created = await refDoc.get();
+    return UserModel.fromFirestore(created.id, created.data() ?? {});
+  }
 
   return UserModel.fromFirestore(snap.id, snap.data() ?? {});
 });
@@ -77,12 +100,16 @@ class _RouterRefreshNotifier extends ChangeNotifier {
   }
 }
 
+
+// ================= ROUTER =================
+
 final routerProvider = Provider<GoRouter>((ref) {
   final refresh = _RouterRefreshNotifier(ref);
 
   return GoRouter(
     initialLocation: '/buyer/home',
     refreshListenable: refresh,
+
     redirect: (context, state) {
       final location = state.uri.toString();
 
@@ -96,7 +123,7 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       final isLogin = location.startsWith('/login');
 
-      // Публичные разделы
+      // buyer часть доступна без логина
       if (location.startsWith('/buyer') ||
           location.startsWith('/info') ||
           location == '/') {
@@ -122,6 +149,7 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       return null;
     },
+
     routes: [
       GoRoute(
         path: '/login',
@@ -129,18 +157,22 @@ final routerProvider = Provider<GoRouter>((ref) {
           nextPath: state.uri.queryParameters['next'],
         ),
       ),
+
       GoRoute(
         path: '/role-select',
         builder: (context, state) => const RoleSelectionScreen(),
       ),
+
       GoRoute(
         path: '/info/seller',
         builder: (context, state) => const SellerInfoScreen(),
       ),
+
       GoRoute(
         path: '/info/wanghong',
         builder: (context, state) => const WanghongInfoScreen(),
       ),
+
       GoRoute(
         path: '/onboarding/buyer',
         builder: (context, state) => BuyerOnboardingScreen(
@@ -148,7 +180,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         ),
       ),
 
-      // Buyer Shell Routes
+      // Buyer
       ShellRoute(
         builder: (context, state, child) => BuyerRootShell(child: child),
         routes: [
@@ -179,7 +211,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         ],
       ),
 
-      // Seller Shell Routes
+      // Seller
       ShellRoute(
         builder: (context, state, child) => SellerShell(child: child),
         routes: [
@@ -198,7 +230,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         ],
       ),
 
-      // Wanghong Shell Routes
+      // Wanghong
       ShellRoute(
         builder: (context, state, child) => WanghongShell(child: child),
         routes: [
@@ -217,7 +249,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         ],
       ),
 
-      // Admin Shell Routes
+      // Admin
       ShellRoute(
         builder: (context, state, child) => AdminShell(child: child),
         routes: [
