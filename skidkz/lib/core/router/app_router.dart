@@ -9,7 +9,6 @@ import 'package:go_router/go_router.dart';
 import 'package:skidkz/data/models/user_model.dart';
 
 import 'package:skidkz/features/auth/screens/login_screen.dart';
-import 'package:skidkz/features/auth/screens/role_selection_screen.dart';
 
 import 'package:skidkz/features/buyer/screens/buyer_shell.dart';
 import 'package:skidkz/features/home/home_page.dart';
@@ -18,29 +17,6 @@ import 'package:skidkz/features/buyer/screens/buyer_favorites_screen.dart';
 import 'package:skidkz/features/buyer/screens/buyer_cart_screen.dart';
 import 'package:skidkz/features/buyer/screens/buyer_profile_screen.dart';
 import 'package:skidkz/features/buyer/screens/buyer_orders_screen.dart';
-
-import 'package:skidkz/features/seller/screens/seller_shell.dart';
-import 'package:skidkz/features/seller/screens/seller_products_screen.dart';
-import 'package:skidkz/features/seller/screens/seller_add_product_screen.dart';
-import 'package:skidkz/features/seller/screens/seller_orders_screen.dart';
-
-import 'package:skidkz/features/wanghong/screens/wanghong_shell.dart';
-import 'package:skidkz/features/wanghong/screens/wanghong_home_screen.dart';
-import 'package:skidkz/features/wanghong/screens/wanghong_deals_screen.dart';
-import 'package:skidkz/features/wanghong/screens/wanghong_wallet_screen.dart';
-
-import 'package:skidkz/features/admin/screens/admin_shell.dart';
-import 'package:skidkz/features/admin/screens/moderation_screen.dart';
-import 'package:skidkz/features/admin/screens/users_screen.dart';
-import 'package:skidkz/features/admin/screens/admin_finance_screen.dart';
-
-import 'package:skidkz/features/info/screens/seller_info_screen.dart';
-import 'package:skidkz/features/info/screens/wanghong_info_screen.dart';
-
-import 'package:skidkz/features/onboarding/screens/buyer_onboarding_screen.dart';
-
-
-// ================= PROVIDERS =================
 
 final firebaseAuthProvider =
     Provider<fb.FirebaseAuth>((ref) => fb.FirebaseAuth.instance);
@@ -84,8 +60,10 @@ final currentUserDocProvider = FutureProvider<UserModel?>((ref) async {
 
 class _RouterRefreshNotifier extends ChangeNotifier {
   _RouterRefreshNotifier(this.ref) {
-    _subAuth = ref.listen(authStateChangesProvider, (_, __) => notifyListeners());
-    _subUser = ref.listen(currentUserDocProvider, (_, __) => notifyListeners());
+    _subAuth =
+        ref.listen(authStateChangesProvider, (_, __) => notifyListeners());
+    _subUser =
+        ref.listen(currentUserDocProvider, (_, __) => notifyListeners());
   }
 
   final Ref ref;
@@ -100,9 +78,6 @@ class _RouterRefreshNotifier extends ChangeNotifier {
   }
 }
 
-
-// ================= ROUTER =================
-
 final routerProvider = Provider<GoRouter>((ref) {
   final refresh = _RouterRefreshNotifier(ref);
 
@@ -111,43 +86,31 @@ final routerProvider = Provider<GoRouter>((ref) {
     refreshListenable: refresh,
 
     redirect: (context, state) {
-      final location = state.uri.toString();
+      final path = state.uri.path;
 
-      final authAsync = ref.read(authStateChangesProvider);
-      final userAsync = ref.read(currentUserDocProvider);
-
-      final fbUser = authAsync.asData?.value;
-      final user = userAsync.asData?.value;
-
-      if (authAsync.isLoading || userAsync.isLoading) return null;
-
-      final isLogin = location.startsWith('/login');
-
-      // buyer часть доступна без логина
-      if (location.startsWith('/buyer') ||
-          location.startsWith('/info') ||
-          location == '/') {
-        return null;
+      // Всё лишнее жёстко отключаем и отправляем в buyer/home
+      // (чтобы никакие seller/wanghong/admin/info/onboarding не мешали).
+      const blockedPrefixes = [
+        '/seller',
+        '/wanghong',
+        '/admin',
+        '/info',
+        '/onboarding',
+        '/role-select',
+        '/cabinet',
+      ];
+      for (final p in blockedPrefixes) {
+        if (path.startsWith(p)) return '/buyer/home';
       }
 
-      if (fbUser == null) {
-        return isLogin ? null : '/login';
-      }
+      // login оставляем
+      if (path.startsWith('/login')) return null;
 
-      if (location == '/cabinet' && user != null) {
-        switch (user.activeRole) {
-          case UserRole.buyer:
-            return '/buyer/home';
-          case UserRole.seller:
-            return '/seller/products';
-          case UserRole.wanghong:
-            return '/wanghong/home';
-          case UserRole.admin:
-            return '/admin/moderation';
-        }
-      }
+      // buyer доступен всем (гостю тоже)
+      if (path.startsWith('/buyer') || path == '/') return null;
 
-      return null;
+      // всё неизвестное -> buyer/home
+      return '/buyer/home';
     },
 
     routes: [
@@ -158,29 +121,6 @@ final routerProvider = Provider<GoRouter>((ref) {
         ),
       ),
 
-      GoRoute(
-        path: '/role-select',
-        builder: (context, state) => const RoleSelectionScreen(),
-      ),
-
-      GoRoute(
-        path: '/info/seller',
-        builder: (context, state) => const SellerInfoScreen(),
-      ),
-
-      GoRoute(
-        path: '/info/wanghong',
-        builder: (context, state) => const WanghongInfoScreen(),
-      ),
-
-      GoRoute(
-        path: '/onboarding/buyer',
-        builder: (context, state) => BuyerOnboardingScreen(
-          nextPath: state.uri.queryParameters['next'],
-        ),
-      ),
-
-      // Buyer
       ShellRoute(
         builder: (context, state, child) => BuyerRootShell(child: child),
         routes: [
@@ -207,63 +147,6 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/buyer/orders',
             builder: (context, state) => const BuyerOrdersScreen(),
-          ),
-        ],
-      ),
-
-      // Seller
-      ShellRoute(
-        builder: (context, state, child) => SellerShell(child: child),
-        routes: [
-          GoRoute(
-            path: '/seller/products',
-            builder: (context, state) => const SellerProductsScreen(),
-          ),
-          GoRoute(
-            path: '/seller/products/add',
-            builder: (context, state) => const SellerAddProductScreen(),
-          ),
-          GoRoute(
-            path: '/seller/orders',
-            builder: (context, state) => const SellerOrdersScreen(),
-          ),
-        ],
-      ),
-
-      // Wanghong
-      ShellRoute(
-        builder: (context, state, child) => WanghongShell(child: child),
-        routes: [
-          GoRoute(
-            path: '/wanghong/home',
-            builder: (context, state) => const WanghongHomeScreen(),
-          ),
-          GoRoute(
-            path: '/wanghong/deals',
-            builder: (context, state) => const WanghongDealsScreen(),
-          ),
-          GoRoute(
-            path: '/wanghong/wallet',
-            builder: (context, state) => const WanghongWalletScreen(),
-          ),
-        ],
-      ),
-
-      // Admin
-      ShellRoute(
-        builder: (context, state, child) => AdminShell(child: child),
-        routes: [
-          GoRoute(
-            path: '/admin/moderation',
-            builder: (context, state) => const ModerationScreen(),
-          ),
-          GoRoute(
-            path: '/admin/users',
-            builder: (context, state) => const UsersScreen(),
-          ),
-          GoRoute(
-            path: '/admin/finance',
-            builder: (context, state) => const AdminFinanceScreen(),
           ),
         ],
       ),
