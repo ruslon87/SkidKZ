@@ -21,8 +21,6 @@ class SkidKZApp extends ConsumerWidget {
       theme: AppTheme.darkTheme,
       routerConfig: router,
       scaffoldMessengerKey: messengerKey,
-
-      // ВАЖНО: перехват Back должен быть внутри дерева MaterialApp/Router
       builder: (context, child) {
         return AppBackHandler(
           router: router,
