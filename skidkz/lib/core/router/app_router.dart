@@ -1,5 +1,4 @@
 // lib/core/router/app_router.dart
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/material.dart';
@@ -9,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:skidkz/data/models/user_model.dart';
 
 import 'package:skidkz/features/auth/screens/login_screen.dart';
+import 'package:skidkz/features/auth/screens/role_selection_screen.dart';
 
 import 'package:skidkz/features/buyer/screens/buyer_shell.dart';
 import 'package:skidkz/features/home/home_page.dart';
@@ -16,7 +16,8 @@ import 'package:skidkz/features/buyer/screens/buyer_catalog_screen.dart';
 import 'package:skidkz/features/buyer/screens/buyer_favorites_screen.dart';
 import 'package:skidkz/features/buyer/screens/buyer_cart_screen.dart';
 import 'package:skidkz/features/buyer/screens/buyer_profile_screen.dart';
-import 'package:skidkz/features/buyer/screens/buyer_orders_screen.dart';
+
+import 'package:skidkz/core/widgets/disabled_feature_screen.dart';
 
 final firebaseAuthProvider =
     Provider<fb.FirebaseAuth>((ref) => fb.FirebaseAuth.instance);
@@ -60,10 +61,8 @@ final currentUserDocProvider = FutureProvider<UserModel?>((ref) async {
 
 class _RouterRefreshNotifier extends ChangeNotifier {
   _RouterRefreshNotifier(this.ref) {
-    _subAuth =
-        ref.listen(authStateChangesProvider, (_, __) => notifyListeners());
-    _subUser =
-        ref.listen(currentUserDocProvider, (_, __) => notifyListeners());
+    _subAuth = ref.listen(authStateChangesProvider, (_, __) => notifyListeners());
+    _subUser = ref.listen(currentUserDocProvider, (_, __) => notifyListeners());
   }
 
   final Ref ref;
@@ -86,31 +85,45 @@ final routerProvider = Provider<GoRouter>((ref) {
     refreshListenable: refresh,
 
     redirect: (context, state) {
-      final path = state.uri.path;
+      final location = state.uri.toString();
 
-      // Всё лишнее жёстко отключаем и отправляем в buyer/home
-      // (чтобы никакие seller/wanghong/admin/info/onboarding не мешали).
-      const blockedPrefixes = [
-        '/seller',
-        '/wanghong',
-        '/admin',
-        '/info',
-        '/onboarding',
-        '/role-select',
-        '/cabinet',
-      ];
-      for (final p in blockedPrefixes) {
-        if (path.startsWith(p)) return '/buyer/home';
+      final authAsync = ref.read(authStateChangesProvider);
+      final userAsync = ref.read(currentUserDocProvider);
+
+      final fbUser = authAsync.asData?.value;
+      final user = userAsync.asData?.value;
+
+      if (authAsync.isLoading || userAsync.isLoading) return null;
+
+      // Гость: разрешаем buyer-витрину и login/role-select
+      final isGuestAllowed =
+          location.startsWith('/buyer') ||
+          location.startsWith('/login') ||
+          location.startsWith('/role-select');
+
+      if (fbUser == null) {
+        return isGuestAllowed ? null : '/login';
       }
 
-      // login оставляем
-      if (path.startsWith('/login')) return null;
+      // Авторизован: если вдруг попал на /login, отправляем на buyer/home
+      if (location.startsWith('/login')) {
+        return '/buyer/home';
+      }
 
-      // buyer доступен всем (гостю тоже)
-      if (path.startsWith('/buyer') || path == '/') return null;
+      // Роли пока заглушены: любые seller/wanghong/admin пути гоним на заглушку (или на buyer/home)
+      if (location.startsWith('/seller') ||
+          location.startsWith('/wanghong') ||
+          location.startsWith('/admin')) {
+        // Можно и на buyer/home, но заглушка нагляднее
+        return null;
+      }
 
-      // всё неизвестное -> buyer/home
-      return '/buyer/home';
+      // Кабинет пока не используем — на buyer/home
+      if (location == '/cabinet' && user != null) {
+        return '/buyer/home';
+      }
+
+      return null;
     },
 
     routes: [
@@ -121,6 +134,12 @@ final routerProvider = Provider<GoRouter>((ref) {
         ),
       ),
 
+      GoRoute(
+        path: '/role-select',
+        builder: (context, state) => const RoleSelectionScreen(),
+      ),
+
+      // Buyer Shell Routes (единственный рабочий shell сейчас)
       ShellRoute(
         builder: (context, state, child) => BuyerRootShell(child: child),
         routes: [
@@ -144,11 +163,39 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: '/buyer/profile',
             builder: (context, state) => const BuyerProfileScreen(),
           ),
-          GoRoute(
-            path: '/buyer/orders',
-            builder: (context, state) => const BuyerOrdersScreen(),
-          ),
         ],
+      ),
+
+      // Заглушки ролей (пути оставляем, чтобы ничего не падало если вдруг кто-то пойдёт туда)
+      GoRoute(
+        path: '/seller',
+        builder: (context, state) =>
+            const DisabledFeatureScreen(title: 'Кабинет магазина'),
+      ),
+      GoRoute(
+        path: '/seller/:rest(.*)',
+        builder: (context, state) =>
+            const DisabledFeatureScreen(title: 'Кабинет магазина'),
+      ),
+      GoRoute(
+        path: '/wanghong',
+        builder: (context, state) =>
+            const DisabledFeatureScreen(title: 'Кабинет ванхуна'),
+      ),
+      GoRoute(
+        path: '/wanghong/:rest(.*)',
+        builder: (context, state) =>
+            const DisabledFeatureScreen(title: 'Кабинет ванхуна'),
+      ),
+      GoRoute(
+        path: '/admin',
+        builder: (context, state) =>
+            const DisabledFeatureScreen(title: 'Админка'),
+      ),
+      GoRoute(
+        path: '/admin/:rest(.*)',
+        builder: (context, state) =>
+            const DisabledFeatureScreen(title: 'Админка'),
       ),
     ],
   );
