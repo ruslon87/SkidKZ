@@ -5,10 +5,6 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 class AppBackHandler extends StatefulWidget {
-  final GoRouter router;
-  final GlobalKey<ScaffoldMessengerState> messengerKey;
-  final Widget child;
-
   const AppBackHandler({
     super.key,
     required this.router,
@@ -16,14 +12,19 @@ class AppBackHandler extends StatefulWidget {
     required this.child,
   });
 
+  final GoRouter router;
+  final GlobalKey<ScaffoldMessengerState> messengerKey;
+  final Widget child;
+
   @override
   State<AppBackHandler> createState() => _AppBackHandlerState();
 }
 
 class _AppBackHandlerState extends State<AppBackHandler> {
   DateTime? _lastBackPress;
-  Future<dynamic> Function(MethodCall call)? _prevHandler;
   bool _busy = false;
+
+  Future<dynamic> Function(MethodCall call)? _prevHandler;
 
   NavigatorState? get _nav =>
       widget.router.routerDelegate.navigatorKey.currentState;
@@ -55,22 +56,22 @@ class _AppBackHandlerState extends State<AppBackHandler> {
     if (_busy) return true;
     _busy = true;
     try {
-      // 1) Сначала закрываем то, что реально "попается" (диалоги/боттомшиты/пуш-роуты)
+      // 1) закрыть диалоги/боттомшиты
       final nav = _nav;
       if (nav != null && nav.canPop()) {
         nav.pop();
-        return true; // consumed
+        return true;
       }
 
       final path = _path;
 
-      // 2) Если мы на вкладках buyer, но не home — возвращаемся на home
+      // 2) на любой buyer-вкладке кроме home -> на home
       if (_isBuyerTab(path) && !_isBuyerHome(path)) {
         widget.router.go('/buyer/home');
         return true;
       }
 
-      // 3) Если мы на buyer/home — двойной back = выход
+      // 3) на home -> двойной back выход
       if (_isBuyerHome(path)) {
         final now = DateTime.now();
         if (_lastBackPress == null ||
@@ -83,11 +84,10 @@ class _AppBackHandlerState extends State<AppBackHandler> {
         return true;
       }
 
-      // 4) Всё остальное — тоже на buyer/home
+      // 4) всё остальное -> на buyer/home
       widget.router.go('/buyer/home');
       return true;
     } finally {
-      // маленькая защита от двойного срабатывания
       await Future<void>.delayed(const Duration(milliseconds: 80));
       _busy = false;
     }
@@ -97,28 +97,21 @@ class _AppBackHandlerState extends State<AppBackHandler> {
   void initState() {
     super.initState();
 
-    // 100% перехват hardware back через системный канал навигации
+    // 100% перехват hardware back
     _prevHandler = SystemChannels.navigation.setMethodCallHandler((call) async {
       if (call.method == 'popRoute' || call.method == 'maybePop') {
-        final consumed = await _handleBack();
-        // true = мы обработали, ОС не должна закрывать/сворачивать
-        return consumed;
+        return await _handleBack(); // true = consumed
       }
-      // остальное — отдаем как есть
       return _prevHandler?.call(call);
     });
   }
 
   @override
   void dispose() {
-    // вернем обработчик назад (или сбросим)
     SystemChannels.navigation.setMethodCallHandler(_prevHandler);
     super.dispose();
   }
 
   @override
-  Widget build(BuildContext context) {
-    // Никаких GoRouter.of(context) и context.go() здесь нет вообще
-    return widget.child;
-  }
+  Widget build(BuildContext context) => widget.child;
 }
