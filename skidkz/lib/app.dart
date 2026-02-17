@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'core/location/location_controller.dart';
+import 'core/widgets/app_back_handler.dart';
 
 class SkidKZApp extends ConsumerStatefulWidget {
   const SkidKZApp({super.key});
@@ -18,7 +19,8 @@ class _SkidKZAppState extends ConsumerState<SkidKZApp> {
   @override
   void initState() {
     super.initState();
-    // Запуск определения города при старте (вариант B)
+
+    // Инициализация геолокации (вариант B)
     Future.microtask(() {
       ref.read(locationControllerProvider.notifier).init();
     });
@@ -28,11 +30,14 @@ class _SkidKZAppState extends ConsumerState<SkidKZApp> {
   Widget build(BuildContext context) {
     final GoRouter router = ref.watch(routerProvider);
 
-    return MaterialApp.router(
-      title: 'SkidKZ',
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.darkTheme,
-      routerConfig: router,
+    return AppBackHandler(
+      router: router,
+      child: MaterialApp.router(
+        title: 'SkidKZ',
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.darkTheme,
+        routerConfig: router,
+      ),
     );
   }
 }
