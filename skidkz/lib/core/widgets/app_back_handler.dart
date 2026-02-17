@@ -1,19 +1,18 @@
 // lib/core/widgets/app_back_handler.dart
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 class AppBackHandler extends StatefulWidget {
-  final Widget child;
-  final GoRouter router;
-  final GlobalKey<ScaffoldMessengerState> messengerKey;
-
   const AppBackHandler({
     super.key,
-    required this.child,
     required this.router,
-    required this.messengerKey,
+    required this.child,
   });
+
+  final GoRouter router;
+  final Widget child;
 
   @override
   State<AppBackHandler> createState() => _AppBackHandlerState();
@@ -21,56 +20,71 @@ class AppBackHandler extends StatefulWidget {
 
 class _AppBackHandlerState extends State<AppBackHandler> {
   DateTime? _lastBackPress;
+  bool _busy = false;
 
-  int _tabIndexByPath(String path) {
-    if (path.startsWith('/buyer/catalog')) return 1;
-    if (path.startsWith('/buyer/favorites')) return 2;
-    if (path.startsWith('/buyer/cart')) return 3;
-    if (path.startsWith('/buyer/profile')) return 4;
-    return 0; // /buyer/home по умолчанию
+  NavigatorState? get _nav =>
+      widget.router.routerDelegate.navigatorKey.currentState;
+
+  Uri get _uri => widget.router.routeInformationProvider.value.uri;
+
+  static const String _mainRoute = '/buyer/home';
+
+  bool _isMainScreen(String path) =>
+      path == '/' || path == '/buyer' || path == _mainRoute;
+
+  void _showExitHint() {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    messenger
+      ?..clearSnackBars()
+      ..showSnackBar(
+        const SnackBar(
+          content: Text('Нажмите ещё раз, чтобы выйти'),
+          duration: Duration(seconds: 2),
+        ),
+      );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return BackButtonListener(
-      onBackButtonPressed: () async {
-        final path =
-            widget.router.routerDelegate.currentConfiguration.uri.path;
+  Future<void> _handleBack() async {
+    if (_busy) return;
+    _busy = true;
+    try {
+      final nav = _nav;
+      final path = _uri.path;
 
-        // всё, что не buyer — возвращаем на buyer/home (на всякий)
-        if (!path.startsWith('/buyer')) {
-          widget.router.go('/buyer/home');
-          return true;
-        }
+      // 1) pop (dialog/bottomsheet/etc)
+      if (nav != null && nav.canPop()) {
+        nav.pop();
+        return;
+      }
 
-        final idx = _tabIndexByPath(path);
-
-        // если не главная вкладка — возвращаемся на главную
-        if (idx != 0) {
-          widget.router.go('/buyer/home');
-          return true;
-        }
-
-        // главная вкладка: double back exit
+      // 2) На главном экране — двойной back для выхода
+      if (_isMainScreen(path)) {
         final now = DateTime.now();
         if (_lastBackPress == null ||
             now.difference(_lastBackPress!) > const Duration(seconds: 2)) {
           _lastBackPress = now;
-
-          widget.messengerKey.currentState
-            ?..clearSnackBars()
-            ..showSnackBar(
-              const SnackBar(
-                content: Text('Нажмите ещё раз, чтобы выйти'),
-                duration: Duration(seconds: 2),
-              ),
-            );
-
-          return true;
+          _showExitHint();
+          return;
         }
-
         SystemNavigator.pop();
-        return true;
+        return;
+      }
+
+      // 3) На любом другом экране сначала возвращаем на главный.
+      widget.router.go(_mainRoute);
+    } finally {
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+      _busy = false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope<void>(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        unawaited(_handleBack());
       },
       child: widget.child,
     );
