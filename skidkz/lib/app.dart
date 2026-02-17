@@ -13,17 +13,20 @@ class SkidKZApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final GoRouter router = ref.watch(routerProvider);
+    final messengerKey = GlobalKey<ScaffoldMessengerState>();
 
     return MaterialApp.router(
       title: 'SkidKZ',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.darkTheme,
       routerConfig: router,
+      scaffoldMessengerKey: messengerKey,
 
-      // важно: back handler внутри builder
+      // ВАЖНО: перехват Back должен быть внутри дерева MaterialApp/Router
       builder: (context, child) {
         return AppBackHandler(
           router: router,
+          messengerKey: messengerKey,
           child: child ?? const SizedBox.shrink(),
         );
       },
