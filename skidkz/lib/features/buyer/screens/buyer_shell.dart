@@ -6,7 +6,6 @@ import 'package:go_router/go_router.dart';
 import 'package:skidkz/core/widgets/app_scaffold.dart';
 import 'package:skidkz/core/widgets/app_top_bar.dart';
 import 'package:skidkz/core/widgets/app_bottom_nav.dart';
-import 'package:skidkz/core/widgets/app_main_drawer.dart';
 
 class BuyerShellScope extends InheritedWidget {
   final VoidCallback openDrawer;
@@ -37,7 +36,8 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   DateTime? _lastBackPress;
 
-  void _openDrawer() => _scaffoldKey.currentState?.openDrawer();
+  // Drawer больше нет, но scope оставим, чтобы потом легко вернуть.
+  void _openDrawer() {}
 
   int _calcIndexFromLocation(String location) {
     if (location.startsWith('/buyer/home')) return 0;
@@ -90,29 +90,26 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
   bool _isRootRouteForTab(String path, int index) => path == _rootPathForIndex(index);
 
   Future<void> _handleBack(int currentIndex, String currentPath) async {
-    final scaffold = _scaffoldKey.currentState;
-
-    if (scaffold?.isDrawerOpen ?? false) {
-      Navigator.of(context).pop();
-      return;
-    }
-
     final nav = Navigator.of(context);
+
     if (nav.canPop()) {
       nav.pop();
       return;
     }
 
+    // если не корневой экран вкладки — вернёмся на корень вкладки
     if (!_isRootRouteForTab(currentPath, currentIndex)) {
       _goByIndex(currentIndex);
       return;
     }
 
+    // если не главная вкладка — вернёмся на главную вкладку
     if (currentIndex != 0) {
       _goByIndex(0);
       return;
     }
 
+    // двойное нажатие Back для выхода
     final now = DateTime.now();
     if (_lastBackPress == null ||
         now.difference(_lastBackPress!) > const Duration(seconds: 2)) {
@@ -134,8 +131,8 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
 
   @override
   Widget build(BuildContext context) {
-    final location = GoRouterState.of(context).uri.path;
-    final idx = _calcIndexFromLocation(location);
+    final path = GoRouterState.of(context).uri.path;
+    final idx = _calcIndexFromLocation(path);
 
     final bottomNav = AppBottomNav(
       currentIndex: idx,
@@ -153,17 +150,18 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
         if (didPop) return;
-        _handleBack(idx, location);
+        _handleBack(idx, path);
       },
       child: BuyerShellScope(
         openDrawer: _openDrawer,
         child: AppScaffold(
           scaffoldKey: _scaffoldKey,
-          appBar: AppTopBar(
+          // Drawer убрали -> убираем кнопку меню: leading пустой блок вместо IconButton
+          appBar: const AppTopBar(
             title: 'SkidKZ',
-            onMenu: _openDrawer,
+            leading: SizedBox(width: 48, height: 48),
           ),
-          drawer: const AppMainDrawer(),
+          drawer: null,
           bottomNavigationBar: bottomNav,
           body: widget.child,
         ),
