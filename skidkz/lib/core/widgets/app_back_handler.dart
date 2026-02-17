@@ -1,18 +1,19 @@
 // lib/core/widgets/app_back_handler.dart
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 class AppBackHandler extends StatefulWidget {
+  final GoRouter router;
+  final GlobalKey<ScaffoldMessengerState> messengerKey;
+  final Widget child;
+
   const AppBackHandler({
     super.key,
     required this.router,
+    required this.messengerKey,
     required this.child,
   });
-
-  final GoRouter router;
-  final Widget child;
 
   @override
   State<AppBackHandler> createState() => _AppBackHandlerState();
@@ -20,21 +21,18 @@ class AppBackHandler extends StatefulWidget {
 
 class _AppBackHandlerState extends State<AppBackHandler> {
   DateTime? _lastBackPress;
-  bool _busy = false;
 
-  NavigatorState? get _nav =>
-      widget.router.routerDelegate.navigatorKey.currentState;
+  bool _isBuyerMain(String path) => path == '/buyer/home';
 
-  Uri get _uri => widget.router.routeInformationProvider.value.uri;
-
-  static const String _mainRoute = '/buyer/home';
-
-  bool _isMainScreen(String path) =>
-      path == '/' || path == '/buyer' || path == _mainRoute;
+  bool _isBuyerTab(String path) =>
+      path.startsWith('/buyer/home') ||
+      path.startsWith('/buyer/catalog') ||
+      path.startsWith('/buyer/favorites') ||
+      path.startsWith('/buyer/cart') ||
+      path.startsWith('/buyer/profile');
 
   void _showExitHint() {
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    messenger
+    widget.messengerKey.currentState
       ?..clearSnackBars()
       ..showSnackBar(
         const SnackBar(
@@ -44,47 +42,42 @@ class _AppBackHandlerState extends State<AppBackHandler> {
       );
   }
 
-  Future<void> _handleBack() async {
-    if (_busy) return;
-    _busy = true;
-    try {
-      final nav = _nav;
-      final path = _uri.path;
-
-      // 1) pop (dialog/bottomsheet/etc)
-      if (nav != null && nav.canPop()) {
-        nav.pop();
-        return;
-      }
-
-      // 2) На главном экране — двойной back для выхода
-      if (_isMainScreen(path)) {
-        final now = DateTime.now();
-        if (_lastBackPress == null ||
-            now.difference(_lastBackPress!) > const Duration(seconds: 2)) {
-          _lastBackPress = now;
-          _showExitHint();
-          return;
-        }
-        SystemNavigator.pop();
-        return;
-      }
-
-      // 3) На любом другом экране сначала возвращаем на главный.
-      widget.router.go(_mainRoute);
-    } finally {
-      await Future<void>.delayed(const Duration(milliseconds: 60));
-      _busy = false;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    return PopScope<void>(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, _) {
-        if (didPop) return;
-        unawaited(_handleBack());
+    return BackButtonListener(
+      onBackButtonPressed: () async {
+        // 1) сначала пытаемся закрыть всё, что реально "попается" (диалоги/листы)
+        final nav = widget.router.routerDelegate.navigatorKey.currentState;
+        if (nav != null && nav.canPop()) {
+          nav.pop();
+          return true; // ВАЖНО: событие consumed
+        }
+
+        // 2) читаем текущий путь напрямую из router (без context)
+        final path = widget.router.routeInformationProvider.value.uri.path;
+
+        // 3) если мы на любой вкладке buyer, но НЕ на главной — уходим на главную
+        if (_isBuyerTab(path) && !_isBuyerMain(path)) {
+          widget.router.go('/buyer/home');
+          return true;
+        }
+
+        // 4) если мы на главной buyer — double back exit
+        if (_isBuyerMain(path)) {
+          final now = DateTime.now();
+          if (_lastBackPress == null ||
+              now.difference(_lastBackPress!) > const Duration(seconds: 2)) {
+            _lastBackPress = now;
+            _showExitHint();
+            return true;
+          }
+          SystemNavigator.pop();
+          return true;
+        }
+
+        // 5) всё прочее — отправляем на главную buyer
+        widget.router.go('/buyer/home');
+        return true;
       },
       child: widget.child,
     );
