@@ -19,6 +19,8 @@ class SkidKZApp extends ConsumerWidget {
       title: 'SkidKZ',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.darkTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: ThemeMode.dark,
       routerConfig: router,
       scaffoldMessengerKey: messengerKey,
       builder: (context, child) {
