@@ -1,109 +1,72 @@
-// lib/core/widgets/app_back_handler.dart
+// lib/core/router/app_router.dart
 
-import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-class AppBackHandler extends StatefulWidget {
-  const AppBackHandler({
-    super.key,
-    required this.router,
-    required this.child,
-  });
+import '../../features/cabinet/cabinet_screen.dart';
+import '../../features/auth/login_screen.dart';
+import '../../features/buyer/screens/buyer_shell.dart';
+import '../../features/seller/screens/seller_shell.dart';
+import '../../features/wanghong/screens/wanghong_shell.dart';
+import '../../features/admin/screens/admin_shell.dart';
 
-  final GoRouter router;
-  final Widget child;
+/// Минимальный routerProvider, чтобы проект собирался и навигация работала.
+/// Дальше можно наращивать guards/redirect по auth+role.
+final routerProvider = Provider<GoRouter>((ref) {
+  return GoRouter(
+    initialLocation: '/cabinet',
+    routes: <RouteBase>[
+      GoRoute(
+        path: '/login',
+        builder: (context, state) => const LoginScreen(),
+      ),
+      GoRoute(
+        path: '/cabinet',
+        builder: (context, state) => const CabinetScreen(),
+      ),
 
-  @override
-  State<AppBackHandler> createState() => _AppBackHandlerState();
-}
+      // Role shells
+      GoRoute(
+        path: '/buyer',
+        redirect: (context, state) => '/buyer/home',
+      ),
+      GoRoute(
+        path: '/buyer/home',
+        builder: (context, state) => const BuyerShell(),
+      ),
 
-class _AppBackHandlerState extends State<AppBackHandler> {
-  DateTime? _lastBackPress;
-  bool _busy = false;
+      GoRoute(
+        path: '/seller',
+        redirect: (context, state) => '/seller/products',
+      ),
+      GoRoute(
+        path: '/seller/products',
+        builder: (context, state) => const SellerShell(),
+      ),
 
-  NavigatorState? get _nav =>
-      widget.router.routerDelegate.navigatorKey.currentState;
+      GoRoute(
+        path: '/wanghong',
+        redirect: (context, state) => '/wanghong/home',
+      ),
+      GoRoute(
+        path: '/wanghong/home',
+        builder: (context, state) => const WanghongShell(),
+      ),
 
-  Uri get _uri => widget.router.routeInformationProvider.value.uri;
-
-  // Главные экраны по ролям (там двойной back = выход)
-  static const Set<String> _mainRoutes = <String>{
-    '/buyer/home',
-    '/seller/products',
-    '/wanghong/home',
-    '/admin/moderation',
-  };
-
-  bool _isMainScreen(String path) {
-    if (path == '/' || path == '/buyer' || path == '/cabinet') return true;
-    return _mainRoutes.contains(path);
-  }
-
-  String _roleMainForPath(String path) {
-    if (path.startsWith('/seller')) return '/seller/products';
-    if (path.startsWith('/wanghong')) return '/wanghong/home';
-    if (path.startsWith('/admin')) return '/admin/moderation';
-    return '/buyer/home';
-  }
-
-  void _showExitHint() {
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    messenger
-      ?..clearSnackBars()
-      ..showSnackBar(
-        const SnackBar(
-          content: Text('Нажмите ещё раз, чтобы выйти'),
-          duration: Duration(seconds: 2),
-        ),
-      );
-  }
-
-  Future<void> _handleBack() async {
-    if (_busy) return;
-    _busy = true;
-
-    try {
-      final nav = _nav;
-      final path = _uri.path;
-
-      // 1) Если есть что закрыть (диалог/страница/внутренний pop) — закрываем
-      if (nav != null && nav.canPop()) {
-        nav.pop();
-        return;
-      }
-
-      // 2) На главном экране — двойной back для выхода
-      if (_isMainScreen(path)) {
-        final now = DateTime.now();
-        if (_lastBackPress == null ||
-            now.difference(_lastBackPress!) > const Duration(seconds: 2)) {
-          _lastBackPress = now;
-          _showExitHint();
-          return;
-        }
-        SystemNavigator.pop();
-        return;
-      }
-
-      // 3) На любом другом экране — уходим на главный экран текущей роли
-      widget.router.go(_roleMainForPath(path));
-    } finally {
-      // анти-дребезг
-      await Future<void>.delayed(const Duration(milliseconds: 60));
-      _busy = false;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return BackButtonListener(
-      onBackButtonPressed: () async {
-        await _handleBack();
-        return true; // мы обработали back, ОС не должна сворачивать приложение
-      },
-      child: widget.child,
-    );
-  }
-}
+      GoRoute(
+        path: '/admin',
+        redirect: (context, state) => '/admin/moderation',
+      ),
+      GoRoute(
+        path: '/admin/moderation',
+        builder: (context, state) => const AdminShell(),
+      ),
+    ],
+    errorBuilder: (context, state) => Scaffold(
+      body: Center(
+        child: Text('Route error: ${state.uri}'),
+      ),
+    ),
+  );
+});
