@@ -28,10 +28,26 @@ class _AppBackHandlerState extends State<AppBackHandler> {
 
   Uri get _uri => widget.router.routeInformationProvider.value.uri;
 
-  static const String _mainRoute = '/buyer/home';
+  /// Главные экраны по ролям (то, где двойной back = выход)
+  static const Set<String> _mainRoutes = <String>{
+    '/buyer/home',
+    '/seller/products',
+    '/wanghong/home',
+    '/admin/moderation',
+  };
 
-  bool _isMainScreen(String path) =>
-      path == '/' || path == '/buyer' || path == _mainRoute;
+  bool _isMainScreen(String path) {
+    if (path == '/' || path == '/buyer' || path == '/cabinet') return true;
+    return _mainRoutes.contains(path);
+  }
+
+  String _roleMainForPath(String path) {
+    if (path.startsWith('/seller')) return '/seller/products';
+    if (path.startsWith('/wanghong')) return '/wanghong/home';
+    if (path.startsWith('/admin')) return '/admin/moderation';
+    // buyer и всё остальное
+    return '/buyer/home';
+  }
 
   void _showExitHint() {
     final messenger = ScaffoldMessenger.maybeOf(context);
@@ -48,11 +64,12 @@ class _AppBackHandlerState extends State<AppBackHandler> {
   Future<void> _handleBack() async {
     if (_busy) return;
     _busy = true;
+
     try {
       final nav = _nav;
       final path = _uri.path;
 
-      // 1) pop (drawer/dialog/etc)
+      // 1) Если есть что закрыть (диалог/страница в стеке) — закрываем
       if (nav != null && nav.canPop()) {
         nav.pop();
         return;
@@ -71,9 +88,10 @@ class _AppBackHandlerState extends State<AppBackHandler> {
         return;
       }
 
-      // 3) На любом другом экране сначала возвращаем на главный.
-      widget.router.go(_mainRoute);
+      // 3) На любом другом экране — возвращаемся на главный экран текущей роли
+      widget.router.go(_roleMainForPath(path));
     } finally {
+      // маленький анти-дребезг
       await Future<void>.delayed(const Duration(milliseconds: 60));
       _busy = false;
     }
@@ -81,11 +99,10 @@ class _AppBackHandlerState extends State<AppBackHandler> {
 
   @override
   Widget build(BuildContext context) {
-    return PopScope<void>(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, _) {
-        if (didPop) return;
-        unawaited(_handleBack());
+    return BackButtonListener(
+      onBackButtonPressed: () async {
+        await _handleBack();
+        return true; // мы обработали back, ОС не должна сворачивать приложение
       },
       child: widget.child,
     );
