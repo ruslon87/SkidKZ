@@ -4,9 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'core/router/app_router.dart' as r; // важно: алиас
+import 'core/router/app_router.dart' as r;
 import 'core/theme/app_theme.dart';
-import 'core/widgets/app_back_handler.dart'; // единственный AppBackHandler
+import 'core/widgets/app_back_handler.dart';
 
 class SkidKZApp extends ConsumerWidget {
   const SkidKZApp({super.key});
