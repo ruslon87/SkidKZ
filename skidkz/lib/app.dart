@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'core/router/app_router.dart';
+import 'core/router/app_router.dart'; // тут должен лежать routerProvider
 import 'core/theme/app_theme.dart';
 import 'core/widgets/app_back_handler.dart';
 
@@ -19,8 +19,6 @@ class SkidKZApp extends ConsumerWidget {
       title: 'SkidKZ',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.darkTheme,
-      darkTheme: AppTheme.darkTheme,
-      themeMode: ThemeMode.dark,
       routerConfig: router,
       builder: (context, child) {
         return AppBackHandler(
