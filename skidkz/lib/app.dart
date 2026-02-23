@@ -1,3 +1,5 @@
+// lib/app.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -20,8 +22,6 @@ class SkidKZApp extends ConsumerWidget {
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.dark,
       routerConfig: router,
-
-      // ❗ НИКАКОГО GoRouter.of(context) здесь быть не должно
       builder: (context, child) {
         return AppBackHandler(
           router: router,
