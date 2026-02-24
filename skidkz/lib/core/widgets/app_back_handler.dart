@@ -1,6 +1,5 @@
-// skidkz/lib/core/widgets/app_back_handler.dart
+// lib/core/widgets/app_back_handler.dart
 
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -45,7 +44,6 @@ class _AppBackHandlerState extends State<AppBackHandler> {
     if (path.startsWith('/seller')) return '/seller/products';
     if (path.startsWith('/wanghong')) return '/wanghong/home';
     if (path.startsWith('/admin')) return '/admin/moderation';
-    // buyer и всё остальное
     return '/buyer/home';
   }
 
@@ -91,7 +89,7 @@ class _AppBackHandlerState extends State<AppBackHandler> {
       // 3) На любом другом экране — возвращаемся на главный экран текущей роли
       widget.router.go(_roleMainForPath(path));
     } finally {
-      // маленький анти-дребезг
+      // небольшой анти-дребезг
       await Future<void>.delayed(const Duration(milliseconds: 60));
       _busy = false;
     }
@@ -99,10 +97,13 @@ class _AppBackHandlerState extends State<AppBackHandler> {
 
   @override
   Widget build(BuildContext context) {
-    return BackButtonListener(
-      onBackButtonPressed: () async {
-        await _handleBack();
-        return true; // мы обработали back, ОС не должна сворачивать приложение
+    // ВАЖНО:
+    // PopScope гарантированно перехватывает системный back и не отдаёт его ОС.
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        _handleBack();
       },
       child: widget.child,
     );
