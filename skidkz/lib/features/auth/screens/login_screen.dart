@@ -59,12 +59,33 @@ class _LoginScreenState extends State<LoginScreen> {
     return t.isEmpty ? null : t;
   }
 
+  GoRouter? _router() => GoRouter.maybeOf(context);
+
+  void _safeGo(String path) {
+    final r = _router();
+    if (r == null) {
+      // Лучше так, чем краш.
+      _toast('Навигация недоступна (Router не найден)');
+      return;
+    }
+    r.go(path);
+  }
+
+  void _safePush(String path) {
+    final r = _router();
+    if (r == null) {
+      _toast('Навигация недоступна (Router не найден)');
+      return;
+    }
+    r.push(path);
+  }
+
   void _goAfterLogin() {
     final next = _next();
     if (next != null) {
-      context.go(next);
+      _safeGo(next);
     } else {
-      context.go('/cabinet');
+      _safeGo('/cabinet');
     }
   }
 
@@ -156,7 +177,7 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  void _back() {
+  void _back() async {
     if (_loadingSend || _loadingConfirm) return;
 
     // Если мы уже на шаге ввода SMS — возвращаемся на ввод номера.
@@ -169,13 +190,12 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    // Если этот экран был открыт через push — обычный pop.
-    // Если открыт через go/redirect и стека нет — уходим на buyer/home.
-    if (context.canPop()) {
-      context.pop();
-    } else {
-      context.go('/buyer/home');
-    }
+    // ВАЖНО: не используем context.pop/canPop (go_router extensions).
+    final didPop = await Navigator.of(context).maybePop();
+    if (didPop) return;
+
+    // Если стека нет — уходим на buyer/home.
+    _safeGo('/buyer/home');
   }
 
   @override
@@ -198,7 +218,7 @@ class _LoginScreenState extends State<LoginScreen> {
               title: const Text('Вход по номеру'),
               leading: IconButton(
                 icon: const Icon(Icons.arrow_back),
-                onPressed: _back,
+                onPressed: busy ? null : _back,
               ),
             ),
             body: Padding(
@@ -236,7 +256,14 @@ class _LoginScreenState extends State<LoginScreen> {
                       _loadingSend
                           ? 'Отправляем SMS…'
                           : 'Отправим SMS и перейдём к вводу кода.',
-                      style: TextStyle(color: AppTheme.textSecondary),
+                      style: const TextStyle(color: AppTheme.textSecondary),
+                    ),
+                    const SizedBox(height: 8),
+                    TextButton(
+                      onPressed: busy
+                          ? null
+                          : () => _safePush('/buyer/home'),
+                      child: const Text('Продолжить без входа'),
                     ),
                   ] else ...[
                     const Text('Введите код из SMS'),
