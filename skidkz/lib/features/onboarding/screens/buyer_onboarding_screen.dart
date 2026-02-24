@@ -1,5 +1,3 @@
-// lib/features/onboarding/screens/buyer_onboarding_screen.dart
-
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -39,7 +37,6 @@ class BuyerOnboardingScreen extends StatelessWidget {
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: () {
-                  // Заглушка: на реальном онбординге тут будет сохранение профиля.
                   if (next != null && next.isNotEmpty) {
                     _safeGo(context, next);
                   } else {
