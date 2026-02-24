@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:skidkz/core/widgets/app_back_handler.dart';
 import 'package:skidkz/data/models/user_model.dart';
 
 import 'package:skidkz/features/auth/screens/login_screen.dart';
@@ -129,7 +128,6 @@ final routerProvider = Provider<GoRouter>((ref) {
         return isLogin ? null : '/login';
       }
 
-      // "виртуальная" точка входа
       if (location == '/cabinet' && user != null) {
         switch (user.activeRole) {
           case UserRole.buyer:
@@ -146,10 +144,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
-      GoRoute(
-        path: '/',
-        redirect: (_, __) => '/buyer/home',
-      ),
+      GoRoute(path: '/', redirect: (_, __) => '/buyer/home'),
 
       GoRoute(
         path: '/cabinet',
@@ -185,115 +180,42 @@ final routerProvider = Provider<GoRouter>((ref) {
         ),
       ),
 
-      // Buyer Shell Routes
       ShellRoute(
-        builder: (context, state, child) {
-          final r = GoRouter.of(context);
-          return AppBackHandler(
-            router: r,
-            child: BuyerRootShell(child: child),
-          );
-        },
+        builder: (context, state, child) => BuyerRootShell(child: child),
         routes: [
-          GoRoute(
-            path: '/buyer/home',
-            builder: (context, state) => const HomePage(),
-          ),
-          GoRoute(
-            path: '/buyer/catalog',
-            builder: (context, state) => const BuyerCatalogScreen(),
-          ),
-          GoRoute(
-            path: '/buyer/favorites',
-            builder: (context, state) => const BuyerFavoritesScreen(),
-          ),
-          GoRoute(
-            path: '/buyer/cart',
-            builder: (context, state) => const BuyerCartScreen(),
-          ),
-          GoRoute(
-            path: '/buyer/profile',
-            builder: (context, state) => const BuyerProfileScreen(),
-          ),
-          GoRoute(
-            path: '/buyer/orders',
-            builder: (context, state) => const BuyerOrdersScreen(),
-          ),
+          GoRoute(path: '/buyer/home', builder: (context, state) => const HomePage()),
+          GoRoute(path: '/buyer/catalog', builder: (context, state) => const BuyerCatalogScreen()),
+          GoRoute(path: '/buyer/favorites', builder: (context, state) => const BuyerFavoritesScreen()),
+          GoRoute(path: '/buyer/cart', builder: (context, state) => const BuyerCartScreen()),
+          GoRoute(path: '/buyer/profile', builder: (context, state) => const BuyerProfileScreen()),
+          GoRoute(path: '/buyer/orders', builder: (context, state) => const BuyerOrdersScreen()),
         ],
       ),
 
-      // Seller Shell Routes
       ShellRoute(
-        builder: (context, state, child) {
-          final r = GoRouter.of(context);
-          return AppBackHandler(
-            router: r,
-            child: SellerShell(child: child),
-          );
-        },
+        builder: (context, state, child) => SellerShell(child: child),
         routes: [
-          GoRoute(
-            path: '/seller/products',
-            builder: (context, state) => const SellerProductsScreen(),
-          ),
-          GoRoute(
-            path: '/seller/products/add',
-            builder: (context, state) => const SellerAddProductScreen(),
-          ),
-          GoRoute(
-            path: '/seller/orders',
-            builder: (context, state) => const SellerOrdersScreen(),
-          ),
+          GoRoute(path: '/seller/products', builder: (context, state) => const SellerProductsScreen()),
+          GoRoute(path: '/seller/products/add', builder: (context, state) => const SellerAddProductScreen()),
+          GoRoute(path: '/seller/orders', builder: (context, state) => const SellerOrdersScreen()),
         ],
       ),
 
-      // Wanghong Shell Routes
       ShellRoute(
-        builder: (context, state, child) {
-          final r = GoRouter.of(context);
-          return AppBackHandler(
-            router: r,
-            child: WanghongShell(child: child),
-          );
-        },
+        builder: (context, state, child) => WanghongShell(child: child),
         routes: [
-          GoRoute(
-            path: '/wanghong/home',
-            builder: (context, state) => const WanghongHomeScreen(),
-          ),
-          GoRoute(
-            path: '/wanghong/deals',
-            builder: (context, state) => const WanghongDealsScreen(),
-          ),
-          GoRoute(
-            path: '/wanghong/wallet',
-            builder: (context, state) => const WanghongWalletScreen(),
-          ),
+          GoRoute(path: '/wanghong/home', builder: (context, state) => const WanghongHomeScreen()),
+          GoRoute(path: '/wanghong/deals', builder: (context, state) => const WanghongDealsScreen()),
+          GoRoute(path: '/wanghong/wallet', builder: (context, state) => const WanghongWalletScreen()),
         ],
       ),
 
-      // Admin Shell Routes
       ShellRoute(
-        builder: (context, state, child) {
-          final r = GoRouter.of(context);
-          return AppBackHandler(
-            router: r,
-            child: AdminShell(child: child),
-          );
-        },
+        builder: (context, state, child) => AdminShell(child: child),
         routes: [
-          GoRoute(
-            path: '/admin/moderation',
-            builder: (context, state) => const ModerationScreen(),
-          ),
-          GoRoute(
-            path: '/admin/users',
-            builder: (context, state) => const UsersScreen(),
-          ),
-          GoRoute(
-            path: '/admin/finance',
-            builder: (context, state) => const AdminFinanceScreen(),
-          ),
+          GoRoute(path: '/admin/moderation', builder: (context, state) => const ModerationScreen()),
+          GoRoute(path: '/admin/users', builder: (context, state) => const UsersScreen()),
+          GoRoute(path: '/admin/finance', builder: (context, state) => const AdminFinanceScreen()),
         ],
       ),
     ],
