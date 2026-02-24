@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import 'core/router/app_router.dart' as r;
 import 'core/theme/app_theme.dart';
+import 'core/back/global_back_handler.dart';
 
 class SkidKZApp extends ConsumerWidget {
   const SkidKZApp({super.key});
@@ -17,7 +18,12 @@ class SkidKZApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.darkTheme,
       routerConfig: router,
-      backButtonDispatcher: RootBackButtonDispatcher(),
+      builder: (context, child) {
+        return GlobalBackHandler(
+          router: router,
+          child: child ?? const SizedBox(),
+        );
+      },
     );
   }
 }
