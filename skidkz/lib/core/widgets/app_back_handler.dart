@@ -1,5 +1,6 @@
 // lib/core/widgets/app_back_handler.dart
 
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -22,12 +23,9 @@ class _AppBackHandlerState extends State<AppBackHandler> {
   DateTime? _lastBackPress;
   bool _busy = false;
 
-  NavigatorState? get _nav =>
-      widget.router.routerDelegate.navigatorKey.currentState;
-
   Uri get _uri => widget.router.routeInformationProvider.value.uri;
 
-  /// Главные экраны по ролям (то, где двойной back = выход)
+  /// Главные экраны по ролям (там двойной back = выход)
   static const Set<String> _mainRoutes = <String>{
     '/buyer/home',
     '/seller/products',
@@ -64,12 +62,11 @@ class _AppBackHandlerState extends State<AppBackHandler> {
     _busy = true;
 
     try {
-      final nav = _nav;
       final path = _uri.path;
 
-      // 1) Если есть что закрыть (диалог/страница в стеке) — закрываем
-      if (nav != null && nav.canPop()) {
-        nav.pop();
+      // 1) Если go_router может pop — pop (это включает вложенные навигаторы)
+      if (widget.router.canPop()) {
+        widget.router.pop();
         return;
       }
 
@@ -86,10 +83,9 @@ class _AppBackHandlerState extends State<AppBackHandler> {
         return;
       }
 
-      // 3) На любом другом экране — возвращаемся на главный экран текущей роли
+      // 3) На любом другом экране — на главный экран текущей роли
       widget.router.go(_roleMainForPath(path));
     } finally {
-      // небольшой анти-дребезг
       await Future<void>.delayed(const Duration(milliseconds: 60));
       _busy = false;
     }
@@ -97,8 +93,7 @@ class _AppBackHandlerState extends State<AppBackHandler> {
 
   @override
   Widget build(BuildContext context) {
-    // ВАЖНО:
-    // PopScope гарантированно перехватывает системный back и не отдаёт его ОС.
+    // Глобальный перехват системного back (Android).
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
