@@ -1,5 +1,3 @@
-// lib/features/buyer/screens/buyer_profile_screen.dart
-
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -27,7 +25,6 @@ class BuyerProfileScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final user = fb.FirebaseAuth.instance.currentUser;
 
-    // Гость
     if (user == null) {
       return RefreshIndicator(
         onRefresh: _refresh,
@@ -57,7 +54,6 @@ class BuyerProfileScreen extends StatelessWidget {
       );
     }
 
-    // Авторизован
     return RefreshIndicator(
       onRefresh: _refresh,
       child: ListView(
