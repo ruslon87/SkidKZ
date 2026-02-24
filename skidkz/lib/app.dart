@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import 'core/router/app_router.dart' as r;
 import 'core/theme/app_theme.dart';
+import 'core/widgets/app_back_handler.dart';
 
 class SkidKZApp extends ConsumerWidget {
   const SkidKZApp({super.key});
@@ -19,7 +20,13 @@ class SkidKZApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.darkTheme,
       routerConfig: router,
-      // ВАЖНО: builder удалён, чтобы не ставить BackButtonListener выше Router
+      builder: (context, child) {
+        // ВАЖНО: PopScope не требует Router context, поэтому безопасно стоять здесь.
+        return AppBackHandler(
+          router: router,
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
     );
   }
 }
