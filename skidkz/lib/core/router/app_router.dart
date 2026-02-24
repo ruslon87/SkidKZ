@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:skidkz/core/widgets/app_back_handler.dart';
 import 'package:skidkz/data/models/user_model.dart';
 
 import 'package:skidkz/features/auth/screens/login_screen.dart';
@@ -101,7 +102,6 @@ final routerProvider = Provider<GoRouter>((ref) {
   final refresh = _RouterRefreshNotifier(ref);
 
   return GoRouter(
-    // Важно: можно оставить buyer/home, а "cabinet" использовать как виртуальную точку входа
     initialLocation: '/buyer/home',
     refreshListenable: refresh,
     redirect: (context, state) {
@@ -118,7 +118,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isLogin = location.startsWith('/login');
 
       // Публичные зоны (без логина)
-      if (location.startsWith('/buyer') || location.startsWith('/info') || location == '/') {
+      if (location.startsWith('/buyer') ||
+          location.startsWith('/info') ||
+          location == '/') {
         return null;
       }
 
@@ -127,7 +129,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         return isLogin ? null : '/login';
       }
 
-      // "виртуальная" точка входа, чтобы можно было router.go('/cabinet')
+      // "виртуальная" точка входа
       if (location == '/cabinet' && user != null) {
         switch (user.activeRole) {
           case UserRole.buyer:
@@ -149,7 +151,6 @@ final routerProvider = Provider<GoRouter>((ref) {
         redirect: (_, __) => '/buyer/home',
       ),
 
-      // "виртуальная" страница: не UI, а редирект-узел
       GoRoute(
         path: '/cabinet',
         builder: (context, state) => const SizedBox.shrink(),
@@ -186,7 +187,13 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       // Buyer Shell Routes
       ShellRoute(
-        builder: (context, state, child) => BuyerRootShell(child: child),
+        builder: (context, state, child) {
+          final r = GoRouter.of(context);
+          return AppBackHandler(
+            router: r,
+            child: BuyerRootShell(child: child),
+          );
+        },
         routes: [
           GoRoute(
             path: '/buyer/home',
@@ -217,7 +224,13 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       // Seller Shell Routes
       ShellRoute(
-        builder: (context, state, child) => SellerShell(child: child),
+        builder: (context, state, child) {
+          final r = GoRouter.of(context);
+          return AppBackHandler(
+            router: r,
+            child: SellerShell(child: child),
+          );
+        },
         routes: [
           GoRoute(
             path: '/seller/products',
@@ -236,7 +249,13 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       // Wanghong Shell Routes
       ShellRoute(
-        builder: (context, state, child) => WanghongShell(child: child),
+        builder: (context, state, child) {
+          final r = GoRouter.of(context);
+          return AppBackHandler(
+            router: r,
+            child: WanghongShell(child: child),
+          );
+        },
         routes: [
           GoRoute(
             path: '/wanghong/home',
@@ -255,7 +274,13 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       // Admin Shell Routes
       ShellRoute(
-        builder: (context, state, child) => AdminShell(child: child),
+        builder: (context, state, child) {
+          final r = GoRouter.of(context);
+          return AppBackHandler(
+            router: r,
+            child: AdminShell(child: child),
+          );
+        },
         routes: [
           GoRoute(
             path: '/admin/moderation',
