@@ -11,6 +11,12 @@ class BuyerOnboardingScreen extends StatelessWidget {
 
   final String? nextPath;
 
+  void _safeGo(BuildContext context, String path) {
+    final r = GoRouter.maybeOf(context);
+    if (r == null) return;
+    r.go(path);
+  }
+
   @override
   Widget build(BuildContext context) {
     final next = nextPath?.trim();
@@ -35,9 +41,9 @@ class BuyerOnboardingScreen extends StatelessWidget {
                 onPressed: () {
                   // Заглушка: на реальном онбординге тут будет сохранение профиля.
                   if (next != null && next.isNotEmpty) {
-                    context.go(next);
+                    _safeGo(context, next);
                   } else {
-                    context.go('/buyer/home');
+                    _safeGo(context, '/buyer/home');
                   }
                 },
                 child: const Text('Готово'),
