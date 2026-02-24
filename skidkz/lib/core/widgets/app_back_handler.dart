@@ -1,6 +1,3 @@
-// lib/core/widgets/app_back_handler.dart
-
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -25,7 +22,6 @@ class _AppBackHandlerState extends State<AppBackHandler> {
 
   Uri get _uri => widget.router.routeInformationProvider.value.uri;
 
-  /// Главные экраны по ролям (там двойной back = выход)
   static const Set<String> _mainRoutes = <String>{
     '/buyer/home',
     '/seller/products',
@@ -34,7 +30,6 @@ class _AppBackHandlerState extends State<AppBackHandler> {
   };
 
   bool _isMainScreen(String path) {
-    if (path == '/' || path == '/buyer' || path == '/cabinet') return true;
     return _mainRoutes.contains(path);
   }
 
@@ -64,26 +59,28 @@ class _AppBackHandlerState extends State<AppBackHandler> {
     try {
       final path = _uri.path;
 
-      // 1) Если go_router может pop — pop (это включает вложенные навигаторы)
+      // 🔹 Если в стеке есть что закрыть — закрываем через go_router
       if (widget.router.canPop()) {
         widget.router.pop();
         return;
       }
 
-      // 2) На главном экране — двойной back для выхода
+      // 🔹 Если на главном экране — двойной back = выход
       if (_isMainScreen(path)) {
         final now = DateTime.now();
+
         if (_lastBackPress == null ||
             now.difference(_lastBackPress!) > const Duration(seconds: 2)) {
           _lastBackPress = now;
           _showExitHint();
           return;
         }
+
         SystemNavigator.pop();
         return;
       }
 
-      // 3) На любом другом экране — на главный экран текущей роли
+      // 🔹 Иначе возвращаемся на главный экран роли
       widget.router.go(_roleMainForPath(path));
     } finally {
       await Future<void>.delayed(const Duration(milliseconds: 60));
@@ -93,7 +90,6 @@ class _AppBackHandlerState extends State<AppBackHandler> {
 
   @override
   Widget build(BuildContext context) {
-    // Глобальный перехват системного back (Android).
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
