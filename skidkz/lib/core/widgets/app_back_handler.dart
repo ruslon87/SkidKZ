@@ -23,11 +23,9 @@ class _AppBackHandlerState extends State<AppBackHandler> {
   DateTime? _lastBackPress;
   bool _busy = false;
 
-  NavigatorState? get _nav =>
-      widget.router.routerDelegate.navigatorKey.currentState;
-
   Uri get _uri => widget.router.routeInformationProvider.value.uri;
 
+  /// Главные экраны по ролям (двойной back = выход)
   static const Set<String> _mainRoutes = <String>{
     '/buyer/home',
     '/seller/products',
@@ -64,16 +62,15 @@ class _AppBackHandlerState extends State<AppBackHandler> {
     _busy = true;
 
     try {
-      final nav = _nav;
       final path = _uri.path;
 
-      // 1) Если есть что закрыть (диалог/страница в стеке) — закрываем
-      if (nav != null && nav.canPop()) {
-        nav.pop();
+      // 1) Поп из стека роутера
+      if (widget.router.canPop()) {
+        widget.router.pop();
         return;
       }
 
-      // 2) На главном экране — двойной back для выхода
+      // 2) Главный экран — двойной back для выхода
       if (_isMainScreen(path)) {
         final now = DateTime.now();
         if (_lastBackPress == null ||
@@ -86,7 +83,7 @@ class _AppBackHandlerState extends State<AppBackHandler> {
         return;
       }
 
-      // 3) На любом другом экране — уходим на главный экран текущей роли
+      // 3) Прочие экраны — на главный экран роли
       widget.router.go(_roleMainForPath(path));
     } finally {
       await Future<void>.delayed(const Duration(milliseconds: 60));
@@ -96,11 +93,10 @@ class _AppBackHandlerState extends State<AppBackHandler> {
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, result) {
-        if (didPop) return;
-        _handleBack();
+    return BackButtonListener(
+      onBackButtonPressed: () async {
+        await _handleBack();
+        return true; // ОС не сворачивает приложение
       },
       child: widget.child,
     );
