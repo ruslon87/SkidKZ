@@ -1,5 +1,3 @@
-// lib/features/auth/screens/login_screen.dart
-
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -59,12 +57,11 @@ class _LoginScreenState extends State<LoginScreen> {
     return t.isEmpty ? null : t;
   }
 
-  GoRouter? _router() => GoRouter.maybeOf(context);
+  GoRouter? get _r => GoRouter.maybeOf(context);
 
   void _safeGo(String path) {
-    final r = _router();
+    final r = _r;
     if (r == null) {
-      // Лучше так, чем краш.
       _toast('Навигация недоступна (Router не найден)');
       return;
     }
@@ -72,7 +69,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _safePush(String path) {
-    final r = _router();
+    final r = _r;
     if (r == null) {
       _toast('Навигация недоступна (Router не найден)');
       return;
@@ -177,10 +174,9 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  void _back() async {
+  Future<void> _back() async {
     if (_loadingSend || _loadingConfirm) return;
 
-    // Если мы уже на шаге ввода SMS — возвращаемся на ввод номера.
     if (_codeSent) {
       setState(() {
         _codeSent = false;
@@ -190,11 +186,10 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    // ВАЖНО: не используем context.pop/canPop (go_router extensions).
+    // ВАЖНО: НЕ context.pop/canPop (это go_router extensions)
     final didPop = await Navigator.of(context).maybePop();
     if (didPop) return;
 
-    // Если стека нет — уходим на buyer/home.
     _safeGo('/buyer/home');
   }
 
@@ -258,11 +253,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           : 'Отправим SMS и перейдём к вводу кода.',
                       style: const TextStyle(color: AppTheme.textSecondary),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 10),
                     TextButton(
-                      onPressed: busy
-                          ? null
-                          : () => _safePush('/buyer/home'),
+                      onPressed: busy ? null : () => _safePush('/buyer/home'),
                       child: const Text('Продолжить без входа'),
                     ),
                   ] else ...[
@@ -291,14 +284,6 @@ class _LoginScreenState extends State<LoginScreen> {
                             : const Text('Подтвердить'),
                       ),
                     ),
-                    if (_loadingConfirm)
-                      const Padding(
-                        padding: EdgeInsets.only(top: 8),
-                        child: Text(
-                          'Проверяем код и входим…',
-                          style: TextStyle(color: AppTheme.textSecondary),
-                        ),
-                      ),
                   ],
                 ],
               ),
