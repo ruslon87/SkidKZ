@@ -11,11 +11,23 @@ class BuyerProfileScreen extends StatelessWidget {
     await Future.delayed(const Duration(milliseconds: 250));
   }
 
+  void _safePush(BuildContext context, String path) {
+    final r = GoRouter.maybeOf(context);
+    if (r == null) return;
+    r.push(path);
+  }
+
+  void _safeGo(BuildContext context, String path) {
+    final r = GoRouter.maybeOf(context);
+    if (r == null) return;
+    r.go(path);
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = fb.FirebaseAuth.instance.currentUser;
 
-    // Профиль открыт гостю, но показываем CTA
+    // Гость
     if (user == null) {
       return RefreshIndicator(
         onRefresh: _refresh,
@@ -35,7 +47,8 @@ class BuyerProfileScreen extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: () => context.push('/login?next=%2Fbuyer%2Fprofile'),
+                onPressed: () =>
+                    _safePush(context, '/login?next=%2Fbuyer%2Fprofile'),
                 child: const Text('Войти / зарегистрироваться'),
               ),
             ),
@@ -66,7 +79,7 @@ class BuyerProfileScreen extends StatelessWidget {
               onPressed: () async {
                 await fb.FirebaseAuth.instance.signOut();
                 if (context.mounted) {
-                  context.go('/buyer/home');
+                  _safeGo(context, '/buyer/home');
                 }
               },
               child: const Text('Выйти'),
