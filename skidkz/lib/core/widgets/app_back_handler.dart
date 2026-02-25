@@ -29,29 +29,29 @@ class _AppBackHandlerState extends State<AppBackHandler> {
     widget.scaffoldKey?.currentState?.closeDrawer();
   }
 
-  Future<bool> _onBack() async {
+  Future<void> _handleBack() async {
     final router = GoRouter.of(context);
     final path = router.routeInformationProvider.value.uri.path;
 
     // 1) Закрыть drawer
     if (_drawerOpen()) {
       _closeDrawer();
-      return false; // мы обработали, систему не пускаем дальше
+      return;
     }
 
-    // 2) Если есть что pop — pop через go_router
+    // 2) Если есть что pop
     if (router.canPop()) {
       router.pop();
-      return false;
+      return;
     }
 
-    // 3) Если НЕ главный экран buyer — вернуться домой
+    // 3) Если НЕ главный экран buyer
     if (path != widget.mainPath) {
       router.go(widget.mainPath);
-      return false;
+      return;
     }
 
-    // 4) Главный экран → двойной back
+    // 4) Двойной back для выхода
     final now = DateTime.now();
     if (_lastBack == null ||
         now.difference(_lastBack!) > const Duration(seconds: 2)) {
@@ -66,21 +66,18 @@ class _AppBackHandlerState extends State<AppBackHandler> {
             duration: Duration(seconds: 2),
           ),
         );
-
-      return false;
+      return;
     }
 
     SystemNavigator.pop();
-    return false;
   }
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(
-      canPop: false,
-      onPopInvoked: (didPop) async {
-        if (didPop) return;
-        await _onBack();
+    return BackButtonListener(
+      onBackButtonPressed: () async {
+        await _handleBack();
+        return true; // мы обработали back, систему не пускаем дальше
       },
       child: widget.child,
     );
