@@ -1,3 +1,5 @@
+// lib/core/router/app_router.dart
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/material.dart';
@@ -126,6 +128,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         return isLogin ? null : '/login';
       }
 
+      // "виртуальная" точка входа
       if (location == '/cabinet' && user != null) {
         switch (user.activeRole) {
           case UserRole.buyer:
@@ -178,7 +181,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         ),
       ),
 
-      // Buyer
+      // Buyer Shell
       ShellRoute(
         builder: (context, state, child) => BuyerRootShell(child: child),
         routes: [
@@ -191,7 +194,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         ],
       ),
 
-      // Seller
+      // Seller Shell
       ShellRoute(
         builder: (context, state, child) => SellerShell(child: child),
         routes: [
@@ -201,7 +204,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         ],
       ),
 
-      // Wanghong
+      // Wanghong Shell
       ShellRoute(
         builder: (context, state, child) => WanghongShell(child: child),
         routes: [
@@ -211,7 +214,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         ],
       ),
 
-      // Admin
+      // Admin Shell
       ShellRoute(
         builder: (context, state, child) => AdminShell(child: child),
         routes: [
