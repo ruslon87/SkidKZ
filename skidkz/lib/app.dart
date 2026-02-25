@@ -1,3 +1,5 @@
+// lib/app.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -19,7 +21,6 @@ class SkidKZApp extends ConsumerWidget {
       theme: AppTheme.darkTheme,
       routerConfig: router,
       builder: (context, child) {
-        // ✅ Глобальный back-перехват ТОЛЬКО здесь (в одном месте)
         return AppBackHandler(
           router: router,
           child: child ?? const SizedBox.shrink(),
