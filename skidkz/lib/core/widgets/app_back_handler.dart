@@ -26,39 +26,40 @@ class _AppBackHandlerState extends State<AppBackHandler> {
   }
 
   void _closeDrawer() {
-    Navigator.of(context).pop();
+    widget.scaffoldKey?.currentState?.closeDrawer();
   }
 
   Future<bool> _onBack() async {
     final router = GoRouter.of(context);
     final path = router.routeInformationProvider.value.uri.path;
 
-    // 1️⃣ Закрыть drawer
+    // 1) Закрыть drawer
     if (_drawerOpen()) {
       _closeDrawer();
-      return true;
+      return false; // мы обработали, систему не пускаем дальше
     }
 
-    // 2️⃣ Если есть что pop — pop
-    if (Navigator.of(context).canPop()) {
-      Navigator.of(context).pop();
-      return true;
+    // 2) Если есть что pop — pop через go_router
+    if (router.canPop()) {
+      router.pop();
+      return false;
     }
 
-    // 3️⃣ Если НЕ главный экран buyer — вернуться домой
+    // 3) Если НЕ главный экран buyer — вернуться домой
     if (path != widget.mainPath) {
       router.go(widget.mainPath);
-      return true;
+      return false;
     }
 
-    // 4️⃣ Главный экран → двойной back
+    // 4) Главный экран → двойной back
     final now = DateTime.now();
     if (_lastBack == null ||
         now.difference(_lastBack!) > const Duration(seconds: 2)) {
       _lastBack = now;
 
-      ScaffoldMessenger.of(context)
-        ..clearSnackBars()
+      final messenger = ScaffoldMessenger.maybeOf(context);
+      messenger
+        ?..clearSnackBars()
         ..showSnackBar(
           const SnackBar(
             content: Text('Нажмите ещё раз, чтобы выйти'),
@@ -66,17 +67,21 @@ class _AppBackHandlerState extends State<AppBackHandler> {
           ),
         );
 
-      return true;
+      return false;
     }
 
     SystemNavigator.pop();
-    return true;
+    return false;
   }
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: _onBack,
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) async {
+        if (didPop) return;
+        await _onBack();
+      },
       child: widget.child,
     );
   }
