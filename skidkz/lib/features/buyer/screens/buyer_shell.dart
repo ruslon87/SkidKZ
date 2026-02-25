@@ -7,7 +7,9 @@ import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+
 import 'package:skidkz/core/theme/app_theme.dart';
+import 'package:skidkz/core/widgets/app_back_handler.dart';
 import 'package:skidkz/core/widgets/app_gradient_background.dart';
 
 /// Скоуп, чтобы дочерние экраны могли открыть drawer
@@ -156,37 +158,43 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
     return BuyerShellScope(
       openDrawer: _openDrawer,
       child: AppGradientBackground(
-        child: Scaffold(
-          backgroundColor: Colors.transparent,
-          key: _scaffoldKey,
-          drawer: BuyerDrawer(
-            closeDrawer: _closeDrawer,
-            city: _city,
-            onCityTap: _detectCity,
-          ),
-          body: Column(
-            children: [
-              _BuyerTopBar(
-                onMenu: _openDrawer,
-                city: _city,
-                onCityTap: _detectCity,
-              ),
-              Expanded(child: widget.child),
-            ],
-          ),
-          bottomNavigationBar: BottomNavigationBar(
-            currentIndex: currentIndex,
-            onTap: (i) => _goTab(context, i),
-            type: BottomNavigationBarType.fixed,
-            selectedItemColor: AppTheme.primary,
-            unselectedItemColor: AppTheme.textDisabled,
-            items: const [
-              BottomNavigationBarItem(icon: Icon(Icons.store), label: 'Магазин'),
-              BottomNavigationBarItem(icon: Icon(Icons.grid_view), label: 'Каталог'),
-              BottomNavigationBarItem(icon: Icon(Icons.favorite_border), label: 'Избранное'),
-              BottomNavigationBarItem(icon: Icon(Icons.shopping_cart_outlined), label: 'Корзина'),
-              BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'Профиль'),
-            ],
+        child: AppBackHandler(
+          // Главный экран buyer — там двойной back = выход
+          mainPath: '/buyer/home',
+          // Нужен для закрытия drawer по back
+          scaffoldKey: _scaffoldKey,
+          child: Scaffold(
+            backgroundColor: Colors.transparent,
+            key: _scaffoldKey,
+            drawer: BuyerDrawer(
+              closeDrawer: _closeDrawer,
+              city: _city,
+              onCityTap: _detectCity,
+            ),
+            body: Column(
+              children: [
+                _BuyerTopBar(
+                  onMenu: _openDrawer,
+                  city: _city,
+                  onCityTap: _detectCity,
+                ),
+                Expanded(child: widget.child),
+              ],
+            ),
+            bottomNavigationBar: BottomNavigationBar(
+              currentIndex: currentIndex,
+              onTap: (i) => _goTab(context, i),
+              type: BottomNavigationBarType.fixed,
+              selectedItemColor: AppTheme.primary,
+              unselectedItemColor: AppTheme.textDisabled,
+              items: const [
+                BottomNavigationBarItem(icon: Icon(Icons.store), label: 'Магазин'),
+                BottomNavigationBarItem(icon: Icon(Icons.grid_view), label: 'Каталог'),
+                BottomNavigationBarItem(icon: Icon(Icons.favorite_border), label: 'Избранное'),
+                BottomNavigationBarItem(icon: Icon(Icons.shopping_cart_outlined), label: 'Корзина'),
+                BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'Профиль'),
+              ],
+            ),
           ),
         ),
       ),
@@ -449,7 +457,7 @@ class BuyerDrawer extends StatelessWidget {
                           Row(
                             children: [
                               Text(
-                                'Гость',
+                                isAuthed ? 'Аккаунт' : 'Гость',
                                 style: TextStyle(color: Colors.white.withValues(alpha: 0.62)),
                               ),
                               const Spacer(),
