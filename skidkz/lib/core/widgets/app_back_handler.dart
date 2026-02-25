@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -6,100 +5,78 @@ import 'package:go_router/go_router.dart';
 class AppBackHandler extends StatefulWidget {
   const AppBackHandler({
     super.key,
-    required this.router,
     required this.child,
+    required this.mainPath,
+    this.scaffoldKey,
   });
 
-  final GoRouter router;
   final Widget child;
+  final String mainPath;
+  final GlobalKey<ScaffoldState>? scaffoldKey;
 
   @override
   State<AppBackHandler> createState() => _AppBackHandlerState();
 }
 
 class _AppBackHandlerState extends State<AppBackHandler> {
-  DateTime? _lastBackPress;
-  bool _busy = false;
+  DateTime? _lastBack;
 
-  NavigatorState? get _nav =>
-      widget.router.routerDelegate.navigatorKey.currentState;
-
-  Uri get _uri => widget.router.routeInformationProvider.value.uri;
-
-  /// Главные экраны по ролям (двойной back = выход)
-  static const Set<String> _mainRoutes = <String>{
-    '/buyer/home',
-    '/seller/products',
-    '/wanghong/home',
-    '/admin/moderation',
-  };
-
-  bool _isMainScreen(String path) {
-    if (path == '/' || path == '/buyer' || path == '/cabinet') return true;
-    return _mainRoutes.contains(path);
+  bool _drawerOpen() {
+    return widget.scaffoldKey?.currentState?.isDrawerOpen ?? false;
   }
 
-  String _roleMainForPath(String path) {
-    if (path.startsWith('/seller')) return '/seller/products';
-    if (path.startsWith('/wanghong')) return '/wanghong/home';
-    if (path.startsWith('/admin')) return '/admin/moderation';
-    return '/buyer/home';
+  void _closeDrawer() {
+    Navigator.of(context).pop();
   }
 
-  void _showExitHint() {
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    messenger
-      ?..clearSnackBars()
-      ..showSnackBar(
-        const SnackBar(
-          content: Text('Нажмите ещё раз, чтобы выйти'),
-          duration: Duration(seconds: 2),
-        ),
-      );
-  }
+  Future<bool> _onBack() async {
+    final router = GoRouter.of(context);
+    final path = router.routeInformationProvider.value.uri.path;
 
-  Future<void> _handleBack() async {
-    if (_busy) return;
-    _busy = true;
-
-    try {
-      final nav = _nav;
-      final path = _uri.path;
-
-      // 1) Если можно закрыть drawer/диалог/экран — закрываем
-      if (nav != null && nav.canPop()) {
-        nav.pop();
-        return;
-      }
-
-      // 2) Главный экран — двойной back для выхода
-      if (_isMainScreen(path)) {
-        final now = DateTime.now();
-        if (_lastBackPress == null ||
-            now.difference(_lastBackPress!) > const Duration(seconds: 2)) {
-          _lastBackPress = now;
-          _showExitHint();
-          return;
-        }
-        SystemNavigator.pop();
-        return;
-      }
-
-      // 3) Любой другой экран — на главный экран текущей роли
-      widget.router.go(_roleMainForPath(path));
-    } finally {
-      await Future<void>.delayed(const Duration(milliseconds: 60));
-      _busy = false;
+    // 1️⃣ Закрыть drawer
+    if (_drawerOpen()) {
+      _closeDrawer();
+      return true;
     }
+
+    // 2️⃣ Если есть что pop — pop
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+      return true;
+    }
+
+    // 3️⃣ Если НЕ главный экран buyer — вернуться домой
+    if (path != widget.mainPath) {
+      router.go(widget.mainPath);
+      return true;
+    }
+
+    // 4️⃣ Главный экран → двойной back
+    final now = DateTime.now();
+    if (_lastBack == null ||
+        now.difference(_lastBack!) > const Duration(seconds: 2)) {
+      _lastBack = now;
+
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Нажмите ещё раз, чтобы выйти'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+
+      return true;
+    }
+
+    SystemNavigator.pop();
+    return true;
   }
 
   @override
   Widget build(BuildContext context) {
-    return BackButtonListener(
-      onBackButtonPressed: () async {
-        await _handleBack();
-        return true; // ОС не должна сворачивать приложение
-      },
+    return WillPopScope(
+      onWillPop: _onBack,
       child: widget.child,
     );
   }
