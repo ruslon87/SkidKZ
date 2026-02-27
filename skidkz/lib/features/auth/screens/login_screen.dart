@@ -56,42 +56,47 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   String? _next() {
-    final next = widget.nextPath;
-    if (next == null) return null;
-    final t = next.trim();
-    return t.isEmpty ? null : t;
+    final t = widget.nextPath?.trim();
+    return (t == null || t.isEmpty) ? null : t;
   }
 
   GoRouter? get _r => GoRouter.maybeOf(context);
 
-  void _safeGo(String path) {
+  void _goHomeOrNext() {
     final r = _r;
+    final next = _next();
     if (r == null) {
-      // fallback, если по какой-то причине нет Router в дереве
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const SizedBox.shrink()),
-      );
+      _toast('Навигация недоступна (Router не найден)');
       return;
     }
-    r.go(path);
+    r.go(next ?? '/buyer/home');
   }
 
-  void _safePush(String path) {
+  void _popOrGoHomeOrNext() {
     final r = _r;
     if (r == null) {
       _toast('Навигация недоступна (Router не найден)');
       return;
     }
-    r.push(path);
+
+    // pop сработает на тех переходах, где экран был открыт через push
+    if (r.canPop()) {
+      r.pop();
+      return;
+    }
+
+    // при открытии через go() pop невозможен -> уходим на next или home
+    _goHomeOrNext();
   }
 
   void _goAfterLogin() {
-    final next = _next();
-    if (next != null) {
-      _safeGo(next);
-    } else {
-      _safeGo('/cabinet');
+    final r = _r;
+    if (r == null) {
+      _toast('Навигация недоступна (Router не найден)');
+      return;
     }
+    final next = _next();
+    r.go(next ?? '/cabinet');
   }
 
   Future<void> _sendCode() async {
@@ -166,6 +171,7 @@ class _LoginScreenState extends State<LoginScreen> {
         verificationId: verId,
         smsCode: code,
       );
+
       await fb.FirebaseAuth.instance.signInWithCredential(cred);
 
       if (!mounted) return;
@@ -185,7 +191,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _handleBack() async {
     if (_busy) return;
 
-    // 1) если на шаге ввода SMS — возвращаемся на ввод телефона
+    // шаг SMS -> возвращаемся на шаг телефона
     if (_codeSent) {
       setState(() {
         _codeSent = false;
@@ -195,17 +201,8 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    // 2) пробуем закрыть экран обычным pop (если мы пришли сюда через push)
-    final didPop = await Navigator.of(context).maybePop();
-    if (didPop) return;
-
-    // 3) fallback: возвращаемся на next либо на профиль/главную
-    final next = _next();
-    if (next != null) {
-      _safeGo(next);
-    } else {
-      _safeGo('/buyer/home');
-    }
+    // шаг телефона -> закрыть логин (pop), либо уйти на next/home
+    _popOrGoHomeOrNext();
   }
 
   @override
@@ -261,15 +258,13 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      _loadingSend
-                          ? 'Отправляем SMS…'
-                          : 'Отправим SMS и перейдём к вводу кода.',
+                      _loadingSend ? 'Отправляем SMS…' : 'Отправим SMS и перейдём к вводу кода.',
                       style: const TextStyle(color: AppTheme.textSecondary),
                     ),
                     const SizedBox(height: 10),
                     TextButton(
-                      // логика "как раньше": просто уйти назад/закрыть логин
-                      onPressed: _busy ? null : _handleBack,
+                      // “Продолжить без входа” = выйти на next/home, без попыток pop
+                      onPressed: _busy ? null : _goHomeOrNext,
                       child: const Text('Продолжить без входа'),
                     ),
                   ] else ...[
