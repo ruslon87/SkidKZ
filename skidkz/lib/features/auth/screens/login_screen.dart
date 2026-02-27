@@ -186,7 +186,6 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    // ВАЖНО: НЕ context.pop/canPop (это go_router extensions)
     final didPop = await Navigator.of(context).maybePop();
     if (didPop) return;
 
@@ -254,8 +253,10 @@ class _LoginScreenState extends State<LoginScreen> {
                       style: const TextStyle(color: AppTheme.textSecondary),
                     ),
                     const SizedBox(height: 10),
+
+                    // ВАЖНО: здесь GO, а не PUSH (чтобы не ловить keyReservation)
                     TextButton(
-                      onPressed: busy ? null : () => _safePush('/buyer/home'),
+                      onPressed: busy ? null : () => _safeGo('/buyer/home'),
                       child: const Text('Продолжить без входа'),
                     ),
                   ] else ...[
