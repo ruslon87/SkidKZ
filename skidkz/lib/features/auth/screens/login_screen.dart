@@ -1,3 +1,5 @@
+// lib/features/auth/screens/login_screen.dart
+
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -36,10 +38,13 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  bool get _busy => _loadingSend || _loadingConfirm;
+
   void _toast(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..clearSnackBars()
+    final m = ScaffoldMessenger.maybeOf(context);
+    m
+      ?..clearSnackBars()
       ..showSnackBar(SnackBar(content: Text(msg)));
   }
 
@@ -62,7 +67,10 @@ class _LoginScreenState extends State<LoginScreen> {
   void _safeGo(String path) {
     final r = _r;
     if (r == null) {
-      _toast('Навигация недоступна (Router не найден)');
+      // fallback, если по какой-то причине нет Router в дереве
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const SizedBox.shrink()),
+      );
       return;
     }
     r.go(path);
@@ -87,7 +95,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _sendCode() async {
-    if (_loadingSend || _loadingConfirm) return;
+    if (_busy) return;
 
     final phone = _normalizePhone(_phoneController.text);
     if (phone.length < 8) {
@@ -137,7 +145,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _confirmCode() async {
-    if (_loadingSend || _loadingConfirm) return;
+    if (_busy) return;
 
     final code = _smsController.text.trim();
     if (code.length < 4) {
@@ -174,9 +182,10 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  Future<void> _back() async {
-    if (_loadingSend || _loadingConfirm) return;
+  Future<void> _handleBack() async {
+    if (_busy) return;
 
+    // 1) если на шаге ввода SMS — возвращаемся на ввод телефона
     if (_codeSent) {
       setState(() {
         _codeSent = false;
@@ -186,21 +195,26 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
+    // 2) пробуем закрыть экран обычным pop (если мы пришли сюда через push)
     final didPop = await Navigator.of(context).maybePop();
     if (didPop) return;
 
-    _safeGo('/buyer/home');
+    // 3) fallback: возвращаемся на next либо на профиль/главную
+    final next = _next();
+    if (next != null) {
+      _safeGo(next);
+    } else {
+      _safeGo('/buyer/home');
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final busy = _loadingSend || _loadingConfirm;
-
     return PopScope(
       canPop: false,
-      onPopInvokedWithResult: (didPop, result) {
+      onPopInvoked: (didPop) {
         if (didPop) return;
-        _back();
+        _handleBack();
       },
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
@@ -212,7 +226,7 @@ class _LoginScreenState extends State<LoginScreen> {
               title: const Text('Вход по номеру'),
               leading: IconButton(
                 icon: const Icon(Icons.arrow_back),
-                onPressed: busy ? null : _back,
+                onPressed: _busy ? null : _handleBack,
               ),
             ),
             body: Padding(
@@ -225,7 +239,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     const SizedBox(height: 8),
                     TextField(
                       controller: _phoneController,
-                      enabled: !busy,
+                      enabled: !_busy,
                       keyboardType: TextInputType.phone,
                       decoration: const InputDecoration(
                         hintText: '+7 700 000 00 00',
@@ -235,7 +249,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: busy ? null : _sendCode,
+                        onPressed: _busy ? null : _sendCode,
                         child: _loadingSend
                             ? const SizedBox(
                                 height: 18,
@@ -253,10 +267,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       style: const TextStyle(color: AppTheme.textSecondary),
                     ),
                     const SizedBox(height: 10),
-
-                    // ВАЖНО: здесь GO, а не PUSH (чтобы не ловить keyReservation)
                     TextButton(
-                      onPressed: busy ? null : () => _safeGo('/buyer/home'),
+                      // логика "как раньше": просто уйти назад/закрыть логин
+                      onPressed: _busy ? null : _handleBack,
                       child: const Text('Продолжить без входа'),
                     ),
                   ] else ...[
@@ -265,7 +278,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     TextField(
                       controller: _smsController,
                       focusNode: _smsFocus,
-                      enabled: !busy,
+                      enabled: !_busy,
                       keyboardType: TextInputType.number,
                       decoration: const InputDecoration(
                         hintText: 'Код из SMS',
@@ -275,7 +288,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: busy ? null : _confirmCode,
+                        onPressed: _busy ? null : _confirmCode,
                         child: _loadingConfirm
                             ? const SizedBox(
                                 height: 18,
