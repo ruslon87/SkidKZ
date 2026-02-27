@@ -128,7 +128,6 @@ final routerProvider = Provider<GoRouter>((ref) {
         return isLogin ? null : '/login';
       }
 
-      // "виртуальная" точка входа
       if (location == '/cabinet' && user != null) {
         switch (user.activeRole) {
           case UserRole.buyer:
@@ -181,46 +180,113 @@ final routerProvider = Provider<GoRouter>((ref) {
         ),
       ),
 
-      // Buyer Shell
-      ShellRoute(
-        builder: (context, state, child) => BuyerRootShell(child: child),
-        routes: [
-          GoRoute(path: '/buyer/home', builder: (context, state) => const HomePage()),
-          GoRoute(path: '/buyer/catalog', builder: (context, state) => const BuyerCatalogScreen()),
-          GoRoute(path: '/buyer/favorites', builder: (context, state) => const BuyerFavoritesScreen()),
-          GoRoute(path: '/buyer/cart', builder: (context, state) => const BuyerCartScreen()),
-          GoRoute(path: '/buyer/profile', builder: (context, state) => const BuyerProfileScreen()),
-          GoRoute(path: '/buyer/orders', builder: (context, state) => const BuyerOrdersScreen()),
+      // ✅ Buyer tabs: 5 веток, indexedStack — это “как в твоём видео”
+      StatefulShellRoute.indexedStack(
+        builder: (context, state, navigationShell) {
+          return BuyerRootShell(navigationShell: navigationShell);
+        },
+        branches: [
+          // 0: Магазин
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/buyer/home',
+                builder: (context, state) => const HomePage(),
+              ),
+            ],
+          ),
+
+          // 1: Каталог
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/buyer/catalog',
+                builder: (context, state) => const BuyerCatalogScreen(),
+              ),
+            ],
+          ),
+
+          // 2: Избранное
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/buyer/favorites',
+                builder: (context, state) => const BuyerFavoritesScreen(),
+              ),
+            ],
+          ),
+
+          // 3: Корзина
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/buyer/cart',
+                builder: (context, state) => const BuyerCartScreen(),
+              ),
+            ],
+          ),
+
+          // 4: Профиль (+ заказы как push экран внутри профиля)
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/buyer/profile',
+                builder: (context, state) => const BuyerProfileScreen(),
+                routes: [
+                  GoRoute(
+                    path: 'orders',
+                    builder: (context, state) => const BuyerOrdersScreen(),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ],
       ),
 
-      // Seller Shell
+      // Остальные роли — оставляем как у тебя
       ShellRoute(
         builder: (context, state, child) => SellerShell(child: child),
         routes: [
-          GoRoute(path: '/seller/products', builder: (context, state) => const SellerProductsScreen()),
-          GoRoute(path: '/seller/products/add', builder: (context, state) => const SellerAddProductScreen()),
-          GoRoute(path: '/seller/orders', builder: (context, state) => const SellerOrdersScreen()),
+          GoRoute(
+              path: '/seller/products',
+              builder: (context, state) => const SellerProductsScreen()),
+          GoRoute(
+              path: '/seller/products/add',
+              builder: (context, state) => const SellerAddProductScreen()),
+          GoRoute(
+              path: '/seller/orders',
+              builder: (context, state) => const SellerOrdersScreen()),
         ],
       ),
 
-      // Wanghong Shell
       ShellRoute(
         builder: (context, state, child) => WanghongShell(child: child),
         routes: [
-          GoRoute(path: '/wanghong/home', builder: (context, state) => const WanghongHomeScreen()),
-          GoRoute(path: '/wanghong/deals', builder: (context, state) => const WanghongDealsScreen()),
-          GoRoute(path: '/wanghong/wallet', builder: (context, state) => const WanghongWalletScreen()),
+          GoRoute(
+              path: '/wanghong/home',
+              builder: (context, state) => const WanghongHomeScreen()),
+          GoRoute(
+              path: '/wanghong/deals',
+              builder: (context, state) => const WanghongDealsScreen()),
+          GoRoute(
+              path: '/wanghong/wallet',
+              builder: (context, state) => const WanghongWalletScreen()),
         ],
       ),
 
-      // Admin Shell
       ShellRoute(
         builder: (context, state, child) => AdminShell(child: child),
         routes: [
-          GoRoute(path: '/admin/moderation', builder: (context, state) => const ModerationScreen()),
-          GoRoute(path: '/admin/users', builder: (context, state) => const UsersScreen()),
-          GoRoute(path: '/admin/finance', builder: (context, state) => const AdminFinanceScreen()),
+          GoRoute(
+              path: '/admin/moderation',
+              builder: (context, state) => const ModerationScreen()),
+          GoRoute(
+              path: '/admin/users',
+              builder: (context, state) => const UsersScreen()),
+          GoRoute(
+              path: '/admin/finance',
+              builder: (context, state) => const AdminFinanceScreen()),
         ],
       ),
     ],
