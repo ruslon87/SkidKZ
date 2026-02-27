@@ -1,21 +1,7 @@
-// lib/core/widgets/app_back_handler.dart
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
-/// Единый back-хендлер для shell'ов.
-///
-/// Логика:
-/// 1) Если открыт Drawer (передан [scaffoldKey]) — закрыть Drawer.
-/// 2) Если роутер может pop() — pop().
-/// 3) Если текущий путь != [mainPath] — перейти на [mainPath].
-/// 4) Если уже на [mainPath] — двойное нажатие для выхода.
-///
-/// Важно:
-/// - Этот виджет должен быть *потомком Router*, т.е. ставить его в ShellRoute builder
-///   или внутри экранов Shell'а. Если повесить в MaterialApp.router.builder — back
-///   не перехватывается (и/или даст ошибку контекста Router).
 class AppBackHandler extends StatefulWidget {
   const AppBackHandler({
     super.key,
@@ -33,20 +19,26 @@ class AppBackHandler extends StatefulWidget {
 }
 
 class _AppBackHandlerState extends State<AppBackHandler> {
-  DateTime? _lastBack;
-  bool _busy = false;
+  DateTime? _lastBackPress;
 
-  bool _drawerOpen() {
-    return widget.scaffoldKey?.currentState?.isDrawerOpen ?? false;
+  bool _isDrawerOpen() {
+    final st = widget.scaffoldKey?.currentState;
+    return st?.isDrawerOpen ?? false;
   }
 
   void _closeDrawer() {
     widget.scaffoldKey?.currentState?.closeDrawer();
   }
 
-  void _showExitHint() {
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    messenger
+  String _currentPath() {
+    final r = GoRouter.maybeOf(context);
+    if (r == null) return widget.mainPath;
+    return r.routeInformationProvider.value.uri.path;
+  }
+
+  void _showExitSnack() {
+    final m = ScaffoldMessenger.maybeOf(context);
+    m
       ?..clearSnackBars()
       ..showSnackBar(
         const SnackBar(
@@ -56,61 +48,49 @@ class _AppBackHandlerState extends State<AppBackHandler> {
       );
   }
 
-  Future<void> _handleBack() async {
-    if (_busy) return;
-    _busy = true;
+  /// ВАЖНО:
+  /// BackButtonListener ждёт bool:
+  /// - true  => мы обработали back, ОС дальше НЕ пускаем (не закрывает Activity)
+  /// - false => ОС продолжит стандартное поведение (закроет Activity)
+  Future<bool> _onBackPressed() async {
+    final r = GoRouter.maybeOf(context);
 
-    try {
-      final router = GoRouter.maybeOf(context);
-      if (router == null) {
-        // Значит, виджет повешен не под Router — ничего не делаем.
-        return;
-      }
-
-      final path = router.routeInformationProvider.value.uri.path;
-
-      // 1) Drawer
-      if (_drawerOpen()) {
-        _closeDrawer();
-        return;
-      }
-
-      // 2) Pop
-      if (router.canPop()) {
-        router.pop();
-        return;
-      }
-
-      // 3) Не главный экран — на главный
-      if (path != widget.mainPath) {
-        router.go(widget.mainPath);
-        return;
-      }
-
-      // 4) Главный экран — двойной back для выхода
-      final now = DateTime.now();
-      if (_lastBack == null ||
-          now.difference(_lastBack!) > const Duration(seconds: 2)) {
-        _lastBack = now;
-        _showExitHint();
-        return;
-      }
-
-      SystemNavigator.pop();
-    } finally {
-      await Future<void>.delayed(const Duration(milliseconds: 80));
-      _busy = false;
+    // 1) Drawer открыт -> закрыть drawer
+    if (_isDrawerOpen()) {
+      _closeDrawer();
+      return true;
     }
+
+    // 2) Если go_router может pop -> pop
+    if (r != null && r.canPop()) {
+      r.pop();
+      return true;
+    }
+
+    // 3) Если не на главной вкладке buyer -> вернуть на mainPath
+    final path = _currentPath();
+    if (r != null && path != widget.mainPath) {
+      r.go(widget.mainPath);
+      return true;
+    }
+
+    // 4) На главной -> двойное нажатие для выхода
+    final now = DateTime.now();
+    if (_lastBackPress == null ||
+        now.difference(_lastBackPress!) > const Duration(seconds: 2)) {
+      _lastBackPress = now;
+      _showExitSnack();
+      return true;
+    }
+
+    SystemNavigator.pop();
+    return true;
   }
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(
-      canPop: false,
-      onPopInvoked: (didPop) {
-        if (didPop) return;
-        _handleBack();
-      },
+    return BackButtonListener(
+      onBackButtonPressed: _onBackPressed,
       child: widget.child,
     );
   }
