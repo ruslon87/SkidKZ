@@ -60,15 +60,55 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
 
   bool _drawerOpen() => _scaffoldKey.currentState?.isDrawerOpen ?? false;
 
+  String _tabNextPath(int index) {
+    switch (index) {
+      case 0:
+        return '/buyer/home';
+      case 1:
+        return '/buyer/catalog';
+      case 2:
+        return '/buyer/favorites';
+      case 3:
+        return '/buyer/cart';
+      case 4:
+        return '/buyer/profile';
+      default:
+        return '/buyer/home';
+    }
+  }
+
+  bool _isProtectedTab(int index) => index == 2 || index == 3 || index == 4;
+
   void _goTab(int index) {
+    final user = fb.FirebaseAuth.instance.currentUser;
+
+    // ✅ ВАЖНО: если гость нажал защищенную вкладку — НЕ переключаем вкладку,
+    // а пушим логин поверх shell.
+    if (user == null && _isProtectedTab(index)) {
+      final next = Uri.encodeComponent(_tabNextPath(index));
+      final r = GoRouter.maybeOf(context);
+      if (r == null) return;
+      r.push('/login?next=$next');
+      return;
+    }
+
+    // initialLocation=true — при повторном тапе по активной вкладке возвращаемся в корень вкладки
     widget.navigationShell.goBranch(
       index,
-      // при повторном тапе по активной вкладке возвращаемся в корень вкладки
       initialLocation: index == widget.navigationShell.currentIndex,
     );
   }
 
   Future<void> _onBack() async {
+    // 0) если поверх shell есть route в root navigator (например /login),
+    // пробуем попнуть его ПЕРВЫМ делом
+    final router = GoRouter.maybeOf(context);
+    final rootNav = router?.routerDelegate.navigatorKey.currentState;
+    if (rootNav != null) {
+      final didPopRoot = await rootNav.maybePop();
+      if (didPopRoot) return;
+    }
+
     // 1) drawer → закрыть
     if (_drawerOpen()) {
       _closeDrawer();
@@ -76,9 +116,9 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
     }
 
     // 2) pop внутри текущей навигации (go_router stack)
-    final router = GoRouter.of(context);
-    if (router.canPop()) {
-      router.pop();
+    final r = GoRouter.of(context);
+    if (r.canPop()) {
+      r.pop();
       return;
     }
 
@@ -169,6 +209,7 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
       openDrawer: _openDrawer,
       child: PopScope(
         canPop: false,
+        // если у тебя Flutter 3.41+ и ругается на сигнатуру — скажи, дам вариант onPopInvokedWithResult
         onPopInvoked: (didPop) {
           if (didPop) return;
           _onBack();
@@ -306,7 +347,6 @@ class BuyerDrawer extends StatelessWidget {
     closeDrawer();
     final router = GoRouter.maybeOf(context);
     if (router == null) return;
-    // навигация после закрытия drawer
     Future.microtask(() => router.go(path));
   }
 
@@ -314,7 +354,6 @@ class BuyerDrawer extends StatelessWidget {
     closeDrawer();
     final router = GoRouter.maybeOf(context);
     if (router == null) return;
-    // PUSH — чтобы back возвращал обратно
     Future.microtask(() => router.push(path));
   }
 
@@ -361,7 +400,6 @@ class BuyerDrawer extends StatelessWidget {
       backgroundColor: const Color(0xFF12161B),
       surfaceTintColor: Colors.transparent,
       child: SafeArea(
-        // ✅ ключевое: слушаем authStateChanges, чтобы drawer обновился сразу после логина/логаута
         child: StreamBuilder<fb.User?>(
           stream: fb.FirebaseAuth.instance.authStateChanges(),
           builder: (context, authSnap) {
@@ -370,10 +408,7 @@ class BuyerDrawer extends StatelessWidget {
 
             return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
               stream: isAuthed
-                  ? FirebaseFirestore.instance
-                      .collection('users')
-                      .doc(user!.uid)
-                      .snapshots()
+                  ? FirebaseFirestore.instance.collection('users').doc(user!.uid).snapshots()
                   : null,
               builder: (context, snapshot) {
                 final data = snapshot.data?.data();
@@ -388,9 +423,7 @@ class BuyerDrawer extends StatelessWidget {
                       colors: [Color(0xFF1C2026), Color(0xFF14181D), Color(0xFF101419)],
                       stops: [0.0, 0.58, 1.0],
                     ),
-                    border: Border(
-                      right: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
-                    ),
+                    border: Border(right: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
                   ),
                   child: Theme(
                     data: Theme.of(context).copyWith(
@@ -400,6 +433,7 @@ class BuyerDrawer extends StatelessWidget {
                     child: ListView(
                       padding: EdgeInsets.zero,
                       children: [
+                        // --- header ---
                         Container(
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
@@ -511,7 +545,6 @@ class BuyerDrawer extends StatelessWidget {
                           ),
                         ),
 
-                        // ✅ PUSH: чтобы back возвращал назад
                         _drawerTile(
                           context: context,
                           icon: Icons.receipt_long_outlined,
@@ -558,7 +591,7 @@ class BuyerDrawer extends StatelessWidget {
                           context: context,
                           icon: Icons.support_agent_outlined,
                           title: 'Поддержка',
-                          onTap: closeDrawer, // заглушка
+                          onTap: closeDrawer,
                         ),
 
                         Divider(height: 1, color: Colors.white.withValues(alpha: 0.08)),
