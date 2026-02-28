@@ -68,15 +68,19 @@ final currentUserDocProvider =
 
 class _RouterRefreshNotifier extends ChangeNotifier {
   _RouterRefreshNotifier(this.ref) {
-    _subAuth =
-        ref.listen(authStateChangesProvider, (_, __) => notifyListeners());
-    _subUser =
-        ref.listen(currentUserDocProvider, (_, __) => notifyListeners());
+    _subAuth = ref.listen<AsyncValue<fb.User?>>(
+      authStateChangesProvider,
+      (_, __) => notifyListeners(),
+    );
+    _subUser = ref.listen<AsyncValue<DocumentSnapshot<Map<String, dynamic>>?>>(
+      currentUserDocProvider,
+      (_, __) => notifyListeners(),
+    );
   }
 
   final Ref ref;
-  late final ProviderSubscription _subAuth;
-  late final ProviderSubscription _subUser;
+  late final ProviderSubscription<AsyncValue<fb.User?>> _subAuth;
+  late final ProviderSubscription<AsyncValue<DocumentSnapshot<Map<String, dynamic>>?>> _subUser;
 
   @override
   void dispose() {
@@ -86,13 +90,22 @@ class _RouterRefreshNotifier extends ChangeNotifier {
   }
 }
 
+// ---------------- Navigator Keys ----------------
+
+// ✅ ВАЖНО: всё модальное/логин/инфо открываем в ROOT navigator
+final _rootNavigatorKey = GlobalKey<NavigatorState>();
+
+// ✅ Для buyer StatefulShellRoute нужен свой navigator, чтобы он не мешал root
+final _buyerShellNavigatorKey = GlobalKey<NavigatorState>();
+
 // ---------------- Router ----------------
 
 final routerProvider = Provider<GoRouter>((ref) {
   final refresh = _RouterRefreshNotifier(ref);
 
   bool _isProtectedBuyerPath(String path) {
-    // вкладки
+    // ВАЖНО: табы мы защищаем в BuyerRootShell (через push(login)).
+    // Но deep-link/прямой заход сюда всё равно должен требовать логин.
     if (path.startsWith('/buyer/favorites')) return true;
     if (path.startsWith('/buyer/cart')) return true;
     if (path.startsWith('/buyer/profile')) return true;
@@ -104,8 +117,10 @@ final routerProvider = Provider<GoRouter>((ref) {
   }
 
   return GoRouter(
+    navigatorKey: _rootNavigatorKey,
     initialLocation: '/buyer/home',
     refreshListenable: refresh,
+    debugLogDiagnostics: false,
 
     redirect: (context, state) async {
       final uri = state.uri;
@@ -127,6 +142,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       }
 
       // 2) гость идет в защищенные buyer-экраны -> /login?next=...
+      // ВАЖНО: /login сам по себе не редиректим
       if (!isAuthed && _isProtectedBuyerPath(path) && path != '/login') {
         final next = Uri.encodeComponent(fullLoc);
         return '/login?next=$next';
@@ -143,7 +159,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         return '/cabinet';
       }
 
-      // 4) /cabinet — разруливаем по activeRole (как у тебя было)
+      // 4) /cabinet — разруливаем по activeRole
       if (path == '/cabinet' && isAuthed) {
         final snap = userAsync.asData?.value;
         final data = snap?.data();
@@ -169,37 +185,64 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       GoRoute(
         path: '/cabinet',
-        builder: (context, state) => const SizedBox.shrink(),
+        // технический маршрут, сюда всегда попадём через redirect
+        pageBuilder: (context, state) => const NoTransitionPage(
+          child: SizedBox.shrink(),
+        ),
+      ),
+
+      // ✅ ЛОГИН — обязательно в ROOT navigator
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
+        path: '/login',
+        pageBuilder: (context, state) {
+          final nextRaw = state.uri.queryParameters['next'];
+          final nextDecoded = (nextRaw == null || nextRaw.trim().isEmpty)
+              ? null
+              : Uri.decodeComponent(nextRaw);
+
+          return MaterialPage(
+            key: state.pageKey,
+            child: LoginScreen(nextPath: nextDecoded),
+          );
+        },
       ),
 
       GoRoute(
-        path: '/login',
-        builder: (context, state) => LoginScreen(
-          nextPath: state.uri.queryParameters['next'] == null
-              ? null
-              : Uri.decodeComponent(state.uri.queryParameters['next']!),
+        parentNavigatorKey: _rootNavigatorKey,
+        path: '/role-select',
+        pageBuilder: (context, state) => MaterialPage(
+          key: state.pageKey,
+          child: const RoleSelectionScreen(),
         ),
       ),
 
       GoRoute(
-        path: '/role-select',
-        builder: (context, state) => const RoleSelectionScreen(),
-      ),
-
-      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
         path: '/info/seller',
-        builder: (context, state) => const SellerInfoScreen(),
+        pageBuilder: (context, state) => MaterialPage(
+          key: state.pageKey,
+          child: const SellerInfoScreen(),
+        ),
       ),
 
       GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
         path: '/info/wanghong',
-        builder: (context, state) => const WanghongInfoScreen(),
+        pageBuilder: (context, state) => MaterialPage(
+          key: state.pageKey,
+          child: const WanghongInfoScreen(),
+        ),
       ),
 
       GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
         path: '/onboarding/buyer',
-        builder: (context, state) => BuyerOnboardingScreen(
-          nextPath: state.uri.queryParameters['next'],
+        pageBuilder: (context, state) => MaterialPage(
+          key: state.pageKey,
+          child: BuyerOnboardingScreen(
+            nextPath: state.uri.queryParameters['next'],
+          ),
         ),
       ),
 
@@ -211,6 +254,12 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       // -------- BUYER: 5 вкладок через indexedStack --------
       StatefulShellRoute.indexedStack(
+        navigatorContainerBuilder: (context, navigationShell, children) {
+          // можно оставить дефолт, но ключ контейнера важен для разруливания навигации
+          return navigationShell;
+        },
+        parentNavigatorKey: _rootNavigatorKey,
+        navigatorKey: _buyerShellNavigatorKey,
         builder: (context, state, navigationShell) {
           return BuyerRootShell(navigationShell: navigationShell);
         },
