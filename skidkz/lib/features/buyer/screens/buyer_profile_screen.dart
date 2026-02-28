@@ -1,3 +1,5 @@
+// lib/features/buyer/screens/buyer_profile_screen.dart
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/material.dart';
@@ -11,29 +13,19 @@ class BuyerProfileScreen extends StatefulWidget {
 }
 
 class _BuyerProfileScreenState extends State<BuyerProfileScreen> {
-  int _refreshTick = 0;
-
   Future<void> _refresh() async {
-    // 1) триггерим перестройку (на случай, если auth стрим не эмитнул, а данные в UI устарели)
-    setState(() => _refreshTick++);
-
-    // 2) просим FirebaseAuth обновить currentUser (иногда помогает после verify/signin)
-    final u = fb.FirebaseAuth.instance.currentUser;
-    if (u != null) {
-      await u.reload();
-    }
-
-    // 3) короткая пауза чтобы RefreshIndicator не “мелькнул”
+    // важно: RefreshIndicator должен приводить к rebuild
     await Future.delayed(const Duration(milliseconds: 250));
+    if (mounted) setState(() {});
   }
 
-  void _safePush(BuildContext context, String path) {
+  void _safePush(String path) {
     final r = GoRouter.maybeOf(context);
     if (r == null) return;
     r.push(path);
   }
 
-  void _safeGo(BuildContext context, String path) {
+  void _safeGo(String path) {
     final r = GoRouter.maybeOf(context);
     if (r == null) return;
     r.go(path);
@@ -46,7 +38,6 @@ class _BuyerProfileScreenState extends State<BuyerProfileScreen> {
       builder: (context, authSnap) {
         final user = authSnap.data;
 
-        // ГОСТЬ
         if (user == null) {
           return RefreshIndicator(
             onRefresh: _refresh,
@@ -59,14 +50,12 @@ class _BuyerProfileScreenState extends State<BuyerProfileScreen> {
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
                 ),
                 const SizedBox(height: 10),
-                const Text(
-                  'Войдите, чтобы видеть профиль, заказы и управлять настройками.',
-                ),
+                const Text('Войдите, чтобы видеть профиль, заказы и управлять настройками.'),
                 const SizedBox(height: 16),
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: () => _safePush(context, '/login?next=%2Fbuyer%2Fprofile'),
+                    onPressed: () => _safePush('/login?next=%2Fbuyer%2Fprofile'),
                     child: const Text('Войти / зарегистрироваться'),
                   ),
                 ),
@@ -75,20 +64,13 @@ class _BuyerProfileScreenState extends State<BuyerProfileScreen> {
           );
         }
 
-        // АВТОРИЗОВАН: данные из users/{uid}
+        // ✅ автhed: тянем данные из users/{uid}
         return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-          // refreshTick — чтобы “потянуть вниз” точно перерисовало даже при snapshot-тишине
-          key: ValueKey('profile_${user.uid}_$_refreshTick'),
           stream: FirebaseFirestore.instance.collection('users').doc(user.uid).snapshots(),
-          builder: (context, snap) {
-            final data = snap.data?.data() ?? {};
-            final displayName = (data['displayName'] ?? '').toString().trim();
-            final phoneDb = (data['phone'] ?? '').toString().trim();
-            final phone = phoneDb.isNotEmpty ? phoneDb : (user.phoneNumber ?? '-');
-
-            // можешь расширить: roles, activeRole, email, bonuses и т.д.
-            final activeRole = (data['activeRole'] ?? '').toString().trim();
-            final roles = (data['roles'] is List) ? (data['roles'] as List).join(', ') : '';
+          builder: (context, userSnap) {
+            final data = userSnap.data?.data();
+            final displayName = (data?['displayName'] ?? '').toString().trim();
+            final phone = (data?['phone'] ?? user.phoneNumber ?? '').toString().trim();
 
             return RefreshIndicator(
               onRefresh: _refresh,
@@ -109,16 +91,7 @@ class _BuyerProfileScreenState extends State<BuyerProfileScreen> {
 
                   Text('UID: ${user.uid}'),
                   const SizedBox(height: 6),
-                  Text('Телефон: $phone'),
-
-                  if (activeRole.isNotEmpty) ...[
-                    const SizedBox(height: 10),
-                    Text('Активная роль: $activeRole'),
-                  ],
-                  if (roles.isNotEmpty) ...[
-                    const SizedBox(height: 6),
-                    Text('Роли: $roles'),
-                  ],
+                  Text('Телефон: ${phone.isEmpty ? '-' : phone}'),
 
                   const SizedBox(height: 16),
                   SizedBox(
@@ -126,9 +99,8 @@ class _BuyerProfileScreenState extends State<BuyerProfileScreen> {
                     child: ElevatedButton(
                       onPressed: () async {
                         await fb.FirebaseAuth.instance.signOut();
-                        if (mounted) {
-                          _safeGo(context, '/buyer/home');
-                        }
+                        if (!mounted) return;
+                        _safeGo('/buyer/home');
                       },
                       child: const Text('Выйти'),
                     ),
