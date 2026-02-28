@@ -61,7 +61,7 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
   bool _drawerOpen() => _scaffoldKey.currentState?.isDrawerOpen ?? false;
 
   void _goTab(int index) {
-    // initialLocation=true = при повторном тапе по активной вкладке возвращаемся в корень вкладки
+    // initialLocation=true — при повторном тапе по активной вкладке возвращаемся в корень вкладки
     widget.navigationShell.goBranch(
       index,
       initialLocation: index == widget.navigationShell.currentIndex,
@@ -75,7 +75,7 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
       return;
     }
 
-    // 2) pop внутри активной ветки
+    // 2) pop внутри текущей навигации (go_router stack)
     final router = GoRouter.of(context);
     if (router.canPop()) {
       router.pop();
@@ -88,9 +88,10 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
       return;
     }
 
-    // 4) “Магазин” → двойной back
+    // 4) “Магазин” → double back = выход
     final now = DateTime.now();
-    if (_lastBack == null || now.difference(_lastBack!) > const Duration(seconds: 2)) {
+    if (_lastBack == null ||
+        now.difference(_lastBack!) > const Duration(seconds: 2)) {
       _lastBack = now;
       final messenger = ScaffoldMessenger.maybeOf(context);
       messenger
@@ -200,9 +201,12 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
               items: const [
                 BottomNavigationBarItem(icon: Icon(Icons.store), label: 'Магазин'),
                 BottomNavigationBarItem(icon: Icon(Icons.grid_view), label: 'Каталог'),
-                BottomNavigationBarItem(icon: Icon(Icons.favorite_border), label: 'Избранное'),
-                BottomNavigationBarItem(icon: Icon(Icons.shopping_cart_outlined), label: 'Корзина'),
-                BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'Профиль'),
+                BottomNavigationBarItem(
+                    icon: Icon(Icons.favorite_border), label: 'Избранное'),
+                BottomNavigationBarItem(
+                    icon: Icon(Icons.shopping_cart_outlined), label: 'Корзина'),
+                BottomNavigationBarItem(
+                    icon: Icon(Icons.person_outline), label: 'Профиль'),
               ],
             ),
           ),
@@ -259,7 +263,8 @@ class _BuyerTopBar extends StatelessWidget {
                 onTap: onCityTap,
                 borderRadius: BorderRadius.circular(12),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -287,7 +292,6 @@ class _BuyerTopBar extends StatelessWidget {
   }
 }
 
-// Drawer оставь своим (из ZIP). Ниже — твоя текущая версия целиком
 class BuyerDrawer extends StatelessWidget {
   const BuyerDrawer({
     super.key,
@@ -305,17 +309,17 @@ class BuyerDrawer extends StatelessWidget {
   void _safeGo(BuildContext context, String path) {
     closeDrawer();
     final router = GoRouter.maybeOf(context);
-    if (router != null) {
-      router.go(path);
-    }
+    if (router == null) return;
+    // Делать навигацию после закрытия drawer, чтобы не словить конфликт контекстов
+    Future.microtask(() => router.go(path));
   }
 
   void _safePush(BuildContext context, String path) {
     closeDrawer();
     final router = GoRouter.maybeOf(context);
-    if (router != null) {
-      router.push(path);
-    }
+    if (router == null) return;
+    // PUSH — чтобы back возвращал обратно (а не телепортировал)
+    Future.microtask(() => router.push(path));
   }
 
   Widget _drawerTile({
@@ -365,7 +369,10 @@ class BuyerDrawer extends StatelessWidget {
       child: SafeArea(
         child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
           stream: isAuthed
-              ? FirebaseFirestore.instance.collection('users').doc(user!.uid).snapshots()
+              ? FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(user!.uid)
+                  .snapshots()
               : null,
           builder: (context, snapshot) {
             final data = snapshot.data?.data();
@@ -380,7 +387,9 @@ class BuyerDrawer extends StatelessWidget {
                   colors: [Color(0xFF1C2026), Color(0xFF14181D), Color(0xFF101419)],
                   stops: [0.0, 0.58, 1.0],
                 ),
-                border: Border(right: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
+                border: Border(
+                  right: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+                ),
               ),
               child: Theme(
                 data: Theme.of(context).copyWith(
@@ -390,9 +399,222 @@ class BuyerDrawer extends StatelessWidget {
                 child: ListView(
                   padding: EdgeInsets.zero,
                   children: [
-                    // ⚠️ сюда вставь свой полный Drawer из ZIP (у тебя он длинный).
-                    // Я не режу его, чтобы ты не получил “пустой drawer” как на скрине.
-                    // Содержимое не влияет на back, влияет только _safeGo/_safePush + closeDrawer().
+                    Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            const Color(0xFF2A323B).withValues(alpha: 0.65),
+                            const Color(0xFF1E252E).withValues(alpha: 0.45),
+                            const Color(0xFF171D25).withValues(alpha: 0.30),
+                          ],
+                        ),
+                        border: Border(
+                          bottom: BorderSide(
+                              color: Colors.white.withValues(alpha: 0.08)),
+                        ),
+                      ),
+                      padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                height: 44,
+                                width: 44,
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.06),
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                    color: Colors.white.withValues(alpha: 0.09),
+                                  ),
+                                ),
+                                child: const Icon(Icons.person_outline,
+                                    color: Colors.white70),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: InkWell(
+                                  onTap: () {
+                                    if (isAuthed) {
+                                      // Профиль — это вкладка, но можно открыть как push тоже ок.
+                                      _safeGo(context, '/buyer/profile');
+                                    } else {
+                                      _safePush(context,
+                                          '/login?next=%2Fbuyer%2Fprofile');
+                                    }
+                                  },
+                                  borderRadius: BorderRadius.circular(14),
+                                  child: Padding(
+                                    padding:
+                                        const EdgeInsets.symmetric(vertical: 6),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          isAuthed
+                                              ? (displayName.isNotEmpty
+                                                  ? displayName
+                                                  : 'Профиль')
+                                              : 'Войти / Регистрация',
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w800,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          isAuthed
+                                              ? (phone.isNotEmpty
+                                                  ? phone
+                                                  : 'Заказы, избранное, бонусы')
+                                              : 'Заказы, избранное, бонусы',
+                                          style: const TextStyle(
+                                              color: Colors.white70),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const Icon(Icons.chevron_right,
+                                  color: Colors.white70),
+                            ],
+                          ),
+                          const SizedBox(height: 14),
+                          Row(
+                            children: [
+                              Text(
+                                isAuthed ? 'Аккаунт' : 'Гость',
+                                style: TextStyle(
+                                    color: Colors.white.withValues(alpha: 0.62)),
+                              ),
+                              const Spacer(),
+                              InkWell(
+                                onTap: onCityTap,
+                                borderRadius: BorderRadius.circular(12),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 6),
+                                  child: Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.location_on_outlined,
+                                        color: Colors.white70,
+                                        size: 18,
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Text(city,
+                                          style: const TextStyle(
+                                              color: Colors.white70)),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 6),
+                      child: Text(
+                        'Аккаунт',
+                        style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.48)),
+                      ),
+                    ),
+
+                    // ВАЖНО: тут PUSH, чтобы back вернул назад (а не go без истории)
+                    _drawerTile(
+                      context: context,
+                      icon: Icons.receipt_long_outlined,
+                      title: 'Мои заказы',
+                      selected: location.startsWith('/buyer/orders'),
+                      onTap: () => _safePush(context, '/buyer/orders'),
+                    ),
+
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 12),
+                      child: Text(
+                        'Кабинеты',
+                        style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.48)),
+                      ),
+                    ),
+
+                    _drawerTile(
+                      context: context,
+                      icon: Icons.storefront_outlined,
+                      title: 'Кабинет магазина',
+                      subtitle: 'Продажи, товары, заказы',
+                      selected: location.startsWith('/info/seller'),
+                      onTap: () => _safePush(context, '/info/seller'),
+                    ),
+
+                    _drawerTile(
+                      context: context,
+                      icon: Icons.campaign_outlined,
+                      title: 'Кабинет ванхуна',
+                      subtitle: 'Заработать на промокодах',
+                      selected: location.startsWith('/info/wanghong'),
+                      onTap: () => _safePush(context, '/info/wanghong'),
+                    ),
+
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 12),
+                      child: Text(
+                        'Сервис',
+                        style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.48)),
+                      ),
+                    ),
+
+                    _drawerTile(
+                      context: context,
+                      icon: Icons.support_agent_outlined,
+                      title: 'Поддержка',
+                      onTap: () {
+                        // пока заглушка
+                        closeDrawer();
+                      },
+                    ),
+
+                    Divider(
+                      height: 1,
+                      color: Colors.white.withValues(alpha: 0.08),
+                    ),
+
+                    FutureBuilder<PackageInfo>(
+                      future: PackageInfo.fromPlatform(),
+                      builder: (context, snap) {
+                        final version = snap.data?.version ?? '';
+                        final buildNumber = snap.data?.buildNumber ?? '';
+                        final v = (version.isEmpty)
+                            ? ''
+                            : 'v$version ($buildNumber)';
+
+                        return _drawerTile(
+                          context: context,
+                          icon: Icons.info_outline,
+                          title: 'Версия приложения',
+                          subtitle: v.isEmpty ? '...' : v,
+                          onTap: () {
+                            // просто закрываем drawer
+                            closeDrawer();
+                          },
+                        );
+                      },
+                    ),
                   ],
                 ),
               ),
