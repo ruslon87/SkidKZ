@@ -63,6 +63,7 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
   void _goTab(int index) {
     widget.navigationShell.goBranch(
       index,
+      // при повторном тапе по активной вкладке возвращаемся в корень вкладки
       initialLocation: index == widget.navigationShell.currentIndex,
     );
   }
@@ -301,25 +302,20 @@ class BuyerDrawer extends StatelessWidget {
   final String city;
   final VoidCallback onCityTap;
 
-  void _navAfterClose(BuildContext context, VoidCallback action) {
-    // 1) закрываем drawer
-    closeDrawer();
-    // 2) навигацию делаем уже после закрытия (чтобы не словить конфликт/контекст)
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      action();
-    });
-  }
-
   void _safeGo(BuildContext context, String path) {
+    closeDrawer();
     final router = GoRouter.maybeOf(context);
     if (router == null) return;
-    _navAfterClose(context, () => router.go(path));
+    // навигация после закрытия drawer
+    Future.microtask(() => router.go(path));
   }
 
   void _safePush(BuildContext context, String path) {
+    closeDrawer();
     final router = GoRouter.maybeOf(context);
     if (router == null) return;
-    _navAfterClose(context, () => router.push(path));
+    // PUSH — чтобы back возвращал обратно
+    Future.microtask(() => router.push(path));
   }
 
   Widget _drawerTile({
@@ -365,14 +361,13 @@ class BuyerDrawer extends StatelessWidget {
       backgroundColor: const Color(0xFF12161B),
       surfaceTintColor: Colors.transparent,
       child: SafeArea(
-        // ✅ ключевое: слушаем authStateChanges, а не currentUser “один раз”
+        // ✅ ключевое: слушаем authStateChanges, чтобы drawer обновился сразу после логина/логаута
         child: StreamBuilder<fb.User?>(
           stream: fb.FirebaseAuth.instance.authStateChanges(),
           builder: (context, authSnap) {
             final user = authSnap.data;
             final isAuthed = user != null;
 
-            // Данные профиля из Firestore — тоже стримом
             return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
               stream: isAuthed
                   ? FirebaseFirestore.instance
@@ -380,23 +375,17 @@ class BuyerDrawer extends StatelessWidget {
                       .doc(user!.uid)
                       .snapshots()
                   : null,
-              builder: (context, userSnap) {
-                final data = userSnap.data?.data();
+              builder: (context, snapshot) {
+                final data = snapshot.data?.data();
                 final displayName = (data?['displayName'] ?? '').toString().trim();
-                final phoneDb = (data?['phone'] ?? '').toString().trim();
-                final phoneAuth = user?.phoneNumber ?? '';
-                final phone = phoneDb.isNotEmpty ? phoneDb : phoneAuth;
+                final phone = (data?['phone'] ?? '').toString().trim();
 
                 return Container(
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
-                      colors: [
-                        Color(0xFF1C2026),
-                        Color(0xFF14181D),
-                        Color(0xFF101419),
-                      ],
+                      colors: [Color(0xFF1C2026), Color(0xFF14181D), Color(0xFF101419)],
                       stops: [0.0, 0.58, 1.0],
                     ),
                     border: Border(
@@ -438,9 +427,7 @@ class BuyerDrawer extends StatelessWidget {
                                     decoration: BoxDecoration(
                                       color: Colors.white.withValues(alpha: 0.06),
                                       borderRadius: BorderRadius.circular(14),
-                                      border: Border.all(
-                                        color: Colors.white.withValues(alpha: 0.09),
-                                      ),
+                                      border: Border.all(color: Colors.white.withValues(alpha: 0.09)),
                                     ),
                                     child: const Icon(Icons.person_outline, color: Colors.white70),
                                   ),
@@ -500,11 +487,8 @@ class BuyerDrawer extends StatelessWidget {
                                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                                       child: Row(
                                         children: [
-                                          const Icon(
-                                            Icons.location_on_outlined,
-                                            color: Colors.white70,
-                                            size: 18,
-                                          ),
+                                          const Icon(Icons.location_on_outlined,
+                                              color: Colors.white70, size: 18),
                                           const SizedBox(width: 6),
                                           Text(city, style: const TextStyle(color: Colors.white70)),
                                         ],
@@ -518,6 +502,7 @@ class BuyerDrawer extends StatelessWidget {
                         ),
 
                         const SizedBox(height: 10),
+
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                           child: Text(
@@ -573,7 +558,7 @@ class BuyerDrawer extends StatelessWidget {
                           context: context,
                           icon: Icons.support_agent_outlined,
                           title: 'Поддержка',
-                          onTap: () => closeDrawer(),
+                          onTap: closeDrawer, // заглушка
                         ),
 
                         Divider(height: 1, color: Colors.white.withValues(alpha: 0.08)),
@@ -584,12 +569,13 @@ class BuyerDrawer extends StatelessWidget {
                             final version = snap.data?.version ?? '';
                             final buildNumber = snap.data?.buildNumber ?? '';
                             final v = (version.isEmpty) ? '' : 'v$version ($buildNumber)';
+
                             return _drawerTile(
                               context: context,
                               icon: Icons.info_outline,
                               title: 'Версия приложения',
                               subtitle: v.isEmpty ? '...' : v,
-                              onTap: () => closeDrawer(),
+                              onTap: closeDrawer,
                             );
                           },
                         ),
