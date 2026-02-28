@@ -68,19 +68,15 @@ final currentUserDocProvider =
 
 class _RouterRefreshNotifier extends ChangeNotifier {
   _RouterRefreshNotifier(this.ref) {
-    _subAuth = ref.listen<AsyncValue<fb.User?>>(
-      authStateChangesProvider,
-      (_, __) => notifyListeners(),
-    );
-    _subUser = ref.listen<AsyncValue<DocumentSnapshot<Map<String, dynamic>>?>>(
-      currentUserDocProvider,
-      (_, __) => notifyListeners(),
-    );
+    _subAuth =
+        ref.listen(authStateChangesProvider, (_, __) => notifyListeners());
+    _subUser =
+        ref.listen(currentUserDocProvider, (_, __) => notifyListeners());
   }
 
   final Ref ref;
-  late final ProviderSubscription<AsyncValue<fb.User?>> _subAuth;
-  late final ProviderSubscription<AsyncValue<DocumentSnapshot<Map<String, dynamic>>?>> _subUser;
+  late final ProviderSubscription _subAuth;
+  late final ProviderSubscription _subUser;
 
   @override
   void dispose() {
@@ -90,13 +86,61 @@ class _RouterRefreshNotifier extends ChangeNotifier {
   }
 }
 
-// ---------------- Navigator Keys ----------------
+// ---------------- Helpers for "post-login action" ----------------
 
-// ✅ ВАЖНО: всё модальное/логин/инфо открываем в ROOT navigator
-final _rootNavigatorKey = GlobalKey<NavigatorState>();
+enum _LoginActionType {
+  favToggle,
+  cartAdd,
+}
 
-// ✅ Для buyer StatefulShellRoute нужен свой navigator, чтобы он не мешал root
-final _buyerShellNavigatorKey = GlobalKey<NavigatorState>();
+_LoginActionType? _parseAction(String? raw) {
+  switch ((raw ?? '').trim()) {
+    case 'fav':
+      return _LoginActionType.favToggle;
+    case 'cart_add':
+      return _LoginActionType.cartAdd;
+    default:
+      return null;
+  }
+}
+
+Future<void> _applyLoginAction({
+  required FirebaseFirestore db,
+  required fb.User user,
+  required _LoginActionType type,
+  required String productId,
+  int qty = 1,
+}) async {
+  // Норм: делаем простую схему в Firestore:
+  // users/{uid}/favorites/{productId}
+  // users/{uid}/cart/{productId} -> {qty}
+  final uid = user.uid;
+
+  if (type == _LoginActionType.favToggle) {
+    final favRef = db.collection('users').doc(uid).collection('favorites').doc(productId);
+    final snap = await favRef.get();
+    if (snap.exists) {
+      await favRef.delete();
+    } else {
+      await favRef.set({
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    }
+    return;
+  }
+
+  if (type == _LoginActionType.cartAdd) {
+    final cartRef = db.collection('users').doc(uid).collection('cart').doc(productId);
+    final snap = await cartRef.get();
+    final currentQty = (snap.data()?['qty'] as int?) ?? 0;
+    final newQty = currentQty + (qty <= 0 ? 1 : qty);
+    await cartRef.set({
+      'qty': newQty,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+    return;
+  }
+}
 
 // ---------------- Router ----------------
 
@@ -104,23 +148,16 @@ final routerProvider = Provider<GoRouter>((ref) {
   final refresh = _RouterRefreshNotifier(ref);
 
   bool _isProtectedBuyerPath(String path) {
-    // ВАЖНО: табы мы защищаем в BuyerRootShell (через push(login)).
-    // Но deep-link/прямой заход сюда всё равно должен требовать логин.
     if (path.startsWith('/buyer/favorites')) return true;
     if (path.startsWith('/buyer/cart')) return true;
     if (path.startsWith('/buyer/profile')) return true;
-
-    // алиас
     if (path.startsWith('/buyer/orders')) return true;
-
     return false;
   }
 
   return GoRouter(
-    navigatorKey: _rootNavigatorKey,
     initialLocation: '/buyer/home',
     refreshListenable: refresh,
-    debugLogDiagnostics: false,
 
     redirect: (context, state) async {
       final uri = state.uri;
@@ -142,20 +179,47 @@ final routerProvider = Provider<GoRouter>((ref) {
       }
 
       // 2) гость идет в защищенные buyer-экраны -> /login?next=...
-      // ВАЖНО: /login сам по себе не редиректим
+      //    (без action — просто логин и возврат)
       if (!isAuthed && _isProtectedBuyerPath(path) && path != '/login') {
         final next = Uri.encodeComponent(fullLoc);
         return '/login?next=$next';
       }
 
-      // 3) если мы на /login и уже залогинились — уводим на next или в кабинет
+      // 3) если мы на /login и уже залогинились —
+      //    (а) выполнить action (если пришли с сердечком/корзиной)
+      //    (б) увести на next или /cabinet
       if (path == '/login' && isAuthed) {
+        final db = ref.read(firestoreProvider);
+
         final nextRaw = uri.queryParameters['next'];
         final nextDecoded = (nextRaw == null || nextRaw.trim().isEmpty)
             ? null
             : Uri.decodeComponent(nextRaw);
 
+        final actionType = _parseAction(uri.queryParameters['action']);
+        final pid = (uri.queryParameters['pid'] ?? '').trim();
+        final qtyStr = (uri.queryParameters['qty'] ?? '').trim();
+        final qty = int.tryParse(qtyStr) ?? 1;
+
+        // Выполняем действие (если оно задано)
+        if (actionType != null && pid.isNotEmpty && fbUser != null) {
+          try {
+            await _applyLoginAction(
+              db: db,
+              user: fbUser,
+              type: actionType,
+              productId: pid,
+              qty: qty,
+            );
+          } catch (_) {
+            // тут можно логировать, но не ломаем редирект
+          }
+        }
+
+        // Возврат туда, откуда пришли
         if (nextDecoded != null && nextDecoded.isNotEmpty) return nextDecoded;
+
+        // если next не задан — в кабинет/по роли
         return '/cabinet';
       }
 
@@ -185,68 +249,44 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       GoRoute(
         path: '/cabinet',
-        // технический маршрут, сюда всегда попадём через redirect
-        pageBuilder: (context, state) => const NoTransitionPage(
-          child: SizedBox.shrink(),
-        ),
+        builder: (context, state) => const SizedBox.shrink(),
       ),
 
-      // ✅ ЛОГИН — обязательно в ROOT navigator
       GoRoute(
-        parentNavigatorKey: _rootNavigatorKey,
         path: '/login',
-        pageBuilder: (context, state) {
+        builder: (context, state) {
           final nextRaw = state.uri.queryParameters['next'];
-          final nextDecoded = (nextRaw == null || nextRaw.trim().isEmpty)
+          final next = (nextRaw == null || nextRaw.trim().isEmpty)
               ? null
               : Uri.decodeComponent(nextRaw);
 
-          return MaterialPage(
-            key: state.pageKey,
-            child: LoginScreen(nextPath: nextDecoded),
-          );
+          return LoginScreen(nextPath: next);
         },
       ),
 
       GoRoute(
-        parentNavigatorKey: _rootNavigatorKey,
         path: '/role-select',
-        pageBuilder: (context, state) => MaterialPage(
-          key: state.pageKey,
-          child: const RoleSelectionScreen(),
-        ),
+        builder: (context, state) => const RoleSelectionScreen(),
       ),
 
       GoRoute(
-        parentNavigatorKey: _rootNavigatorKey,
         path: '/info/seller',
-        pageBuilder: (context, state) => MaterialPage(
-          key: state.pageKey,
-          child: const SellerInfoScreen(),
-        ),
+        builder: (context, state) => const SellerInfoScreen(),
       ),
 
       GoRoute(
-        parentNavigatorKey: _rootNavigatorKey,
         path: '/info/wanghong',
-        pageBuilder: (context, state) => MaterialPage(
-          key: state.pageKey,
-          child: const WanghongInfoScreen(),
-        ),
+        builder: (context, state) => const WanghongInfoScreen(),
       ),
 
       GoRoute(
-        parentNavigatorKey: _rootNavigatorKey,
         path: '/onboarding/buyer',
-        pageBuilder: (context, state) => MaterialPage(
-          key: state.pageKey,
-          child: BuyerOnboardingScreen(
-            nextPath: state.uri.queryParameters['next'],
-          ),
+        builder: (context, state) => BuyerOnboardingScreen(
+          nextPath: state.uri.queryParameters['next'],
         ),
       ),
 
-      // алиас (на случай, если где-то еще в коде пушится /buyer/orders)
+      // алиас (на случай, если где-то еще пушится /buyer/orders)
       GoRoute(
         path: '/buyer/orders',
         redirect: (context, state) => '/buyer/profile/orders',
@@ -254,12 +294,6 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       // -------- BUYER: 5 вкладок через indexedStack --------
       StatefulShellRoute.indexedStack(
-        navigatorContainerBuilder: (context, navigationShell, children) {
-          // можно оставить дефолт, но ключ контейнера важен для разруливания навигации
-          return navigationShell;
-        },
-        parentNavigatorKey: _rootNavigatorKey,
-        navigatorKey: _buyerShellNavigatorKey,
         builder: (context, state, navigationShell) {
           return BuyerRootShell(navigationShell: navigationShell);
         },
