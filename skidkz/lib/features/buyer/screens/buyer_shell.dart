@@ -39,6 +39,7 @@ class BuyerRootShell extends StatefulWidget {
 
 class _BuyerRootShellState extends State<BuyerRootShell> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+
   DateTime? _lastBack;
   String _city = 'Определяем...';
 
@@ -54,45 +55,29 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
     final state = _scaffoldKey.currentState;
     if (state == null) return;
     if (state.isDrawerOpen) {
-      Navigator.of(state.context).pop();
+      Navigator.of(state.context).pop(); // закрывает drawer
     }
   }
 
   bool _drawerOpen() => _scaffoldKey.currentState?.isDrawerOpen ?? false;
 
-  String _tabNextPath(int index) {
-    switch (index) {
-      case 0:
-        return '/buyer/home';
-      case 1:
-        return '/buyer/catalog';
-      case 2:
-        return '/buyer/favorites';
-      case 3:
-        return '/buyer/cart';
-      case 4:
-        return '/buyer/profile';
-      default:
-        return '/buyer/home';
-    }
+  /// ТЕКУЩАЯ вкладка НЕ из navigationShell.currentIndex (он иногда врет),
+  /// а из фактического router-location.
+  int _activeIndexFromLocation() {
+    final router = GoRouter.maybeOf(context);
+    final path = router?.routeInformationProvider.value.uri.path ?? '/buyer/home';
+
+    if (path.startsWith('/buyer/catalog')) return 1;
+    if (path.startsWith('/buyer/favorites')) return 2;
+    if (path.startsWith('/buyer/cart')) return 3;
+    if (path.startsWith('/buyer/profile')) return 4;
+
+    // дефолт: /buyer/home и все остальное относим к "Магазин"
+    return 0;
   }
 
-  bool _isProtectedTab(int index) => index == 2 || index == 3 || index == 4;
-
   void _goTab(int index) {
-    final user = fb.FirebaseAuth.instance.currentUser;
-
-    // ✅ ВАЖНО: если гость нажал защищенную вкладку — НЕ переключаем вкладку,
-    // а пушим логин поверх shell.
-    if (user == null && _isProtectedTab(index)) {
-      final next = Uri.encodeComponent(_tabNextPath(index));
-      final r = GoRouter.maybeOf(context);
-      if (r == null) return;
-      r.push('/login?next=$next');
-      return;
-    }
-
-    // initialLocation=true — при повторном тапе по активной вкладке возвращаемся в корень вкладки
+    // initialLocation=true — повторный тап по активной вкладке возвращает в корень вкладки
     widget.navigationShell.goBranch(
       index,
       initialLocation: index == widget.navigationShell.currentIndex,
@@ -100,35 +85,27 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
   }
 
   Future<void> _onBack() async {
-    // 0) если поверх shell есть route в root navigator (например /login),
-    // пробуем попнуть его ПЕРВЫМ делом
-    final router = GoRouter.maybeOf(context);
-    final rootNav = router?.routerDelegate.navigatorKey.currentState;
-    if (rootNav != null) {
-      final didPopRoot = await rootNav.maybePop();
-      if (didPopRoot) return;
-    }
-
     // 1) drawer → закрыть
     if (_drawerOpen()) {
       _closeDrawer();
       return;
     }
 
-    // 2) pop внутри текущей навигации (go_router stack)
-    final r = GoRouter.of(context);
-    if (r.canPop()) {
-      r.pop();
+    // 2) если можно pop в текущем стеке — pop
+    final router = GoRouter.maybeOf(context);
+    if (router != null && router.canPop()) {
+      router.pop();
       return;
     }
 
-    // 3) не “Магазин” → перейти на “Магазин”
-    if (widget.navigationShell.currentIndex != 0) {
+    // 3) если мы НЕ на "Магазин" (по location) → перейти на "Магазин"
+    final activeIndex = _activeIndexFromLocation();
+    if (activeIndex != 0) {
       widget.navigationShell.goBranch(0);
       return;
     }
 
-    // 4) “Магазин” → double back = выход
+    // 4) мы на "Магазин" → double back = выход
     final now = DateTime.now();
     if (_lastBack == null ||
         now.difference(_lastBack!) > const Duration(seconds: 2)) {
@@ -205,11 +182,12 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
 
   @override
   Widget build(BuildContext context) {
+    // Для UI (выделение иконки) — оставляем как было: navigationShell.currentIndex
+    // Для BACK — используем _activeIndexFromLocation() внутри _onBack()
     return BuyerShellScope(
       openDrawer: _openDrawer,
       child: PopScope(
         canPop: false,
-        // если у тебя Flutter 3.41+ и ругается на сигнатуру — скажи, дам вариант onPopInvokedWithResult
         onPopInvoked: (didPop) {
           if (didPop) return;
           _onBack();
@@ -393,6 +371,8 @@ class BuyerDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final user = fb.FirebaseAuth.instance.currentUser;
+    final isAuthed = user != null;
     final location =
         GoRouter.maybeOf(context)?.routeInformationProvider.value.uri.path ?? '';
 
@@ -400,223 +380,260 @@ class BuyerDrawer extends StatelessWidget {
       backgroundColor: const Color(0xFF12161B),
       surfaceTintColor: Colors.transparent,
       child: SafeArea(
-        child: StreamBuilder<fb.User?>(
-          stream: fb.FirebaseAuth.instance.authStateChanges(),
-          builder: (context, authSnap) {
-            final user = authSnap.data;
-            final isAuthed = user != null;
+        child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+          stream: isAuthed
+              ? FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(user!.uid)
+                  .snapshots()
+              : null,
+          builder: (context, snapshot) {
+            final data = snapshot.data?.data();
+            final displayName = (data?['displayName'] ?? '').toString().trim();
+            final phone = (data?['phone'] ?? '').toString().trim();
 
-            return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-              stream: isAuthed
-                  ? FirebaseFirestore.instance.collection('users').doc(user!.uid).snapshots()
-                  : null,
-              builder: (context, snapshot) {
-                final data = snapshot.data?.data();
-                final displayName = (data?['displayName'] ?? '').toString().trim();
-                final phone = (data?['phone'] ?? '').toString().trim();
-
-                return Container(
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [Color(0xFF1C2026), Color(0xFF14181D), Color(0xFF101419)],
-                      stops: [0.0, 0.58, 1.0],
-                    ),
-                    border: Border(right: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
-                  ),
-                  child: Theme(
-                    data: Theme.of(context).copyWith(
-                      splashColor: _emerald.withValues(alpha: 0.22),
-                      highlightColor: _emerald.withValues(alpha: 0.14),
-                    ),
-                    child: ListView(
-                      padding: EdgeInsets.zero,
-                      children: [
-                        // --- header ---
-                        Container(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [
-                                const Color(0xFF2A323B).withValues(alpha: 0.65),
-                                const Color(0xFF1E252E).withValues(alpha: 0.45),
-                                const Color(0xFF171D25).withValues(alpha: 0.30),
-                              ],
-                            ),
-                            border: Border(
-                              bottom: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
-                            ),
-                          ),
-                          padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+            return Container(
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Color(0xFF1C2026),
+                    Color(0xFF14181D),
+                    Color(0xFF101419)
+                  ],
+                  stops: [0.0, 0.58, 1.0],
+                ),
+                border: Border(
+                  right: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+                ),
+              ),
+              child: Theme(
+                data: Theme.of(context).copyWith(
+                  splashColor: _emerald.withValues(alpha: 0.22),
+                  highlightColor: _emerald.withValues(alpha: 0.14),
+                ),
+                child: ListView(
+                  padding: EdgeInsets.zero,
+                  children: [
+                    // --- HEADER ---
+                    Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            const Color(0xFF2A323B).withValues(alpha: 0.65),
+                            const Color(0xFF1E252E).withValues(alpha: 0.45),
+                            const Color(0xFF171D25).withValues(alpha: 0.30),
+                          ],
+                        ),
+                        border: Border(
+                          bottom: BorderSide(
+                              color: Colors.white.withValues(alpha: 0.08)),
+                        ),
+                      ),
+                      padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
                             children: [
-                              Row(
-                                children: [
-                                  Container(
-                                    height: 44,
-                                    width: 44,
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withValues(alpha: 0.06),
-                                      borderRadius: BorderRadius.circular(14),
-                                      border: Border.all(color: Colors.white.withValues(alpha: 0.09)),
-                                    ),
-                                    child: const Icon(Icons.person_outline, color: Colors.white70),
+                              Container(
+                                height: 44,
+                                width: 44,
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.06),
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                    color: Colors.white.withValues(alpha: 0.09),
                                   ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: InkWell(
-                                      onTap: () {
-                                        if (isAuthed) {
-                                          _safeGo(context, '/buyer/profile');
-                                        } else {
-                                          _safePush(context, '/login?next=%2Fbuyer%2Fprofile');
-                                        }
-                                      },
-                                      borderRadius: BorderRadius.circular(14),
-                                      child: Padding(
-                                        padding: const EdgeInsets.symmetric(vertical: 6),
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              isAuthed
-                                                  ? (displayName.isNotEmpty ? displayName : 'Профиль')
-                                                  : 'Войти / Регистрация',
-                                              style: const TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.w800,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              isAuthed
-                                                  ? (phone.isNotEmpty ? phone : 'Заказы, избранное, бонусы')
-                                                  : 'Заказы, избранное, бонусы',
-                                              style: const TextStyle(color: Colors.white70),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  const Icon(Icons.chevron_right, color: Colors.white70),
-                                ],
+                                ),
+                                child: const Icon(Icons.person_outline,
+                                    color: Colors.white70),
                               ),
-                              const SizedBox(height: 14),
-                              Row(
-                                children: [
-                                  Text(
-                                    isAuthed ? 'Аккаунт' : 'Гость',
-                                    style: TextStyle(color: Colors.white.withValues(alpha: 0.62)),
-                                  ),
-                                  const Spacer(),
-                                  InkWell(
-                                    onTap: onCityTap,
-                                    borderRadius: BorderRadius.circular(12),
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                                      child: Row(
-                                        children: [
-                                          const Icon(Icons.location_on_outlined,
-                                              color: Colors.white70, size: 18),
-                                          const SizedBox(width: 6),
-                                          Text(city, style: const TextStyle(color: Colors.white70)),
-                                        ],
-                                      ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: InkWell(
+                                  onTap: () {
+                                    if (isAuthed) {
+                                      _safeGo(context, '/buyer/profile');
+                                    } else {
+                                      _safePush(
+                                        context,
+                                        '/login?next=%2Fbuyer%2Fprofile',
+                                      );
+                                    }
+                                  },
+                                  borderRadius: BorderRadius.circular(14),
+                                  child: Padding(
+                                    padding:
+                                        const EdgeInsets.symmetric(vertical: 6),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          isAuthed
+                                              ? (displayName.isNotEmpty
+                                                  ? displayName
+                                                  : 'Профиль')
+                                              : 'Войти / Регистрация',
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w800,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          isAuthed
+                                              ? (phone.isNotEmpty
+                                                  ? phone
+                                                  : 'Заказы, избранное, бонусы')
+                                              : 'Заказы, избранное, бонусы',
+                                          style: const TextStyle(
+                                              color: Colors.white70),
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                ],
+                                ),
+                              ),
+                              const Icon(Icons.chevron_right,
+                                  color: Colors.white70),
+                            ],
+                          ),
+                          const SizedBox(height: 14),
+                          Row(
+                            children: [
+                              Text(
+                                isAuthed ? 'Аккаунт' : 'Гость',
+                                style: TextStyle(
+                                    color: Colors.white
+                                        .withValues(alpha: 0.62)),
+                              ),
+                              const Spacer(),
+                              InkWell(
+                                onTap: onCityTap,
+                                borderRadius: BorderRadius.circular(12),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 6),
+                                  child: Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.location_on_outlined,
+                                        color: Colors.white70,
+                                        size: 18,
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        city,
+                                        style: const TextStyle(
+                                            color: Colors.white70),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ),
                             ],
                           ),
-                        ),
-
-                        const SizedBox(height: 10),
-
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                          child: Text(
-                            'Аккаунт',
-                            style: TextStyle(color: Colors.white.withValues(alpha: 0.48)),
-                          ),
-                        ),
-
-                        _drawerTile(
-                          context: context,
-                          icon: Icons.receipt_long_outlined,
-                          title: 'Мои заказы',
-                          selected: location.startsWith('/buyer/orders'),
-                          onTap: () => _safePush(context, '/buyer/orders'),
-                        ),
-
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          child: Text(
-                            'Кабинеты',
-                            style: TextStyle(color: Colors.white.withValues(alpha: 0.48)),
-                          ),
-                        ),
-
-                        _drawerTile(
-                          context: context,
-                          icon: Icons.storefront_outlined,
-                          title: 'Кабинет магазина',
-                          subtitle: 'Продажи, товары, заказы',
-                          selected: location.startsWith('/info/seller'),
-                          onTap: () => _safePush(context, '/info/seller'),
-                        ),
-
-                        _drawerTile(
-                          context: context,
-                          icon: Icons.campaign_outlined,
-                          title: 'Кабинет ванхуна',
-                          subtitle: 'Заработать на промокодах',
-                          selected: location.startsWith('/info/wanghong'),
-                          onTap: () => _safePush(context, '/info/wanghong'),
-                        ),
-
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          child: Text(
-                            'Сервис',
-                            style: TextStyle(color: Colors.white.withValues(alpha: 0.48)),
-                          ),
-                        ),
-
-                        _drawerTile(
-                          context: context,
-                          icon: Icons.support_agent_outlined,
-                          title: 'Поддержка',
-                          onTap: closeDrawer,
-                        ),
-
-                        Divider(height: 1, color: Colors.white.withValues(alpha: 0.08)),
-
-                        FutureBuilder<PackageInfo>(
-                          future: PackageInfo.fromPlatform(),
-                          builder: (context, snap) {
-                            final version = snap.data?.version ?? '';
-                            final buildNumber = snap.data?.buildNumber ?? '';
-                            final v = (version.isEmpty) ? '' : 'v$version ($buildNumber)';
-
-                            return _drawerTile(
-                              context: context,
-                              icon: Icons.info_outline,
-                              title: 'Версия приложения',
-                              subtitle: v.isEmpty ? '...' : v,
-                              onTap: closeDrawer,
-                            );
-                          },
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                );
-              },
+
+                    const SizedBox(height: 10),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 6),
+                      child: Text(
+                        'Аккаунт',
+                        style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.48)),
+                      ),
+                    ),
+
+                    _drawerTile(
+                      context: context,
+                      icon: Icons.receipt_long_outlined,
+                      title: 'Мои заказы',
+                      selected: location.startsWith('/buyer/orders') ||
+                          location.startsWith('/buyer/profile/orders'),
+                      onTap: () => _safePush(context, '/buyer/profile/orders'),
+                    ),
+
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 12),
+                      child: Text(
+                        'Кабинеты',
+                        style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.48)),
+                      ),
+                    ),
+
+                    _drawerTile(
+                      context: context,
+                      icon: Icons.storefront_outlined,
+                      title: 'Кабинет магазина',
+                      subtitle: 'Продажи, товары, заказы',
+                      selected: location.startsWith('/info/seller'),
+                      onTap: () => _safePush(context, '/info/seller'),
+                    ),
+
+                    _drawerTile(
+                      context: context,
+                      icon: Icons.campaign_outlined,
+                      title: 'Кабинет ванхуна',
+                      subtitle: 'Заработать на промокодах',
+                      selected: location.startsWith('/info/wanghong'),
+                      onTap: () => _safePush(context, '/info/wanghong'),
+                    ),
+
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 12),
+                      child: Text(
+                        'Сервис',
+                        style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.48)),
+                      ),
+                    ),
+
+                    _drawerTile(
+                      context: context,
+                      icon: Icons.support_agent_outlined,
+                      title: 'Поддержка',
+                      onTap: () => closeDrawer(),
+                    ),
+
+                    Divider(
+                      height: 1,
+                      color: Colors.white.withValues(alpha: 0.08),
+                    ),
+
+                    FutureBuilder<PackageInfo>(
+                      future: PackageInfo.fromPlatform(),
+                      builder: (context, snap) {
+                        final version = snap.data?.version ?? '';
+                        final buildNumber = snap.data?.buildNumber ?? '';
+                        final v = (version.isEmpty)
+                            ? ''
+                            : 'v$version ($buildNumber)';
+
+                        return _drawerTile(
+                          context: context,
+                          icon: Icons.info_outline,
+                          title: 'Версия приложения',
+                          subtitle: v.isEmpty ? '...' : v,
+                          onTap: () => closeDrawer(),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
             );
           },
         ),
