@@ -39,6 +39,7 @@ class BuyerRootShell extends StatefulWidget {
 
 class _BuyerRootShellState extends State<BuyerRootShell> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+
   DateTime? _lastBack;
   String _city = 'Определяем...';
 
@@ -53,8 +54,10 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
   void _closeDrawer() {
     final state = _scaffoldKey.currentState;
     if (state == null) return;
+
+    // ✅ ВАЖНО: закрываем Drawer “родным” способом, без Navigator.pop конфликтов
     if (state.isDrawerOpen) {
-      Navigator.of(state.context).pop(); // закрываем drawer
+      state.closeDrawer();
     }
   }
 
@@ -69,24 +72,26 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
   }
 
   Future<void> _onBack() async {
-    // 1) drawer открыт → закрыть
+    // 1) drawer → закрыть
     if (_drawerOpen()) {
       _closeDrawer();
       return;
     }
 
-    // 2) если поверх текущего экрана есть что закрыть (push-экран, диалог и т.п.) → закрываем
-    // ВАЖНО: используем Navigator, а не GoRouter.canPop()
-    final didPop = await Navigator.of(context).maybePop();
-    if (didPop) return;
+    // 2) pop “поверх” (push) — НУЖНО делать через GoRouter, а не Navigator
+    final router = GoRouter.maybeOf(context);
+    if (router != null && router.canPop()) {
+      router.pop();
+      return;
+    }
 
-    // 3) если не “Магазин” → уходим на “Магазин”
+    // 3) если не “Магазин” → на “Магазин”
     if (widget.navigationShell.currentIndex != 0) {
       widget.navigationShell.goBranch(0);
       return;
     }
 
-    // 4) “Магазин” → double back = выход
+    // 4) “Магазин” → double back
     final now = DateTime.now();
     if (_lastBack == null ||
         now.difference(_lastBack!) > const Duration(seconds: 2)) {
@@ -361,7 +366,10 @@ class BuyerDrawer extends StatelessWidget {
       child: SafeArea(
         child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
           stream: isAuthed
-              ? FirebaseFirestore.instance.collection('users').doc(user!.uid).snapshots()
+              ? FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(user!.uid)
+                  .snapshots()
               : null,
           builder: (context, snapshot) {
             final data = snapshot.data?.data();
@@ -373,7 +381,11 @@ class BuyerDrawer extends StatelessWidget {
                 gradient: const LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [Color(0xFF1C2026), Color(0xFF14181D), Color(0xFF101419)],
+                  colors: [
+                    Color(0xFF1C2026),
+                    Color(0xFF14181D),
+                    Color(0xFF101419),
+                  ],
                   stops: [0.0, 0.58, 1.0],
                 ),
                 border: Border(
@@ -401,7 +413,9 @@ class BuyerDrawer extends StatelessWidget {
                           ],
                         ),
                         border: Border(
-                          bottom: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+                          bottom: BorderSide(
+                            color: Colors.white.withValues(alpha: 0.08),
+                          ),
                         ),
                       ),
                       padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
@@ -420,7 +434,8 @@ class BuyerDrawer extends StatelessWidget {
                                     color: Colors.white.withValues(alpha: 0.09),
                                   ),
                                 ),
-                                child: const Icon(Icons.person_outline, color: Colors.white70),
+                                child: const Icon(Icons.person_outline,
+                                    color: Colors.white70),
                               ),
                               const SizedBox(width: 12),
                               Expanded(
@@ -429,18 +444,25 @@ class BuyerDrawer extends StatelessWidget {
                                     if (isAuthed) {
                                       _safeGo(context, '/buyer/profile');
                                     } else {
-                                      _safePush(context, '/login?next=%2Fbuyer%2Fprofile');
+                                      _safePush(
+                                        context,
+                                        '/login?next=%2Fbuyer%2Fprofile',
+                                      );
                                     }
                                   },
                                   borderRadius: BorderRadius.circular(14),
                                   child: Padding(
-                                    padding: const EdgeInsets.symmetric(vertical: 6),
+                                    padding:
+                                        const EdgeInsets.symmetric(vertical: 6),
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Text(
                                           isAuthed
-                                              ? (displayName.isNotEmpty ? displayName : 'Профиль')
+                                              ? (displayName.isNotEmpty
+                                                  ? displayName
+                                                  : 'Профиль')
                                               : 'Войти / Регистрация',
                                           style: const TextStyle(
                                             color: Colors.white,
@@ -451,16 +473,20 @@ class BuyerDrawer extends StatelessWidget {
                                         const SizedBox(height: 4),
                                         Text(
                                           isAuthed
-                                              ? (phone.isNotEmpty ? phone : 'Заказы, избранное, бонусы')
+                                              ? (phone.isNotEmpty
+                                                  ? phone
+                                                  : 'Заказы, избранное, бонусы')
                                               : 'Заказы, избранное, бонусы',
-                                          style: const TextStyle(color: Colors.white70),
+                                          style: const TextStyle(
+                                              color: Colors.white70),
                                         ),
                                       ],
                                     ),
                                   ),
                                 ),
                               ),
-                              const Icon(Icons.chevron_right, color: Colors.white70),
+                              const Icon(Icons.chevron_right,
+                                  color: Colors.white70),
                             ],
                           ),
                           const SizedBox(height: 14),
@@ -468,20 +494,30 @@ class BuyerDrawer extends StatelessWidget {
                             children: [
                               Text(
                                 isAuthed ? 'Аккаунт' : 'Гость',
-                                style: TextStyle(color: Colors.white.withValues(alpha: 0.62)),
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.62),
+                                ),
                               ),
                               const Spacer(),
                               InkWell(
                                 onTap: onCityTap,
                                 borderRadius: BorderRadius.circular(12),
                                 child: Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 6),
                                   child: Row(
                                     children: [
-                                      const Icon(Icons.location_on_outlined,
-                                          color: Colors.white70, size: 18),
+                                      const Icon(
+                                        Icons.location_on_outlined,
+                                        color: Colors.white70,
+                                        size: 18,
+                                      ),
                                       const SizedBox(width: 6),
-                                      Text(city, style: const TextStyle(color: Colors.white70)),
+                                      Text(
+                                        city,
+                                        style: const TextStyle(
+                                            color: Colors.white70),
+                                      ),
                                     ],
                                   ),
                                 ),
@@ -493,15 +529,18 @@ class BuyerDrawer extends StatelessWidget {
                     ),
 
                     const SizedBox(height: 10),
+
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 6),
                       child: Text(
                         'Аккаунт',
-                        style: TextStyle(color: Colors.white.withValues(alpha: 0.48)),
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.48),
+                        ),
                       ),
                     ),
 
-                    // PUSH — чтобы back вернул назад
                     _drawerTile(
                       context: context,
                       icon: Icons.receipt_long_outlined,
@@ -512,10 +551,13 @@ class BuyerDrawer extends StatelessWidget {
                     ),
 
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 12),
                       child: Text(
                         'Кабинеты',
-                        style: TextStyle(color: Colors.white.withValues(alpha: 0.48)),
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.48),
+                        ),
                       ),
                     ),
 
@@ -538,10 +580,13 @@ class BuyerDrawer extends StatelessWidget {
                     ),
 
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 12),
                       child: Text(
                         'Сервис',
-                        style: TextStyle(color: Colors.white.withValues(alpha: 0.48)),
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.48),
+                        ),
                       ),
                     ),
 
@@ -552,14 +597,19 @@ class BuyerDrawer extends StatelessWidget {
                       onTap: () => closeDrawer(),
                     ),
 
-                    Divider(height: 1, color: Colors.white.withValues(alpha: 0.08)),
+                    Divider(
+                      height: 1,
+                      color: Colors.white.withValues(alpha: 0.08),
+                    ),
 
                     FutureBuilder<PackageInfo>(
                       future: PackageInfo.fromPlatform(),
                       builder: (context, snap) {
                         final version = snap.data?.version ?? '';
                         final buildNumber = snap.data?.buildNumber ?? '';
-                        final v = version.isEmpty ? '' : 'v$version ($buildNumber)';
+                        final v = (version.isEmpty)
+                            ? ''
+                            : 'v$version ($buildNumber)';
 
                         return _drawerTile(
                           context: context,
