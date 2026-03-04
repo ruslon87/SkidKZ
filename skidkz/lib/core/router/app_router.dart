@@ -44,6 +44,9 @@ import 'package:skidkz/features/info/screens/seller_info_screen.dart';
 import 'package:skidkz/features/info/screens/wanghong_info_screen.dart';
 import 'package:skidkz/features/onboarding/screens/buyer_onboarding_screen.dart';
 
+// ✅ добавили root navigator key, чтобы глобально закрывать drawer/dialogs
+final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
+
 // ---------------- Providers ----------------
 
 final firebaseAuthProvider =
@@ -111,29 +114,32 @@ Future<void> _applyLoginAction({
   required String productId,
   int qty = 1,
 }) async {
-  // Норм: делаем простую схему в Firestore:
-  // users/{uid}/favorites/{productId}
-  // users/{uid}/cart/{productId} -> {qty}
   final uid = user.uid;
 
   if (type == _LoginActionType.favToggle) {
-    final favRef = db.collection('users').doc(uid).collection('favorites').doc(productId);
+    final favRef = db
+        .collection('users')
+        .doc(uid)
+        .collection('favorites')
+        .doc(productId);
+
     final snap = await favRef.get();
     if (snap.exists) {
       await favRef.delete();
     } else {
-      await favRef.set({
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+      await favRef.set({'createdAt': FieldValue.serverTimestamp()});
     }
     return;
   }
 
   if (type == _LoginActionType.cartAdd) {
-    final cartRef = db.collection('users').doc(uid).collection('cart').doc(productId);
+    final cartRef =
+        db.collection('users').doc(uid).collection('cart').doc(productId);
+
     final snap = await cartRef.get();
     final currentQty = (snap.data()?['qty'] as int?) ?? 0;
     final newQty = currentQty + (qty <= 0 ? 1 : qty);
+
     await cartRef.set({
       'qty': newQty,
       'updatedAt': FieldValue.serverTimestamp(),
@@ -156,38 +162,34 @@ final routerProvider = Provider<GoRouter>((ref) {
   }
 
   return GoRouter(
+    navigatorKey: rootNavigatorKey, // ✅ важно
     initialLocation: '/buyer/home',
     refreshListenable: refresh,
 
     redirect: (context, state) async {
       final uri = state.uri;
       final path = uri.path;
-      final fullLoc = uri.toString(); // path + query
+      final fullLoc = uri.toString();
 
       final authAsync = ref.read(authStateChangesProvider);
       final userAsync = ref.read(currentUserDocProvider);
 
-      // пока грузится — не редиректим
       if (authAsync.isLoading || userAsync.isLoading) return null;
 
       final fbUser = authAsync.asData?.value;
       final isAuthed = fbUser != null;
 
-      // 1) алиас /buyer/orders -> /buyer/profile/orders
       if (path == '/buyer/orders') {
         return '/buyer/profile/orders';
       }
 
-      // 2) гость идет в защищенные buyer-экраны -> /login?next=...
-      //    (без action — просто логин и возврат)
+      // гость -> protected buyer -> login
       if (!isAuthed && _isProtectedBuyerPath(path) && path != '/login') {
         final next = Uri.encodeComponent(fullLoc);
         return '/login?next=$next';
       }
 
-      // 3) если мы на /login и уже залогинились —
-      //    (а) выполнить action (если пришли с сердечком/корзиной)
-      //    (б) увести на next или /cabinet
+      // login + authed -> выполнить action -> вернуть next/кабинет
       if (path == '/login' && isAuthed) {
         final db = ref.read(firestoreProvider);
 
@@ -201,7 +203,6 @@ final routerProvider = Provider<GoRouter>((ref) {
         final qtyStr = (uri.queryParameters['qty'] ?? '').trim();
         final qty = int.tryParse(qtyStr) ?? 1;
 
-        // Выполняем действие (если оно задано)
         if (actionType != null && pid.isNotEmpty && fbUser != null) {
           try {
             await _applyLoginAction(
@@ -212,18 +213,15 @@ final routerProvider = Provider<GoRouter>((ref) {
               qty: qty,
             );
           } catch (_) {
-            // тут можно логировать, но не ломаем редирект
+            // не ломаем редирект
           }
         }
 
-        // Возврат туда, откуда пришли
         if (nextDecoded != null && nextDecoded.isNotEmpty) return nextDecoded;
-
-        // если next не задан — в кабинет/по роли
         return '/cabinet';
       }
 
-      // 4) /cabinet — разруливаем по activeRole
+      // cabinet -> по роли
       if (path == '/cabinet' && isAuthed) {
         final snap = userAsync.asData?.value;
         final data = snap?.data();
@@ -259,7 +257,6 @@ final routerProvider = Provider<GoRouter>((ref) {
           final next = (nextRaw == null || nextRaw.trim().isEmpty)
               ? null
               : Uri.decodeComponent(nextRaw);
-
           return LoginScreen(nextPath: next);
         },
       ),
@@ -286,19 +283,17 @@ final routerProvider = Provider<GoRouter>((ref) {
         ),
       ),
 
-      // алиас (на случай, если где-то еще пушится /buyer/orders)
       GoRoute(
         path: '/buyer/orders',
         redirect: (context, state) => '/buyer/profile/orders',
       ),
 
-      // -------- BUYER: 5 вкладок через indexedStack --------
+      // BUYER tabs
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {
           return BuyerRootShell(navigationShell: navigationShell);
         },
         branches: [
-          // 0) Магазин
           StatefulShellBranch(
             routes: [
               GoRoute(
@@ -308,8 +303,6 @@ final routerProvider = Provider<GoRouter>((ref) {
               ),
             ],
           ),
-
-          // 1) Каталог
           StatefulShellBranch(
             routes: [
               GoRoute(
@@ -319,8 +312,6 @@ final routerProvider = Provider<GoRouter>((ref) {
               ),
             ],
           ),
-
-          // 2) Избранное (protected)
           StatefulShellBranch(
             routes: [
               GoRoute(
@@ -330,8 +321,6 @@ final routerProvider = Provider<GoRouter>((ref) {
               ),
             ],
           ),
-
-          // 3) Корзина (protected)
           StatefulShellBranch(
             routes: [
               GoRoute(
@@ -341,8 +330,6 @@ final routerProvider = Provider<GoRouter>((ref) {
               ),
             ],
           ),
-
-          // 4) Профиль (protected) + вложенные
           StatefulShellBranch(
             routes: [
               GoRoute(
@@ -361,7 +348,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         ],
       ),
 
-      // -------- SELLER --------
+      // SELLER
       ShellRoute(
         builder: (context, state, child) => SellerShell(child: child),
         routes: [
@@ -380,7 +367,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         ],
       ),
 
-      // -------- WANGHONG --------
+      // WANGHONG
       ShellRoute(
         builder: (context, state, child) => WanghongShell(child: child),
         routes: [
@@ -399,7 +386,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         ],
       ),
 
-      // -------- ADMIN --------
+      // ADMIN
       ShellRoute(
         builder: (context, state, child) => AdminShell(child: child),
         routes: [
