@@ -60,33 +60,32 @@ class _LoginScreenState extends State<LoginScreen> {
     return (t == null || t.isEmpty) ? null : t;
   }
 
-  GoRouter? get _r => GoRouter.maybeOf(context);
-
-  void _goHomeOrNext() {
-    final r = _r;
-    final next = _next();
-    if (r == null) {
-      _toast('Навигация недоступна (Router не найден)');
-      return;
-    }
-    r.go(next ?? '/buyer/home');
+  bool _isProtectedBuyerPath(String path) {
+    if (path.startsWith('/buyer/favorites')) return true;
+    if (path.startsWith('/buyer/cart')) return true;
+    if (path.startsWith('/buyer/profile')) return true;
+    if (path.startsWith('/buyer/orders')) return true;
+    return false;
   }
 
-  void _popOrGoHomeOrNext() {
+  // ✅ куда можно выйти без логина
+  String _safeExitTarget() {
+    final next = _next();
+    if (next == null) return '/buyer/home';
+    // если next защищённый — НЕ уходим туда (иначе redirect вернёт на /login)
+    if (_isProtectedBuyerPath(next)) return '/buyer/home';
+    return next;
+  }
+
+  GoRouter? get _r => GoRouter.maybeOf(context);
+
+  void _goExit() {
     final r = _r;
     if (r == null) {
       _toast('Навигация недоступна (Router не найден)');
       return;
     }
-
-    // pop сработает на тех переходах, где экран был открыт через push
-    if (r.canPop()) {
-      r.pop();
-      return;
-    }
-
-    // при открытии через go() pop невозможен -> уходим на next или home
-    _goHomeOrNext();
+    r.go(_safeExitTarget());
   }
 
   void _goAfterLogin() {
@@ -95,6 +94,7 @@ class _LoginScreenState extends State<LoginScreen> {
       _toast('Навигация недоступна (Router не найден)');
       return;
     }
+    // после логина можно идти в next или /cabinet
     final next = _next();
     r.go(next ?? '/cabinet');
   }
@@ -201,8 +201,8 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    // шаг телефона -> закрыть логин (pop), либо уйти на next/home
-    _popOrGoHomeOrNext();
+    // шаг телефона -> выходим безопасно (НЕ на protected next)
+    _goExit();
   }
 
   @override
@@ -263,8 +263,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 10),
                     TextButton(
-                      // “Продолжить без входа” = выйти на next/home, без попыток pop
-                      onPressed: _busy ? null : _goHomeOrNext,
+                      onPressed: _busy ? null : _goExit,
                       child: const Text('Продолжить без входа'),
                     ),
                   ] else ...[
