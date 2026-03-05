@@ -21,7 +21,11 @@ class SkidKZApp extends ConsumerWidget {
       theme: AppTheme.darkTheme,
       routerConfig: router,
 
-      // ✅ глобальный back: закрываем overlay -> возвращаем на /buyer/home -> double back
+      // ✅ ЕДИНЫЙ глобальный back:
+      // 1) закрыть overlay (drawer/dialog/bottomsheet)
+      // 2) если есть router pop -> pop
+      // 3) если в buyer и не home -> go home
+      // 4) на home -> double back exit
       builder: (context, child) {
         return _GlobalBackGuard(
           router: router,
@@ -48,32 +52,45 @@ class _GlobalBackGuard extends StatefulWidget {
 class _GlobalBackGuardState extends State<_GlobalBackGuard> {
   DateTime? _lastBack;
 
-  bool _isBuyerLocation(String loc) => loc.startsWith('/buyer/');
+  bool _isBuyerPath(String path) => path.startsWith('/buyer/');
+
+  Uri _currentUri() => widget.router.routeInformationProvider.value.uri;
 
   Future<void> _onBack() async {
-    // 1) сначала пробуем закрыть drawer/dialog/bottomsheet (через root navigator)
+    // 1) закрыть верхний overlay (drawer/dialog/bottomsheet)
     final nav = r.rootNavigatorKey.currentState;
     if (nav != null && nav.canPop()) {
       nav.pop();
       return;
     }
 
-    // 2) если есть история go_router — pop
+    // 2) если есть pop по go_router-стеку -> pop
     if (widget.router.canPop()) {
       widget.router.pop();
       return;
     }
 
-    final loc = widget.router.routerDelegate.currentConfiguration.fullPath ??
-        widget.router.location;
+    // 3) если мы на /login без истории (пришли редиректом),
+    //    то "назад" = уйти на next или на /buyer/home
+    final uri = _currentUri();
+    final path = uri.path;
 
-    // 3) если мы в buyer и не на home — возвращаем на home (вместо закрытия приложения)
-    if (_isBuyerLocation(loc) && loc != '/buyer/home') {
+    if (path == '/login') {
+      final nextRaw = uri.queryParameters['next'];
+      final next = (nextRaw == null || nextRaw.trim().isEmpty)
+          ? null
+          : Uri.decodeComponent(nextRaw);
+      widget.router.go(next ?? '/buyer/home');
+      return;
+    }
+
+    // 4) buyer: не home -> go home
+    if (_isBuyerPath(path) && path != '/buyer/home') {
       widget.router.go('/buyer/home');
       return;
     }
 
-    // 4) double back = exit (и на /buyer/home, и в других root-местах)
+    // 5) double back = exit
     final now = DateTime.now();
     if (_lastBack == null ||
         now.difference(_lastBack!) > const Duration(seconds: 2)) {
