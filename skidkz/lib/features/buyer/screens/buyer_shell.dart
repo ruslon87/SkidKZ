@@ -48,18 +48,6 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
   void initState() {
     super.initState();
     _detectCity();
-
-    // ВАЖНО:
-    // Жёстко прогреваем home-ветку на первом кадре.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final router = GoRouter.maybeOf(context);
-      final path = router?.routeInformationProvider.value.uri.path ?? '/buyer/home';
-
-      if (path == '/' || path.isEmpty || path == '/buyer/home') {
-        widget.navigationShell.goBranch(0, initialLocation: false);
-      }
-    });
   }
 
   String _currentPath() {
@@ -69,7 +57,17 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
     return path;
   }
 
-  int _pathToIndex(String path) {
+  bool _isHomePath(String path) => path == '/buyer/home';
+
+  bool _isTabRootPath(String path) {
+    return path == '/buyer/home' ||
+        path == '/buyer/catalog' ||
+        path == '/buyer/favorites' ||
+        path == '/buyer/cart' ||
+        path == '/buyer/profile';
+  }
+
+  int _tabIndexFromPath(String path) {
     if (path.startsWith('/buyer/catalog')) return 1;
     if (path.startsWith('/buyer/favorites')) return 2;
     if (path.startsWith('/buyer/cart')) return 3;
@@ -90,36 +88,51 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
   bool _drawerOpen() => _scaffoldKey.currentState?.isDrawerOpen ?? false;
 
   void _goTab(int index) {
+    final currentPath = _currentPath();
+    final currentIndex = _tabIndexFromPath(currentPath);
+
     widget.navigationShell.goBranch(
       index,
-      initialLocation: index == _pathToIndex(_currentPath()),
+      initialLocation: index == currentIndex,
     );
   }
 
   Future<void> _handleBack() async {
     final path = _currentPath();
-    final currentIndex = _pathToIndex(path);
     final router = GoRouter.maybeOf(context);
 
-    // 1) drawer -> закрыть
+    // 1) Открыт drawer -> закрыть
     if (_drawerOpen()) {
       _closeDrawer();
       return;
     }
 
-    // 2) если есть push-экран поверх shell -> pop
-    if (router != null && router.canPop()) {
-      router.pop();
-      return;
+    // 2) Если мы НЕ на корневом tab-path, значит это push-экран поверх вкладок
+    // Например:
+    // /buyer/profile/orders
+    // /info/seller
+    // /info/wanghong
+    // и т.д.
+    if (!_isTabRootPath(path)) {
+      if (router != null && router.canPop()) {
+        router.pop();
+        return;
+      }
+
+      // fallback: если вдруг pop невозможен, возвращаем в магазин
+      if (router != null) {
+        router.go('/buyer/home');
+        return;
+      }
     }
 
-    // 3) если не home-вкладка -> перейти на home
-    if (currentIndex != 0) {
+    // 3) Если это корневая вкладка, но не home -> всегда идем на home
+    if (!_isHomePath(path)) {
       widget.navigationShell.goBranch(0, initialLocation: false);
       return;
     }
 
-    // 4) home -> двойной back
+    // 4) Мы на /buyer/home -> двойной back
     final now = DateTime.now();
     if (_lastBack == null ||
         now.difference(_lastBack!) > const Duration(seconds: 2)) {
@@ -197,7 +210,8 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
 
   @override
   Widget build(BuildContext context) {
-    final currentIndex = _pathToIndex(_currentPath());
+    final currentPath = _currentPath();
+    final currentIndex = _tabIndexFromPath(currentPath);
 
     return BuyerShellScope(
       openDrawer: _openDrawer,
