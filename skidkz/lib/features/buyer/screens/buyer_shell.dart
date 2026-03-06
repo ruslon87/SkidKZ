@@ -48,11 +48,28 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
   void initState() {
     super.initState();
     _detectCity();
+
+    // Жёстко инициализируем home-ветку после первого кадра,
+    // чтобы на холодном старте root branch реально успел подняться.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+
+      final router = GoRouter.maybeOf(context);
+      final path = router?.routeInformationProvider.value.uri.path ?? '';
+
+      if (path.isEmpty || path == '/' || path == '/buyer/home') {
+        widget.navigationShell.goBranch(
+          0,
+          initialLocation: true,
+        );
+      }
+    });
   }
 
   String _currentPath() {
     final router = GoRouter.maybeOf(context);
-    final path = router?.routeInformationProvider.value.uri.path ?? '/buyer/home';
+    final path =
+        router?.routeInformationProvider.value.uri.path ?? '/buyer/home';
     if (path.isEmpty || path == '/') return '/buyer/home';
     return path;
   }
@@ -107,32 +124,26 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
       return;
     }
 
-    // 2) Если мы НЕ на корневом tab-path, значит это push-экран поверх вкладок
-    // Например:
-    // /buyer/profile/orders
-    // /info/seller
-    // /info/wanghong
-    // и т.д.
+    // 2) Если мы НЕ на корневом пути вкладок, значит это push-экран поверх вкладок
     if (!_isTabRootPath(path)) {
       if (router != null && router.canPop()) {
         router.pop();
         return;
       }
 
-      // fallback: если вдруг pop невозможен, возвращаем в магазин
       if (router != null) {
         router.go('/buyer/home');
         return;
       }
     }
 
-    // 3) Если это корневая вкладка, но не home -> всегда идем на home
+    // 3) Если это вкладка, но не home -> всегда идти на home
     if (!_isHomePath(path)) {
       widget.navigationShell.goBranch(0, initialLocation: false);
       return;
     }
 
-    // 4) Мы на /buyer/home -> двойной back
+    // 4) Home -> двойной back
     final now = DateTime.now();
     if (_lastBack == null ||
         now.difference(_lastBack!) > const Duration(seconds: 2)) {
