@@ -24,6 +24,14 @@ class _HomePageState extends ConsumerState<HomePage> {
   }
 
   Future<void> _handleBack() async {
+    // 1) Если открыт drawer — сначала закрываем drawer
+    final scaffoldState = Scaffold.maybeOf(context);
+    if (scaffoldState != null && scaffoldState.isDrawerOpen) {
+      Navigator.of(context).pop();
+      return;
+    }
+
+    // 2) Иначе на home работает двойной back
     final now = DateTime.now();
 
     if (_lastBack == null ||
