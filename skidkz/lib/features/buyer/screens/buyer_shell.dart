@@ -48,6 +48,33 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
   void initState() {
     super.initState();
     _detectCity();
+
+    // ВАЖНО:
+    // Жёстко прогреваем home-ветку на первом кадре.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final router = GoRouter.maybeOf(context);
+      final path = router?.routeInformationProvider.value.uri.path ?? '/buyer/home';
+
+      if (path == '/' || path.isEmpty || path == '/buyer/home') {
+        widget.navigationShell.goBranch(0, initialLocation: false);
+      }
+    });
+  }
+
+  String _currentPath() {
+    final router = GoRouter.maybeOf(context);
+    final path = router?.routeInformationProvider.value.uri.path ?? '/buyer/home';
+    if (path.isEmpty || path == '/') return '/buyer/home';
+    return path;
+  }
+
+  int _pathToIndex(String path) {
+    if (path.startsWith('/buyer/catalog')) return 1;
+    if (path.startsWith('/buyer/favorites')) return 2;
+    if (path.startsWith('/buyer/cart')) return 3;
+    if (path.startsWith('/buyer/profile')) return 4;
+    return 0;
   }
 
   void _openDrawer() => _scaffoldKey.currentState?.openDrawer();
@@ -65,32 +92,34 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
   void _goTab(int index) {
     widget.navigationShell.goBranch(
       index,
-      initialLocation: index == widget.navigationShell.currentIndex,
+      initialLocation: index == _pathToIndex(_currentPath()),
     );
   }
 
-  Future<bool> _handleSystemBack() async {
-    // 1) Drawer открыт -> закрыть drawer
-    if (_drawerOpen()) {
-      _closeDrawer();
-      return true;
-    }
-
+  Future<void> _handleBack() async {
+    final path = _currentPath();
+    final currentIndex = _pathToIndex(path);
     final router = GoRouter.maybeOf(context);
 
-    // 2) Если есть push-экран поверх shell -> закрыть его
+    // 1) drawer -> закрыть
+    if (_drawerOpen()) {
+      _closeDrawer();
+      return;
+    }
+
+    // 2) если есть push-экран поверх shell -> pop
     if (router != null && router.canPop()) {
       router.pop();
-      return true;
+      return;
     }
 
-    // 3) Если не главная вкладка -> перейти на Магазин
-    if (widget.navigationShell.currentIndex != 0) {
-      widget.navigationShell.goBranch(0);
-      return true;
+    // 3) если не home-вкладка -> перейти на home
+    if (currentIndex != 0) {
+      widget.navigationShell.goBranch(0, initialLocation: false);
+      return;
     }
 
-    // 4) Главная вкладка -> двойной back для выхода
+    // 4) home -> двойной back
     final now = DateTime.now();
     if (_lastBack == null ||
         now.difference(_lastBack!) > const Duration(seconds: 2)) {
@@ -105,11 +134,10 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
             duration: Duration(seconds: 2),
           ),
         );
-      return true;
+      return;
     }
 
     await SystemNavigator.pop();
-    return true;
   }
 
   Future<void> _detectCity() async {
@@ -169,10 +197,16 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
 
   @override
   Widget build(BuildContext context) {
+    final currentIndex = _pathToIndex(_currentPath());
+
     return BuyerShellScope(
       openDrawer: _openDrawer,
-      child: BackButtonListener(
-        onBackButtonPressed: _handleSystemBack,
+      child: PopScope(
+        canPop: false,
+        onPopInvoked: (didPop) async {
+          if (didPop) return;
+          await _handleBack();
+        },
         child: AppGradientBackground(
           child: Scaffold(
             key: _scaffoldKey,
@@ -193,7 +227,7 @@ class _BuyerRootShellState extends State<BuyerRootShell> {
               ],
             ),
             bottomNavigationBar: BottomNavigationBar(
-              currentIndex: widget.navigationShell.currentIndex,
+              currentIndex: currentIndex,
               onTap: _goTab,
               type: BottomNavigationBarType.fixed,
               selectedItemColor: AppTheme.primary,
@@ -321,18 +355,23 @@ class BuyerDrawer extends StatelessWidget {
   final String city;
   final VoidCallback onCityTap;
 
-  void _safeGo(BuildContext context, String path) {
+  void _afterClose(VoidCallback action) {
     closeDrawer();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      action();
+    });
+  }
+
+  void _safeGo(BuildContext context, String path) {
     final router = GoRouter.maybeOf(context);
     if (router == null) return;
-    Future.microtask(() => router.go(path));
+    _afterClose(() => router.go(path));
   }
 
   void _safePush(BuildContext context, String path) {
-    closeDrawer();
     final router = GoRouter.maybeOf(context);
     if (router == null) return;
-    Future.microtask(() => router.push(path));
+    _afterClose(() => router.push(path));
   }
 
   Widget _drawerTile({
