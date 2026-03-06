@@ -1,6 +1,7 @@
 // lib/features/home/home_page.dart
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:skidkz/core/theme/app_theme.dart';
@@ -15,9 +16,33 @@ class HomePage extends ConsumerStatefulWidget {
 }
 
 class _HomePageState extends ConsumerState<HomePage> {
+  DateTime? _lastBack;
+
   Future<void> _refresh() async {
     ref.invalidate(activeProductsStreamProvider);
     await Future.delayed(const Duration(milliseconds: 250));
+  }
+
+  Future<void> _handleBack() async {
+    final now = DateTime.now();
+
+    if (_lastBack == null ||
+        now.difference(_lastBack!) > const Duration(seconds: 2)) {
+      _lastBack = now;
+
+      final messenger = ScaffoldMessenger.maybeOf(context);
+      messenger
+        ?..clearSnackBars()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Нажмите ещё раз, чтобы выйти'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      return;
+    }
+
+    await SystemNavigator.pop();
   }
 
   @override
@@ -26,50 +51,58 @@ class _HomePageState extends ConsumerState<HomePage> {
     final loading = productsAsync.isLoading;
     final products = productsAsync.asData?.value ?? const <Product>[];
 
-    return RefreshIndicator(
-      onRefresh: _refresh,
-      child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-        children: [
-          _SearchBar(
-            onTap: () {
-              // TODO: открыть поиск
-            },
-          ),
-          const SizedBox(height: 14),
-
-          if (loading)
-            const Padding(
-              padding: EdgeInsets.all(20),
-              child: Center(child: CircularProgressIndicator()),
-            )
-          else if (products.isEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 12),
-              child: Text(
-                'Пока нет товаров',
-                style: TextStyle(
-                  color: AppTheme.textSecondary,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            )
-          else
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: products.length,
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                mainAxisSpacing: 12,
-                crossAxisSpacing: 12,
-                childAspectRatio: 0.72,
-              ),
-              itemBuilder: (context, i) => _ProductCard(product: products[i]),
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) async {
+        if (didPop) return;
+        await _handleBack();
+      },
+      child: RefreshIndicator(
+        onRefresh: _refresh,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+          children: [
+            _SearchBar(
+              onTap: () {
+                // TODO: открыть поиск
+              },
             ),
-        ],
+            const SizedBox(height: 14),
+
+            if (loading)
+              const Padding(
+                padding: EdgeInsets.all(20),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (products.isEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Text(
+                  'Пока нет товаров',
+                  style: TextStyle(
+                    color: AppTheme.textSecondary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              )
+            else
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: products.length,
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  mainAxisSpacing: 12,
+                  crossAxisSpacing: 12,
+                  childAspectRatio: 0.72,
+                ),
+                itemBuilder: (context, i) =>
+                    _ProductCard(product: products[i]),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -137,7 +170,8 @@ class _ProductCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cover = product.coverUrl ?? (product.images.isNotEmpty ? product.images.first.url : null);
+    final cover = product.coverUrl ??
+        (product.images.isNotEmpty ? product.images.first.url : null);
 
     return Material(
       color: AppTheme.surface,
@@ -162,7 +196,8 @@ class _ProductCard extends StatelessWidget {
                   child: Container(
                     color: AppTheme.elevated,
                     child: cover == null || cover.isEmpty
-                        ? Icon(Icons.image_outlined, color: AppTheme.textDisabled)
+                        ? Icon(Icons.image_outlined,
+                            color: AppTheme.textDisabled)
                         : Image.network(
                             cover,
                             fit: BoxFit.cover,
