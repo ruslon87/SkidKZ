@@ -1,5 +1,6 @@
 // lib/features/auth/screens/login_screen.dart
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -11,12 +12,35 @@ class LoginScreen extends StatefulWidget {
   const LoginScreen({
     super.key,
     this.nextPath,
+    this.action,
+    this.productId,
+    this.qty,
   });
 
   final String? nextPath;
+  final String? action;
+  final String? productId;
+  final int? qty;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginActionPayload {
+  const _LoginActionPayload({
+    required this.type,
+    required this.productId,
+    required this.qty,
+  });
+
+  final _LoginActionType type;
+  final String productId;
+  final int qty;
+}
+
+enum _LoginActionType {
+  favToggle,
+  cartAdd,
 }
 
 class _LoginScreenState extends State<LoginScreen> {
@@ -29,6 +53,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   bool _loadingSend = false;
   bool _loadingConfirm = false;
+  bool _applyingPostLoginAction = false;
 
   @override
   void dispose() {
@@ -38,7 +63,8 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  bool get _busy => _loadingSend || _loadingConfirm;
+  bool get _busy =>
+      _loadingSend || _loadingConfirm || _applyingPostLoginAction;
 
   void _toast(String msg) {
     if (!mounted) return;
@@ -60,41 +86,136 @@ class _LoginScreenState extends State<LoginScreen> {
     return (t == null || t.isEmpty) ? null : t;
   }
 
-  bool _isProtectedBuyerPath(String path) {
-    if (path.startsWith('/buyer/favorites')) return true;
-    if (path.startsWith('/buyer/cart')) return true;
-    if (path.startsWith('/buyer/profile')) return true;
-    if (path.startsWith('/buyer/orders')) return true;
-    return false;
-  }
-
-  // ✅ куда можно выйти без логина
-  String _safeExitTarget() {
-    final next = _next();
-    if (next == null) return '/buyer/home';
-    // если next защищённый — НЕ уходим туда (иначе redirect вернёт на /login)
-    if (_isProtectedBuyerPath(next)) return '/buyer/home';
-    return next;
-  }
-
   GoRouter? get _r => GoRouter.maybeOf(context);
 
-  void _goExit() {
-    final r = _r;
-    if (r == null) {
-      _toast('Навигация недоступна (Router не найден)');
-      return;
-    }
-    r.go(_safeExitTarget());
+  bool _isProtectedBuyerPath(String path) {
+    return path.startsWith('/buyer/favorites') ||
+        path.startsWith('/buyer/cart') ||
+        path.startsWith('/buyer/profile') ||
+        path.startsWith('/buyer/orders');
   }
 
-  void _goAfterLogin() {
+  void _goHomeOrNext() {
     final r = _r;
     if (r == null) {
       _toast('Навигация недоступна (Router не найден)');
       return;
     }
-    // после логина можно идти в next или /cabinet
+
+    final next = _next();
+
+    // Если next указывает на protected path, а пользователь выбрал
+    // "Продолжить без входа", уходим на home, чтобы не зациклиться на login.
+    if (next == null || _isProtectedBuyerPath(next)) {
+      r.go('/buyer/home');
+      return;
+    }
+
+    r.go(next);
+  }
+
+  void _popOrGoHomeOrNext() {
+    final r = _r;
+    if (r == null) {
+      _toast('Навигация недоступна (Router не найден)');
+      return;
+    }
+
+    if (r.canPop()) {
+      r.pop();
+      return;
+    }
+
+    _goHomeOrNext();
+  }
+
+  _LoginActionPayload? _parsePendingAction() {
+    final actionRaw = (widget.action ?? '').trim();
+    final pid = (widget.productId ?? '').trim();
+    final qty = widget.qty ?? 1;
+
+    if (pid.isEmpty) return null;
+
+    switch (actionRaw) {
+      case 'fav':
+        return _LoginActionPayload(
+          type: _LoginActionType.favToggle,
+          productId: pid,
+          qty: 1,
+        );
+      case 'cart_add':
+        return _LoginActionPayload(
+          type: _LoginActionType.cartAdd,
+          productId: pid,
+          qty: qty <= 0 ? 1 : qty,
+        );
+      default:
+        return null;
+    }
+  }
+
+  Future<void> _applyPostLoginActionIfNeeded(fb.User user) async {
+    final action = _parsePendingAction();
+    if (action == null) return;
+
+    setState(() => _applyingPostLoginAction = true);
+
+    try {
+      final db = FirebaseFirestore.instance;
+      final uid = user.uid;
+
+      if (action.type == _LoginActionType.favToggle) {
+        final favRef = db
+            .collection('users')
+            .doc(uid)
+            .collection('favorites')
+            .doc(action.productId);
+
+        final snap = await favRef.get();
+        if (snap.exists) {
+          await favRef.delete();
+        } else {
+          await favRef.set({
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+        }
+      }
+
+      if (action.type == _LoginActionType.cartAdd) {
+        final cartRef = db
+            .collection('users')
+            .doc(uid)
+            .collection('cart')
+            .doc(action.productId);
+
+        final snap = await cartRef.get();
+        final currentQty = (snap.data()?['qty'] as int?) ?? 0;
+        final newQty = currentQty + action.qty;
+
+        await cartRef.set({
+          'qty': newQty,
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _applyingPostLoginAction = false);
+      }
+    }
+  }
+
+  Future<void> _goAfterLogin() async {
+    final r = _r;
+    if (r == null) {
+      _toast('Навигация недоступна (Router не найден)');
+      return;
+    }
+
+    final user = fb.FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      await _applyPostLoginActionIfNeeded(user);
+    }
+
     final next = _next();
     r.go(next ?? '/cabinet');
   }
@@ -117,7 +238,7 @@ class _LoginScreenState extends State<LoginScreen> {
         try {
           await fb.FirebaseAuth.instance.signInWithCredential(cred);
           if (!mounted) return;
-          _goAfterLogin();
+          await _goAfterLogin();
         } catch (e) {
           if (!mounted) return;
           _toast('Не удалось войти: $e');
@@ -175,7 +296,7 @@ class _LoginScreenState extends State<LoginScreen> {
       await fb.FirebaseAuth.instance.signInWithCredential(cred);
 
       if (!mounted) return;
-      _goAfterLogin();
+      await _goAfterLogin();
     } on fb.FirebaseAuthException catch (e) {
       if (!mounted) return;
       _toast(e.message ?? 'Ошибка входа');
@@ -191,7 +312,6 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _handleBack() async {
     if (_busy) return;
 
-    // шаг SMS -> возвращаемся на шаг телефона
     if (_codeSent) {
       setState(() {
         _codeSent = false;
@@ -201,8 +321,7 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    // шаг телефона -> выходим безопасно (НЕ на protected next)
-    _goExit();
+    _popOrGoHomeOrNext();
   }
 
   @override
@@ -258,12 +377,14 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      _loadingSend ? 'Отправляем SMS…' : 'Отправим SMS и перейдём к вводу кода.',
+                      _loadingSend
+                          ? 'Отправляем SMS…'
+                          : 'Отправим SMS и перейдём к вводу кода.',
                       style: const TextStyle(color: AppTheme.textSecondary),
                     ),
                     const SizedBox(height: 10),
                     TextButton(
-                      onPressed: _busy ? null : _goExit,
+                      onPressed: _busy ? null : _goHomeOrNext,
                       child: const Text('Продолжить без входа'),
                     ),
                   ] else ...[
@@ -283,7 +404,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       width: double.infinity,
                       child: ElevatedButton(
                         onPressed: _busy ? null : _confirmCode,
-                        child: _loadingConfirm
+                        child: _loadingConfirm || _applyingPostLoginAction
                             ? const SizedBox(
                                 height: 18,
                                 width: 18,
