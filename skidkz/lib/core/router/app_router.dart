@@ -44,7 +44,6 @@ import 'package:skidkz/features/info/screens/seller_info_screen.dart';
 import 'package:skidkz/features/info/screens/wanghong_info_screen.dart';
 import 'package:skidkz/features/onboarding/screens/buyer_onboarding_screen.dart';
 
-// ✅ добавили root navigator key, чтобы глобально закрывать drawer/dialogs
 final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
 
 // ---------------- Providers ----------------
@@ -89,65 +88,6 @@ class _RouterRefreshNotifier extends ChangeNotifier {
   }
 }
 
-// ---------------- Helpers for "post-login action" ----------------
-
-enum _LoginActionType {
-  favToggle,
-  cartAdd,
-}
-
-_LoginActionType? _parseAction(String? raw) {
-  switch ((raw ?? '').trim()) {
-    case 'fav':
-      return _LoginActionType.favToggle;
-    case 'cart_add':
-      return _LoginActionType.cartAdd;
-    default:
-      return null;
-  }
-}
-
-Future<void> _applyLoginAction({
-  required FirebaseFirestore db,
-  required fb.User user,
-  required _LoginActionType type,
-  required String productId,
-  int qty = 1,
-}) async {
-  final uid = user.uid;
-
-  if (type == _LoginActionType.favToggle) {
-    final favRef = db
-        .collection('users')
-        .doc(uid)
-        .collection('favorites')
-        .doc(productId);
-
-    final snap = await favRef.get();
-    if (snap.exists) {
-      await favRef.delete();
-    } else {
-      await favRef.set({'createdAt': FieldValue.serverTimestamp()});
-    }
-    return;
-  }
-
-  if (type == _LoginActionType.cartAdd) {
-    final cartRef =
-        db.collection('users').doc(uid).collection('cart').doc(productId);
-
-    final snap = await cartRef.get();
-    final currentQty = (snap.data()?['qty'] as int?) ?? 0;
-    final newQty = currentQty + (qty <= 0 ? 1 : qty);
-
-    await cartRef.set({
-      'qty': newQty,
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
-    return;
-  }
-}
-
 // ---------------- Router ----------------
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -162,7 +102,7 @@ final routerProvider = Provider<GoRouter>((ref) {
   }
 
   return GoRouter(
-    navigatorKey: rootNavigatorKey, // ✅ важно
+    navigatorKey: rootNavigatorKey,
     initialLocation: '/buyer/home',
     refreshListenable: refresh,
 
@@ -183,39 +123,19 @@ final routerProvider = Provider<GoRouter>((ref) {
         return '/buyer/profile/orders';
       }
 
-      // гость -> protected buyer -> login
+      // Гость -> protected buyer -> login
       if (!isAuthed && _isProtectedBuyerPath(path) && path != '/login') {
         final next = Uri.encodeComponent(fullLoc);
         return '/login?next=$next';
       }
 
-      // login + authed -> выполнить action -> вернуть next/кабинет
+      // login + authed -> вернуть next/кабинет
+      // БЕЗ бизнес-действий внутри redirect
       if (path == '/login' && isAuthed) {
-        final db = ref.read(firestoreProvider);
-
         final nextRaw = uri.queryParameters['next'];
         final nextDecoded = (nextRaw == null || nextRaw.trim().isEmpty)
             ? null
             : Uri.decodeComponent(nextRaw);
-
-        final actionType = _parseAction(uri.queryParameters['action']);
-        final pid = (uri.queryParameters['pid'] ?? '').trim();
-        final qtyStr = (uri.queryParameters['qty'] ?? '').trim();
-        final qty = int.tryParse(qtyStr) ?? 1;
-
-        if (actionType != null && pid.isNotEmpty && fbUser != null) {
-          try {
-            await _applyLoginAction(
-              db: db,
-              user: fbUser,
-              type: actionType,
-              productId: pid,
-              qty: qty,
-            );
-          } catch (_) {
-            // не ломаем редирект
-          }
-        }
 
         if (nextDecoded != null && nextDecoded.isNotEmpty) return nextDecoded;
         return '/cabinet';
@@ -257,7 +177,13 @@ final routerProvider = Provider<GoRouter>((ref) {
           final next = (nextRaw == null || nextRaw.trim().isEmpty)
               ? null
               : Uri.decodeComponent(nextRaw);
-          return LoginScreen(nextPath: next);
+
+          return LoginScreen(
+            nextPath: next,
+            action: state.uri.queryParameters['action'],
+            productId: state.uri.queryParameters['pid'],
+            qty: int.tryParse(state.uri.queryParameters['qty'] ?? ''),
+          );
         },
       ),
 
