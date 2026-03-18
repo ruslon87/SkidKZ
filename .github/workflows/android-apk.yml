@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - "teta/**"
+      - "test_01"
 
 jobs:
   build-apk:
