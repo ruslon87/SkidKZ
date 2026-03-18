@@ -372,91 +372,216 @@ class UserModel {
 
 class BuyerProfile {
   final bool completed;
-
-  final String fullName;
+  final String firstName;
+  final String lastName;
   final String city;
-
-  // Один адрес
   final String street;
   final String apartment;
   final String comment;
-
-  // Контакт
   final String contactPhone;
-
+  final String kaspiPhone; // номер Kaspi для выплат (если станет партнером)
   final bool acceptedTerms;
 
   const BuyerProfile({
     required this.completed,
-    required this.fullName,
+    required this.firstName,
+    required this.lastName,
     required this.city,
     required this.street,
     required this.apartment,
     required this.comment,
     required this.contactPhone,
+    required this.kaspiPhone,
     required this.acceptedTerms,
   });
 
+  String get fullName => '$firstName $lastName'.trim();
+
   factory BuyerProfile.empty() => const BuyerProfile(
         completed: false,
-        fullName: '',
+        firstName: '',
+        lastName: '',
         city: 'Алматы',
         street: '',
         apartment: '',
         comment: '',
         contactPhone: '',
+        kaspiPhone: '',
         acceptedTerms: false,
       );
 
   factory BuyerProfile.fromMap(Map<String, dynamic> m) {
+    // Обратная совместимость: если было fullName — разбиваем
+    final legacyFull = (m['fullName'] as String?) ?? '';
+    final parts = legacyFull.split(' ');
+    final legacyFirst = parts.isNotEmpty ? parts.first : '';
+    final legacyLast = parts.length > 1 ? parts.sublist(1).join(' ') : '';
     return BuyerProfile(
       completed: (m['completed'] as bool?) ?? false,
-      fullName: (m['fullName'] as String?) ?? '',
+      firstName: (m['firstName'] as String?) ?? legacyFirst,
+      lastName: (m['lastName'] as String?) ?? legacyLast,
       city: (m['city'] as String?) ?? 'Алматы',
       street: (m['street'] as String?) ?? '',
       apartment: (m['apartment'] as String?) ?? '',
       comment: (m['comment'] as String?) ?? '',
       contactPhone: (m['contactPhone'] as String?) ?? '',
+      kaspiPhone: (m['kaspiPhone'] as String?) ?? (m['kaspiNumber'] as String?) ?? '',
       acceptedTerms: (m['acceptedTerms'] as bool?) ?? false,
     );
   }
 
   Map<String, dynamic> toMap() => {
         'completed': completed,
+        'firstName': firstName,
+        'lastName': lastName,
         'fullName': fullName,
         'city': city,
         'street': street,
         'apartment': apartment,
         'comment': comment,
         'contactPhone': contactPhone,
+        'kaspiPhone': kaspiPhone,
         'acceptedTerms': acceptedTerms,
       };
 }
 
 class SellerProfile {
   final bool completed;
+  final String storeName;
+  final String storeDescription;
+  final String ownerName;
+  final String ownerPhone;
+  final String city;
+  final String address;
+  final String bin; // БИН/ИИН
+  final String kaspiPhone; // номер Kaspi для выплат
+  final String instagramUrl;
+  final bool isServiceSeller;
+  final String status; // pending / approved / rejected
 
-  const SellerProfile({required this.completed});
+  const SellerProfile({
+    required this.completed,
+    required this.storeName,
+    required this.storeDescription,
+    required this.ownerName,
+    required this.ownerPhone,
+    required this.city,
+    required this.address,
+    required this.bin,
+    required this.kaspiPhone,
+    required this.instagramUrl,
+    required this.isServiceSeller,
+    required this.status,
+  });
 
-  factory SellerProfile.empty() => const SellerProfile(completed: false);
+  factory SellerProfile.empty() => const SellerProfile(
+        completed: false,
+        storeName: '',
+        storeDescription: '',
+        ownerName: '',
+        ownerPhone: '',
+        city: 'Алматы',
+        address: '',
+        bin: '',
+        kaspiPhone: '',
+        instagramUrl: '',
+        isServiceSeller: false,
+        status: 'pending',
+      );
 
   factory SellerProfile.fromMap(Map<String, dynamic> m) {
-    return SellerProfile(completed: (m['completed'] as bool?) ?? false);
+    return SellerProfile(
+      completed: (m['completed'] as bool?) ?? false,
+      storeName: (m['storeName'] as String?) ?? '',
+      storeDescription: (m['storeDescription'] as String?) ?? '',
+      ownerName: (m['ownerName'] as String?) ?? '',
+      ownerPhone: (m['ownerPhone'] as String?) ?? '',
+      city: (m['city'] as String?) ?? 'Алматы',
+      address: (m['address'] as String?) ?? '',
+      bin: (m['bin'] as String?) ?? '',
+      kaspiPhone: (m['kaspiPhone'] as String?) ?? '',
+      instagramUrl: (m['instagramUrl'] as String?) ?? '',
+      isServiceSeller: (m['isServiceSeller'] as bool?) ?? false,
+      status: (m['status'] as String?) ?? 'pending',
+    );
   }
 
-  Map<String, dynamic> toMap() => {'completed': completed};
+  Map<String, dynamic> toMap() => {
+        'completed': completed,
+        'storeName': storeName,
+        'storeDescription': storeDescription,
+        'ownerName': ownerName,
+        'ownerPhone': ownerPhone,
+        'city': city,
+        'address': address,
+        'bin': bin,
+        'kaspiPhone': kaspiPhone,
+        'instagramUrl': instagramUrl,
+        'isServiceSeller': isServiceSeller,
+        'status': status,
+      };
 }
 
 class WanghongProfile {
   final bool completed;
+  final String firstName;
+  final String lastName;
+  final String kaspiPhone; // номер Kaspi для выплат
+  final String promoCode; // уникальный промокод
+  final double balance;
+  final double totalEarned;
+  final int totalSales;
+  final String status; // active / pending / blocked
 
-  const WanghongProfile({required this.completed});
+  const WanghongProfile({
+    required this.completed,
+    required this.firstName,
+    required this.lastName,
+    required this.kaspiPhone,
+    required this.promoCode,
+    required this.balance,
+    required this.totalEarned,
+    required this.totalSales,
+    required this.status,
+  });
 
-  factory WanghongProfile.empty() => const WanghongProfile(completed: false);
+  String get fullName => '$firstName $lastName'.trim();
+
+  factory WanghongProfile.empty() => const WanghongProfile(
+        completed: false,
+        firstName: '',
+        lastName: '',
+        kaspiPhone: '',
+        promoCode: '',
+        balance: 0.0,
+        totalEarned: 0.0,
+        totalSales: 0,
+        status: 'pending',
+      );
 
   factory WanghongProfile.fromMap(Map<String, dynamic> m) {
-    return WanghongProfile(completed: (m['completed'] as bool?) ?? false);
+    return WanghongProfile(
+      completed: (m['completed'] as bool?) ?? false,
+      firstName: (m['firstName'] as String?) ?? '',
+      lastName: (m['lastName'] as String?) ?? '',
+      kaspiPhone: (m['kaspiPhone'] as String?) ?? '',
+      promoCode: (m['promoCode'] as String?) ?? '',
+      balance: ((m['balance'] as num?) ?? 0).toDouble(),
+      totalEarned: ((m['totalEarned'] as num?) ?? 0).toDouble(),
+      totalSales: ((m['totalSales'] as num?) ?? 0).toInt(),
+      status: (m['status'] as String?) ?? 'pending',
+    );
   }
 
-  Map<String, dynamic> toMap() => {'completed': completed};
+  Map<String, dynamic> toMap() => {
+        'completed': completed,
+        'firstName': firstName,
+        'lastName': lastName,
+        'kaspiPhone': kaspiPhone,
+        'promoCode': promoCode,
+        'balance': balance,
+        'totalEarned': totalEarned,
+        'totalSales': totalSales,
+        'status': status,
+      };
 }

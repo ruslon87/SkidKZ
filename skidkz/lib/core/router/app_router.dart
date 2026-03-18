@@ -48,6 +48,8 @@ import 'package:skidkz/features/admin/screens/admin_finance_screen.dart';
 import 'package:skidkz/features/info/screens/seller_info_screen.dart';
 import 'package:skidkz/features/info/screens/wanghong_info_screen.dart';
 import 'package:skidkz/features/onboarding/screens/buyer_onboarding_screen.dart';
+import 'package:skidkz/features/onboarding/screens/seller_onboarding_screen.dart';
+import 'package:skidkz/features/onboarding/screens/become_wanghong_screen.dart';
 
 final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -211,6 +213,16 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => BuyerOnboardingScreen(
           nextPath: state.uri.queryParameters['next'],
         ),
+      ),
+
+      GoRoute(
+        path: '/onboarding/seller',
+        builder: (context, state) => const SellerOnboardingScreen(),
+      ),
+
+      GoRoute(
+        path: '/become-partner',
+        builder: (context, state) => const BecomeWanghongScreen(),
       ),
 
       GoRoute(
