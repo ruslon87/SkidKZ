@@ -1,16 +1,12 @@
 // lib/data/models/product.dart
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class ProductImage {
   final String url;
-
   const ProductImage({required this.url});
 
   factory ProductImage.fromMap(Map<String, dynamic> map) {
-    return ProductImage(
-      url: (map['url'] ?? '').toString(),
-    );
+    return ProductImage(url: (map['url'] ?? '').toString());
   }
 
   Map<String, dynamic> toMap() => <String, dynamic>{'url': url};
@@ -18,7 +14,6 @@ class ProductImage {
 
 class Product {
   final String id;
-
   final String title;
 
   /// Розничная цена (₸)
@@ -27,8 +22,14 @@ class Product {
   /// Маржа (₸)
   final int margin;
 
-  /// Активен/опубликован (для витрины)
-  final bool isActive;
+  /// Статус: 'active' | 'draft' | 'archived'
+  final String? status;
+
+  /// Обратная совместимость — вычисляется из status
+  bool get isActive => status == 'active';
+
+  /// Описание товара
+  final String? description;
 
   /// Обложка (может быть null)
   final String? coverUrl;
@@ -36,14 +37,23 @@ class Product {
   /// Галерея
   final List<ProductImage> images;
 
+  /// UID продавца
+  final String? sellerUid;
+
+  /// Дата создания
+  final DateTime? createdAt;
+
   const Product({
     required this.id,
     required this.title,
     required this.retailPrice,
     required this.margin,
-    required this.isActive,
     required this.images,
+    this.status,
+    this.description,
     this.coverUrl,
+    this.sellerUid,
+    this.createdAt,
   });
 
   static int _asInt(dynamic v) {
@@ -53,11 +63,13 @@ class Product {
     return int.tryParse(v.toString()) ?? 0;
   }
 
-  static bool _asBool(dynamic v) {
-    if (v == null) return false;
-    if (v is bool) return v;
+  static String _asStatus(dynamic v) {
+    if (v == null) return 'draft';
+    if (v is bool) return v ? 'active' : 'draft';
     final s = v.toString().toLowerCase().trim();
-    return s == 'true' || s == '1' || s == 'yes';
+    if (s == 'active' || s == 'true' || s == '1' || s == 'yes') return 'active';
+    if (s == 'archived') return 'archived';
+    return 'draft';
   }
 
   static List<ProductImage> _imagesFrom(dynamic raw) {
@@ -74,7 +86,6 @@ class Product {
   static Product fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data() ?? <String, dynamic>{};
 
-    // поддержка разных названий полей, чтобы не падать
     final title = (data['title'] ??
             data['name'] ??
             data['productName'] ??
@@ -85,26 +96,40 @@ class Product {
     final retailPrice = _asInt(
       data['retailPrice'] ?? data['price'] ?? data['finalPrice'],
     );
-
     final margin = _asInt(data['margin'] ?? data['profit']);
 
-    final isActive = _asBool(
-      data['isActive'] ?? data['active'] ?? data['published'],
-    );
+    // Приоритет у поля 'status', fallback на isActive/active/published
+    final statusRaw = data['status'] ??
+        data['isActive'] ??
+        data['active'] ??
+        data['published'];
+    final status = _asStatus(statusRaw);
 
-    final coverUrlRaw = (data['coverUrl'] ?? data['cover'] ?? '').toString().trim();
+    final coverUrlRaw =
+        (data['coverUrl'] ?? data['cover'] ?? '').toString().trim();
     final coverUrl = coverUrlRaw.isEmpty ? null : coverUrlRaw;
 
+    final description = (data['description'] as String?)?.trim();
     final images = _imagesFrom(data['images']);
+    final sellerUid = data['sellerUid'] as String?;
+
+    final createdAtTs = data['createdAt'];
+    DateTime? createdAt;
+    if (createdAtTs is Timestamp) {
+      createdAt = createdAtTs.toDate();
+    }
 
     return Product(
       id: doc.id,
       title: title.isEmpty ? 'Без названия' : title,
       retailPrice: retailPrice,
       margin: margin,
-      isActive: isActive,
+      status: status,
+      description: description,
       coverUrl: coverUrl,
       images: images,
+      sellerUid: sellerUid,
+      createdAt: createdAt,
     );
   }
 }

@@ -26,6 +26,7 @@ import 'package:skidkz/data/models/product.dart';
 
 // seller
 import 'package:skidkz/features/seller/screens/seller_shell.dart';
+import 'package:skidkz/features/seller/screens/seller_home_screen.dart';
 import 'package:skidkz/features/seller/screens/seller_products_screen.dart';
 import 'package:skidkz/features/seller/screens/seller_add_product_screen.dart';
 import 'package:skidkz/features/seller/screens/seller_orders_screen.dart';
@@ -36,10 +37,11 @@ import 'package:skidkz/features/wanghong/screens/wanghong_home_screen.dart';
 import 'package:skidkz/features/wanghong/screens/wanghong_deals_screen.dart';
 import 'package:skidkz/features/wanghong/screens/wanghong_wallet_screen.dart';
 
-// admin
+// admin — используем новые полноценные экраны
 import 'package:skidkz/features/admin/screens/admin_shell.dart';
-import 'package:skidkz/features/admin/screens/moderation_screen.dart';
-import 'package:skidkz/features/admin/screens/users_screen.dart';
+import 'package:skidkz/features/admin/screens/admin_home_screen.dart';
+import 'package:skidkz/features/admin/screens/admin_moderation_screen.dart';
+import 'package:skidkz/features/admin/screens/admin_users_screen.dart';
 import 'package:skidkz/features/admin/screens/admin_finance_screen.dart';
 
 // info + onboarding
@@ -133,7 +135,6 @@ final routerProvider = Provider<GoRouter>((ref) {
       }
 
       // login + authed -> вернуть next/кабинет
-      // БЕЗ бизнес-действий внутри redirect
       if (path == '/login' && isAuthed) {
         final nextRaw = uri.queryParameters['next'];
         final nextDecoded = (nextRaw == null || nextRaw.trim().isEmpty)
@@ -152,11 +153,11 @@ final routerProvider = Provider<GoRouter>((ref) {
 
         switch (activeRole) {
           case 'seller':
-            return '/seller/products';
+            return '/seller/home';
           case 'wanghong':
             return '/wanghong/home';
           case 'admin':
-            return '/admin/moderation';
+            return '/admin/home';
           default:
             return '/buyer/home';
         }
@@ -300,12 +301,23 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state, child) => SellerShell(child: child),
         routes: [
           GoRoute(
+            path: '/seller/home',
+            builder: (context, state) => const SellerHomeScreen(),
+          ),
+          GoRoute(
             path: '/seller/products',
             builder: (context, state) => const SellerProductsScreen(),
           ),
           GoRoute(
             path: '/seller/products/add',
             builder: (context, state) => const SellerAddProductScreen(),
+          ),
+          GoRoute(
+            path: '/seller/products/edit',
+            builder: (context, state) {
+              final product = state.extra as Product?;
+              return SellerAddProductScreen(existingProduct: product);
+            },
           ),
           GoRoute(
             path: '/seller/orders',
@@ -333,17 +345,21 @@ final routerProvider = Provider<GoRouter>((ref) {
         ],
       ),
 
-      // ADMIN
+      // ADMIN — новые полноценные экраны
       ShellRoute(
         builder: (context, state, child) => AdminShell(child: child),
         routes: [
           GoRoute(
+            path: '/admin/home',
+            builder: (context, state) => const AdminHomeScreen(),
+          ),
+          GoRoute(
             path: '/admin/moderation',
-            builder: (context, state) => const ModerationScreen(),
+            builder: (context, state) => const AdminModerationScreen(),
           ),
           GoRoute(
             path: '/admin/users',
-            builder: (context, state) => const UsersScreen(),
+            builder: (context, state) => const AdminUsersScreen(),
           ),
           GoRoute(
             path: '/admin/finance',

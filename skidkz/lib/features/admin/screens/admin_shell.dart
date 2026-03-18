@@ -1,5 +1,4 @@
 // lib/features/admin/screens/admin_shell.dart
-
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -11,14 +10,15 @@ class AdminShell extends StatelessWidget {
   String _safeLocation(BuildContext context) {
     final router = GoRouter.maybeOf(context);
     if (router == null) return '/';
-    return router.routeInformationProvider.value.uri.path; // ← важно
+    return router.routeInformationProvider.value.uri.path;
   }
 
   int _calculateSelectedIndex(BuildContext context) {
     final location = _safeLocation(context);
-    if (location.startsWith('/admin/moderation')) return 0;
-    if (location.startsWith('/admin/users')) return 1;
-    if (location.startsWith('/admin/finance')) return 2;
+    if (location.startsWith('/admin/home')) return 0;
+    if (location.startsWith('/admin/moderation')) return 1;
+    if (location.startsWith('/admin/users')) return 2;
+    if (location.startsWith('/admin/finance')) return 3;
     return 0;
   }
 
@@ -36,21 +36,21 @@ class AdminShell extends StatelessWidget {
         selectedIndex: _calculateSelectedIndex(context),
         onDestinationSelected: (index) {
           switch (index) {
-            case 0:
-              _go(context, '/admin/moderation');
-              break;
-            case 1:
-              _go(context, '/admin/users');
-              break;
-            case 2:
-              _go(context, '/admin/finance');
-              break;
+            case 0: _go(context, '/admin/home'); break;
+            case 1: _go(context, '/admin/moderation'); break;
+            case 2: _go(context, '/admin/users'); break;
+            case 3: _go(context, '/admin/finance'); break;
           }
         },
         backgroundColor: Colors.white,
         elevation: 0,
         indicatorColor: Colors.redAccent.withOpacity(0.12),
         destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.dashboard_outlined),
+            selectedIcon: Icon(Icons.dashboard, color: Colors.red),
+            label: 'Главная',
+          ),
           NavigationDestination(
             icon: Icon(Icons.gavel_outlined),
             selectedIcon: Icon(Icons.gavel, color: Colors.red),

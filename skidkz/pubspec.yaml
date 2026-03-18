@@ -32,6 +32,9 @@ dependencies:
   # App info (версия/билд)
   package_info_plus: ^8.0.0
 
+  # Sharing
+  share_plus: ^10.0.0
+
   # GEO (город по геопозиции)
   geolocator: ^11.0.0
   geocoding: ^3.0.0
