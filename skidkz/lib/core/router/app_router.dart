@@ -43,6 +43,7 @@ import 'package:skidkz/features/admin/screens/admin_home_screen.dart';
 import 'package:skidkz/features/admin/screens/admin_moderation_screen.dart';
 import 'package:skidkz/features/admin/screens/admin_users_screen.dart';
 import 'package:skidkz/features/admin/screens/admin_finance_screen.dart';
+import 'package:skidkz/features/admin/screens/admin_settings_screen.dart';
 
 // info + onboarding
 import 'package:skidkz/features/info/screens/seller_info_screen.dart';
@@ -376,6 +377,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/admin/finance',
             builder: (context, state) => const AdminFinanceScreen(),
+          ),
+          GoRoute(
+            path: '/admin/settings',
+            builder: (context, state) => const AdminSettingsScreen(),
           ),
         ],
       ),
