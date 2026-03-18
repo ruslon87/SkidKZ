@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'models/order_model.dart';
 import 'models/cart_item.dart';
 import 'services/pricing_service.dart';
+import 'services/notification_service.dart';
 
 class OrderRepository {
   OrderRepository(this._db, this._auth);
@@ -21,6 +22,7 @@ class OrderRepository {
   ///   3. Рассчитывает распределение маржи через [PricingService.splitMargin].
   ///   4. Начисляет вознаграждение партнёру (pendingBalance).
   ///   5. Сохраняет снимок комиссии в заказе.
+  ///   6. Отправляет push-уведомления продавцу и партнёру.
   Future<String> createOrder({
     required List<CartItem> items,
     required String storeId,
@@ -48,6 +50,7 @@ class OrderRepository {
     String? promoOwnerUid;
     int? commissionBpsSnapshot;
     double wanghongEarning = 0;
+    double wPct = 0;
 
     if (promoCode != null && promoCode.trim().isNotEmpty) {
       promoCodeUpper = promoCode.trim().toUpperCase();
@@ -81,7 +84,7 @@ class OrderRepository {
                 ? wanghongRaw.cast<String, dynamic>()
                 : <String, dynamic>{};
 
-            final wPct =
+            wPct =
                 ((wanghong['wanghongPercent'] as num?) ?? 30.0).toDouble();
 
             // Рассчитываем распределение маржи
@@ -98,7 +101,20 @@ class OrderRepository {
       }
     }
 
-    // ── 3. Создаём документ заказа ────────────────────────────────────────
+    // ── 3. Получаем данные магазина для уведомления продавцу ─────────────
+    String? sellerUid;
+    String storeName = 'Магазин';
+    try {
+      final storeSnap =
+          await _db.collection('stores').doc(storeId).get();
+      if (storeSnap.exists) {
+        final sd = storeSnap.data() ?? {};
+        sellerUid = sd['ownerUid']?.toString();
+        storeName = sd['name']?.toString() ?? storeName;
+      }
+    } catch (_) {}
+
+    // ── 4. Создаём документ заказа ────────────────────────────────────────
     final order = OrderModel(
       id: '',
       buyerUid: user.uid,
@@ -114,8 +130,9 @@ class OrderRepository {
     );
 
     final docRef = await _orders.add(order.toFirestoreCreate());
+    final orderId = docRef.id;
 
-    // ── 4. Начисляем вознаграждение партнёру ─────────────────────────────
+    // ── 5. Начисляем вознаграждение партнёру ─────────────────────────────
     if (promoOwnerUid != null && wanghongEarning > 0) {
       await Future.wait([
         // Обновляем статистику пользователя
@@ -134,7 +151,37 @@ class OrderRepository {
       ]);
     }
 
-    return docRef.id;
+    // ── 6. Push-уведомления ───────────────────────────────────────────────
+    final totalStr =
+        '${totals.totalRetail.toStringAsFixed(0)} ₸';
+    final itemCount = orderItems.fold<int>(0, (s, i) => s + i.qty);
+
+    // 6a. Продавцу — новый заказ
+    if (sellerUid != null) {
+      await NotificationService.sendToUser(
+        targetUid: sellerUid,
+        title: '🛒 Новый заказ',
+        body: '$itemCount товар(а) на $totalStr из $storeName',
+        data: {'route': '/seller/orders', 'orderId': orderId},
+      );
+    }
+
+    // 6b. Партнёру — промокод сработал
+    if (promoOwnerUid != null && wanghongEarning > 0) {
+      await NotificationService.sendToUser(
+        targetUid: promoOwnerUid,
+        title: '💰 Промокод сработал!',
+        body:
+            'Начислено ${wanghongEarning.toStringAsFixed(0)} ₸ (${wPct.toStringAsFixed(0)}% от маржи)',
+        data: {
+          'route': '/wanghong/wallet',
+          'orderId': orderId,
+          'earning': wanghongEarning.toString(),
+        },
+      );
+    }
+
+    return orderId;
   }
 
   /// Получение заказов текущего пользователя (стрим).
@@ -157,12 +204,48 @@ class OrderRepository {
         doc as DocumentSnapshot<Map<String, dynamic>>);
   }
 
-  /// Обновление статуса заказа.
+  /// Обновление статуса заказа с push-уведомлением покупателю.
   Future<void> updateOrderStatus(
       String orderId, OrderStatus status) async {
     await _orders.doc(orderId).update({
       'status': orderStatusToString(status),
       'updatedAt': FieldValue.serverTimestamp(),
     });
+
+    // Отправляем уведомление покупателю о смене статуса
+    try {
+      final orderDoc = await _orders.doc(orderId).get();
+      if (!orderDoc.exists) return;
+      final data = orderDoc.data() ?? {};
+      final buyerUid = data['buyerUid']?.toString();
+      if (buyerUid == null) return;
+
+      final (title, body) = _statusNotificationText(status);
+      await NotificationService.sendToUser(
+        targetUid: buyerUid,
+        title: title,
+        body: body,
+        data: {'route': '/buyer/orders', 'orderId': orderId},
+      );
+    } catch (_) {}
+  }
+
+  /// Текст уведомления по статусу заказа.
+  (String, String) _statusNotificationText(OrderStatus status) {
+    switch (status) {
+      case OrderStatus.confirmed:
+        return ('✅ Заказ подтверждён', 'Продавец принял ваш заказ');
+      case OrderStatus.shipped:
+        return ('🚚 Заказ отправлен', 'Ваш заказ в пути');
+      case OrderStatus.delivered:
+        return ('📦 Заказ доставлен', 'Получите ваш заказ');
+      case OrderStatus.cancelled:
+        return ('❌ Заказ отменён', 'К сожалению, заказ был отменён');
+      case OrderStatus.completed:
+        return ('🎉 Заказ выполнен', 'Спасибо за покупку в SkidKZ!');
+      default:
+        return ('📋 Статус заказа изменён',
+            'Проверьте детали в разделе «Мои заказы»');
+    }
   }
 }

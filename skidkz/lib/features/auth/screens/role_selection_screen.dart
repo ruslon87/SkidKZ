@@ -8,6 +8,7 @@ import 'package:gap/gap.dart';
 
 import 'package:skidkz/core/theme/app_theme.dart';
 import 'package:skidkz/data/models/user_model.dart';
+import 'package:skidkz/data/services/notification_service.dart';
 
 class RoleSelectionScreen extends StatefulWidget {
   const RoleSelectionScreen({super.key});
@@ -235,6 +236,9 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
         SetOptions(merge: true),
       );
 
+      // FCM: подписываемся на топики по ролям и сохраняем токен
+      await NotificationService.subscribeByRoles(mergedRoles);
+      await NotificationService().saveTokenForCurrentUser();
       return;
     } catch (e) {
       if (!mounted) return;

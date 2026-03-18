@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:skidkz/core/theme/app_theme.dart';
+import 'package:skidkz/features/notifications/screens/notifications_screen.dart';
 
 class AdminShell extends StatelessWidget {
   final Widget child;
@@ -23,6 +24,33 @@ class AdminShell extends StatelessWidget {
     }
 
     return Scaffold(
+      appBar: AppBar(
+        backgroundColor: AppTheme.surface,
+        elevation: 0,
+        title: const Text(
+          'SkidKZ Админ',
+          style: TextStyle(
+            color: AppTheme.textPrimary,
+            fontWeight: FontWeight.w700,
+            fontSize: 18,
+          ),
+        ),
+        actions: [
+          NotificationBadge(
+            child: IconButton(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const NotificationsScreen(),
+                ),
+              ),
+              icon: const Icon(Icons.notifications_outlined,
+                  color: AppTheme.textPrimary),
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
       body: child,
       bottomNavigationBar: NavigationBar(
         selectedIndex: currentIndex,

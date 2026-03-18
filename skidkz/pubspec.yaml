@@ -24,10 +24,12 @@ dependencies:
   equatable: ^2.0.8
   gap: ^3.0.1
 
-  # Firebase (backend: auth + firestore)
+  # Firebase (backend: auth + firestore + messaging)
   firebase_core: ^3.0.0
   firebase_auth: ^5.0.0
   cloud_firestore: ^5.0.0
+  firebase_messaging: ^15.0.0
+  flutter_local_notifications: ^17.0.0
 
   # App info (версия/билд)
   package_info_plus: ^8.0.0

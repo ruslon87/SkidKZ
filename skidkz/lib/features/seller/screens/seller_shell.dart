@@ -1,6 +1,7 @@
 // lib/features/seller/screens/seller_shell.dart
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:skidkz/features/notifications/screens/notifications_screen.dart';
 
 class SellerShell extends StatelessWidget {
   final Widget child;
@@ -30,6 +31,33 @@ class SellerShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        title: const Text(
+          'SkidKZ Продавец',
+          style: TextStyle(
+            color: Colors.black87,
+            fontWeight: FontWeight.w700,
+            fontSize: 18,
+          ),
+        ),
+        actions: [
+          NotificationBadge(
+            child: IconButton(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const NotificationsScreen(),
+                ),
+              ),
+              icon: const Icon(Icons.notifications_outlined,
+                  color: Colors.black87),
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
       body: child,
       bottomNavigationBar: NavigationBar(
         selectedIndex: _calculateSelectedIndex(context),

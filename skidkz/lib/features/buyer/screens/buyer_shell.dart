@@ -11,6 +11,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 
 import 'package:skidkz/core/theme/app_theme.dart';
 import 'package:skidkz/core/widgets/app_gradient_background.dart';
+import 'package:skidkz/features/notifications/screens/notifications_screen.dart';
 
 class BuyerShellScope extends InheritedWidget {
   final VoidCallback openDrawer;
@@ -357,7 +358,21 @@ class _BuyerTopBar extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 4),
+              NotificationBadge(
+                child: IconButton(
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const NotificationsScreen(),
+                    ),
+                  ),
+                  icon: const Icon(Icons.notifications_outlined,
+                      color: AppTheme.textPrimary),
+                  splashRadius: 22,
+                ),
+              ),
+              const SizedBox(width: 4),
             ],
           ),
         ),
@@ -365,7 +380,6 @@ class _BuyerTopBar extends StatelessWidget {
     );
   }
 }
-
 class BuyerDrawer extends StatelessWidget {
   const BuyerDrawer({
     super.key,
