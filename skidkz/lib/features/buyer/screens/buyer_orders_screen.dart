@@ -12,22 +12,22 @@ class BuyerOrdersScreen extends StatelessWidget {
   Color _statusColor(OrderStatus s) {
     switch (s) {
       case OrderStatus.created: return Colors.blue;
-      case OrderStatus.confirmed: return Colors.orange;
-      case OrderStatus.shipped: return Colors.purple;
-      case OrderStatus.delivered: return Colors.green;
+      case OrderStatus.submitted: return Colors.orange;
+      case OrderStatus.paid: return Colors.purple;
+      case OrderStatus.completed: return Colors.green;
       case OrderStatus.cancelled: return Colors.red;
-      default: return Colors.grey;
+      case OrderStatus.refunded: return Colors.grey;
     }
   }
 
   String _statusLabel(OrderStatus s) {
     switch (s) {
       case OrderStatus.created: return 'Создан';
-      case OrderStatus.confirmed: return 'Подтверждён';
-      case OrderStatus.shipped: return 'Отправлен';
-      case OrderStatus.delivered: return 'Доставлен';
+      case OrderStatus.submitted: return 'Подтверждён';
+      case OrderStatus.paid: return 'Оплачен';
+      case OrderStatus.completed: return 'Выполнен';
       case OrderStatus.cancelled: return 'Отменён';
-      default: return s.name;
+      case OrderStatus.refunded: return 'Возврат';
     }
   }
 
