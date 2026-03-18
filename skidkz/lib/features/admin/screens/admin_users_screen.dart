@@ -335,7 +335,8 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                     if (createdAt != null) _DetailRow(label: 'Регистрация', value: '${createdAt.day}.${createdAt.month}.${createdAt.year}'),
                   ],
                 ),
-                    if (roles.contains('wanghong')) ...[
+              ),
+              if (roles.contains('wanghong')) ...[
                 const SizedBox(height: 12),
                 _DetailSection(
                   title: 'Данные партнёра',
