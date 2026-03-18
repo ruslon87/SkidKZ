@@ -533,6 +533,10 @@ class WanghongProfile {
   final int totalSales;
   final String status; // active / pending / blocked
 
+  /// % вознаграждения от маржи (задаётся администратором при одобрении)
+  /// Пример: 30.0 = партнёр получает 30% от маржи, платформа — 70%
+  final double wanghongPercent;
+
   const WanghongProfile({
     required this.completed,
     required this.firstName,
@@ -543,6 +547,7 @@ class WanghongProfile {
     required this.totalEarned,
     required this.totalSales,
     required this.status,
+    this.wanghongPercent = 30.0,
   });
 
   String get fullName => '$firstName $lastName'.trim();
@@ -557,6 +562,7 @@ class WanghongProfile {
         totalEarned: 0.0,
         totalSales: 0,
         status: 'pending',
+        wanghongPercent: 30.0,
       );
 
   factory WanghongProfile.fromMap(Map<String, dynamic> m) {
@@ -570,6 +576,7 @@ class WanghongProfile {
       totalEarned: ((m['totalEarned'] as num?) ?? 0).toDouble(),
       totalSales: ((m['totalSales'] as num?) ?? 0).toInt(),
       status: (m['status'] as String?) ?? 'pending',
+      wanghongPercent: ((m['wanghongPercent'] as num?) ?? 30.0).toDouble(),
     );
   }
 
@@ -583,5 +590,6 @@ class WanghongProfile {
         'totalEarned': totalEarned,
         'totalSales': totalSales,
         'status': status,
+        'wanghongPercent': wanghongPercent,
       };
 }

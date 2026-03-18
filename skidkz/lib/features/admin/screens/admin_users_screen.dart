@@ -99,6 +99,92 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
     }
   }
 
+  Future<void> _setWanghongPercent(
+    BuildContext context,
+    String uid,
+    double currentPercent,
+  ) async {
+    double sliderValue = currentPercent.clamp(0.0, 100.0);
+    final confirmed = await showDialog<double>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setS) => AlertDialog(
+          title: const Text('Доля маржи партнёра'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Партнёр получает ${sliderValue.toStringAsFixed(0)}% от маржи при каждой продаже.',
+                style: const TextStyle(fontSize: 14),
+              ),
+              const SizedBox(height: 16),
+              Slider(
+                value: sliderValue,
+                min: 0,
+                max: 100,
+                divisions: 20,
+                label: '${sliderValue.toStringAsFixed(0)}%',
+                activeColor: Colors.purple,
+                onChanged: (v) => setS(() => sliderValue = v),
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('0%', style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.purple.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      'Партнёр: ${sliderValue.toStringAsFixed(0)}%  •  Платформа: ${(100 - sliderValue).toStringAsFixed(0)}%',
+                      style: const TextStyle(
+                        color: Colors.purple,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                  Text('100%', style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Отмена'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, sliderValue),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.purple,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Сохранить'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (confirmed != null) {
+      await FirebaseFirestore.instance.collection('users').doc(uid).update({
+        'profiles.wanghong.wanghongPercent': confirmed,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Доля маржи обновлена: ${confirmed.toStringAsFixed(0)}%'),
+            backgroundColor: Colors.purple,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _toggleBlock(BuildContext context, String uid, bool isBlocked) async {
     final action = isBlocked ? 'разблокировать' : 'заблокировать';
     final confirm = await showDialog<bool>(
@@ -155,6 +241,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
     final promoCode = wanghong['promoCode']?.toString() ?? '';
     final totalEarnings = (wanghong['totalEarnings'] as num?)?.toDouble() ?? 0.0;
     final pendingBalance = (wanghong['pendingBalance'] as num?)?.toDouble() ?? 0.0;
+    final wanghongPercent = ((wanghong['wanghongPercent'] as num?) ?? 30.0).toDouble();
     final storeName = seller['storeName']?.toString() ?? '';
     final createdAt = (data['createdAt'] as Timestamp?)?.toDate();
 
@@ -248,8 +335,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                     if (createdAt != null) _DetailRow(label: 'Регистрация', value: '${createdAt.day}.${createdAt.month}.${createdAt.year}'),
                   ],
                 ),
-              ),
-              if (roles.contains('wanghong')) ...[
+                    if (roles.contains('wanghong')) ...[
                 const SizedBox(height: 12),
                 _DetailSection(
                   title: 'Данные партнёра',
@@ -258,6 +344,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                       if (promoCode.isNotEmpty) _DetailRow(label: 'Промокод', value: promoCode, canCopy: true),
                       _DetailRow(label: 'Заработано', value: '${totalEarnings.toStringAsFixed(0)} ₸'),
                       _DetailRow(label: 'К выплате', value: '${pendingBalance.toStringAsFixed(0)} ₸'),
+                      _DetailRow(label: 'Доля маржи', value: '${wanghongPercent.toStringAsFixed(0)}%'),
                     ],
                   ),
                 ),
@@ -283,6 +370,22 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                 label: const Text('Управление ролями'),
                 style: OutlinedButton.styleFrom(minimumSize: const Size(double.infinity, 48)),
               ),
+              if (roles.contains('wanghong')) ...[  
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    _setWanghongPercent(context, uid, wanghongPercent);
+                  },
+                  icon: const Icon(Icons.percent_outlined, color: Colors.purple),
+                  label: const Text('Доля маржи партнёра'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.purple,
+                    side: const BorderSide(color: Colors.purple),
+                    minimumSize: const Size(double.infinity, 48),
+                  ),
+                ),
+              ],
               const SizedBox(height: 10),
               ElevatedButton.icon(
                 onPressed: () {

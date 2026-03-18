@@ -16,13 +16,18 @@ class Product {
   final String id;
   final String title;
 
-  /// Розничная цена (₸)
+  /// Розничная цена (₸) — цена, которую видит покупатель на витрине
   final int retailPrice;
 
-  /// Маржа (₸)
+  /// Себестоимость / минимальная цена продавца (₸)
+  /// Это нижний порог — продавец не готов продавать ниже этой суммы
+  final int costPrice;
+
+  /// Маржа (₸) = retailPrice - costPrice
+  /// Распределяется между платформой и партнёром (Wanghong)
   final int margin;
 
-  /// Статус: 'active' | 'draft' | 'archived'
+  /// Статус: 'active' | 'draft' | 'archived' | 'pending' | 'rejected'
   final String? status;
 
   /// Обратная совместимость — вычисляется из status
@@ -49,12 +54,17 @@ class Product {
     required this.retailPrice,
     required this.margin,
     required this.images,
+    this.costPrice = 0,
     this.status,
     this.description,
     this.coverUrl,
     this.sellerUid,
     this.createdAt,
   });
+
+  /// Процент маржи от розничной цены
+  double get marginPercent =>
+      retailPrice > 0 ? (margin / retailPrice * 100) : 0.0;
 
   static int _asInt(dynamic v) {
     if (v == null) return 0;
@@ -69,6 +79,8 @@ class Product {
     final s = v.toString().toLowerCase().trim();
     if (s == 'active' || s == 'true' || s == '1' || s == 'yes') return 'active';
     if (s == 'archived') return 'archived';
+    if (s == 'pending') return 'pending';
+    if (s == 'rejected') return 'rejected';
     return 'draft';
   }
 
@@ -96,7 +108,14 @@ class Product {
     final retailPrice = _asInt(
       data['retailPrice'] ?? data['price'] ?? data['finalPrice'],
     );
-    final margin = _asInt(data['margin'] ?? data['profit']);
+    final costPrice = _asInt(
+      data['costPrice'] ?? data['sellerPrice'] ?? data['minPrice'],
+    );
+    // Если margin не задан явно — вычисляем из разницы цен
+    final marginRaw = data['margin'] ?? data['profit'];
+    final margin = marginRaw != null
+        ? _asInt(marginRaw)
+        : (retailPrice - costPrice).clamp(0, retailPrice);
 
     // Приоритет у поля 'status', fallback на isActive/active/published
     final statusRaw = data['status'] ??
@@ -123,6 +142,7 @@ class Product {
       id: doc.id,
       title: title.isEmpty ? 'Без названия' : title,
       retailPrice: retailPrice,
+      costPrice: costPrice,
       margin: margin,
       status: status,
       description: description,
@@ -132,4 +152,19 @@ class Product {
       createdAt: createdAt,
     );
   }
+
+  Map<String, dynamic> toFirestoreMap() => {
+        'title': title,
+        'retailPrice': retailPrice,
+        'costPrice': costPrice,
+        'margin': margin,
+        'status': status ?? 'draft',
+        'description': description ?? '',
+        'coverUrl': coverUrl ?? '',
+        'images': images.map((e) => e.toMap()).toList(),
+        'sellerUid': sellerUid ?? '',
+        'createdAt': createdAt != null
+            ? Timestamp.fromDate(createdAt!)
+            : FieldValue.serverTimestamp(),
+      };
 }
