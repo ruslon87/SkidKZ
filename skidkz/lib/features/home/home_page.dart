@@ -4,9 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:go_router/go_router.dart';
+
 import 'package:skidkz/core/theme/app_theme.dart';
 import 'package:skidkz/data/models/product.dart';
 import 'package:skidkz/features/home/providers/home_products_provider.dart';
+import 'package:skidkz/features/buyer/screens/product_detail_screen.dart';
 
 class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});
@@ -106,8 +109,15 @@ class _HomePageState extends ConsumerState<HomePage> {
                   crossAxisSpacing: 12,
                   childAspectRatio: 0.72,
                 ),
-                itemBuilder: (context, i) =>
-                    _ProductCard(product: products[i]),
+                itemBuilder: (context, i) => _ProductCard(
+                      product: products[i],
+                      onTap: () {
+                        context.push(
+                          '/product-detail',
+                          extra: products[i],
+                        );
+                      },
+                    ),
               ),
           ],
         ),
@@ -162,8 +172,12 @@ class _SearchBar extends StatelessWidget {
 }
 
 class _ProductCard extends StatelessWidget {
-  const _ProductCard({required this.product});
+  const _ProductCard({
+    required this.product,
+    this.onTap,
+  });
   final Product product;
+  final VoidCallback? onTap;
 
   String _formatMoney(int v) {
     final s = v.toString();
@@ -186,9 +200,7 @@ class _ProductCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(18),
       child: InkWell(
         borderRadius: BorderRadius.circular(18),
-        onTap: () {
-          // TODO: открыть карточку товара
-        },
+        onTap: onTap,
         child: Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),

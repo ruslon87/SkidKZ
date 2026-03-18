@@ -20,6 +20,9 @@ import 'package:skidkz/features/buyer/screens/buyer_favorites_screen.dart';
 import 'package:skidkz/features/buyer/screens/buyer_cart_screen.dart';
 import 'package:skidkz/features/buyer/screens/buyer_profile_screen.dart';
 import 'package:skidkz/features/buyer/screens/buyer_orders_screen.dart';
+import 'package:skidkz/features/buyer/screens/product_detail_screen.dart';
+import 'package:skidkz/features/buyer/screens/checkout_screen.dart';
+import 'package:skidkz/data/models/product.dart';
 
 // seller
 import 'package:skidkz/features/seller/screens/seller_shell.dart';
@@ -207,6 +210,24 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => BuyerOnboardingScreen(
           nextPath: state.uri.queryParameters['next'],
         ),
+      ),
+
+      GoRoute(
+        path: '/product-detail',
+        builder: (context, state) {
+          final product = state.extra as Product?;
+          if (product == null) {
+            return const Scaffold(
+              body: Center(child: Text('Товар не найден')),
+            );
+          }
+          return ProductDetailScreen(product: product);
+        },
+      ),
+
+      GoRoute(
+        path: '/checkout',
+        builder: (context, state) => const CheckoutScreen(),
       ),
 
       GoRoute(
