@@ -233,16 +233,16 @@ class OrderRepository {
   /// Текст уведомления по статусу заказа.
   (String, String) _statusNotificationText(OrderStatus status) {
     switch (status) {
-      case OrderStatus.confirmed:
+      case OrderStatus.submitted:
         return ('✅ Заказ подтверждён', 'Продавец принял ваш заказ');
-      case OrderStatus.shipped:
-        return ('🚚 Заказ отправлен', 'Ваш заказ в пути');
-      case OrderStatus.delivered:
-        return ('📦 Заказ доставлен', 'Получите ваш заказ');
+      case OrderStatus.paid:
+        return ('🚚 Заказ оплачен', 'Ваш заказ оплачен и передан продавцу');
       case OrderStatus.cancelled:
         return ('❌ Заказ отменён', 'К сожалению, заказ был отменён');
       case OrderStatus.completed:
         return ('🎉 Заказ выполнен', 'Спасибо за покупку в SkidKZ!');
+      case OrderStatus.refunded:
+        return ('💰 Возврат средств', 'Средства за заказ будут возвращены');
       default:
         return ('📋 Статус заказа изменён',
             'Проверьте детали в разделе «Мои заказы»');
